@@ -479,7 +479,9 @@ export const MarkAlertsReadResponse = zod.object({
  */
 export const GetAlertSettingsResponse = zod.object({
   "scoreDropThreshold": zod.number().describe('Score points (0-100) a brand must deteriorate by to alert'),
-  "rankDropThreshold": zod.number().describe('Ranking positions a brand must fall by to alert')
+  "rankDropThreshold": zod.number().describe('Ranking positions a brand must fall by to alert'),
+  "emailEnabled": zod.boolean().describe('Whether to send an email digest when new alerts fire'),
+  "emailRecipient": zod.string().describe('Recipient address for alert email digests (empty when unset)')
 })
 
 
@@ -490,16 +492,22 @@ export const updateAlertSettingsBodyScoreDropThresholdMax = 100;
 
 export const updateAlertSettingsBodyRankDropThresholdMax = 50;
 
+export const updateAlertSettingsBodyEmailRecipientMax = 320;
+
 
 
 export const UpdateAlertSettingsBody = zod.object({
   "scoreDropThreshold": zod.number().min(1).max(updateAlertSettingsBodyScoreDropThresholdMax),
-  "rankDropThreshold": zod.number().min(1).max(updateAlertSettingsBodyRankDropThresholdMax)
+  "rankDropThreshold": zod.number().min(1).max(updateAlertSettingsBodyRankDropThresholdMax),
+  "emailEnabled": zod.boolean(),
+  "emailRecipient": zod.string().max(updateAlertSettingsBodyEmailRecipientMax)
 })
 
 export const UpdateAlertSettingsResponse = zod.object({
   "scoreDropThreshold": zod.number().describe('Score points (0-100) a brand must deteriorate by to alert'),
-  "rankDropThreshold": zod.number().describe('Ranking positions a brand must fall by to alert')
+  "rankDropThreshold": zod.number().describe('Ranking positions a brand must fall by to alert'),
+  "emailEnabled": zod.boolean().describe('Whether to send an email digest when new alerts fire'),
+  "emailRecipient": zod.string().describe('Recipient address for alert email digests (empty when unset)')
 })
 
 

@@ -651,7 +651,13 @@ components:
         rankDropThreshold:
           type: number
           description: Ranking positions a brand must fall by to alert
-      required: [scoreDropThreshold, rankDropThreshold]
+        emailEnabled:
+          type: boolean
+          description: Whether to send an email digest when new alerts fire
+        emailRecipient:
+          type: string
+          description: Recipient address for alert email digests (empty when unset)
+      required: [scoreDropThreshold, rankDropThreshold, emailEnabled, emailRecipient]
     AlertSettingsInput:
       type: object
       properties:
@@ -663,7 +669,12 @@ components:
           type: number
           minimum: 1
           maximum: 50
-      required: [scoreDropThreshold, rankDropThreshold]
+        emailEnabled:
+          type: boolean
+        emailRecipient:
+          type: string
+          maxLength: 320
+      required: [scoreDropThreshold, rankDropThreshold, emailEnabled, emailRecipient]
     Industry:
       type: object
       properties:

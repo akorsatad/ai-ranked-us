@@ -108,9 +108,18 @@ router.put("/alerts/settings", async (req, res): Promise<void> => {
     res.status(400).json({ message: "Invalid input" });
     return;
   }
+  const recipient = body.data.emailRecipient.trim();
+  if (body.data.emailEnabled && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipient)) {
+    res.status(400).json({
+      message: "A valid recipient email is required when alert emails are on",
+    });
+    return;
+  }
   const updated = await setAlertSettings({
     scoreDropThreshold: body.data.scoreDropThreshold,
     rankDropThreshold: body.data.rankDropThreshold,
+    emailEnabled: body.data.emailEnabled,
+    emailRecipient: recipient,
   });
   res.status(200).json(updated);
   return;

@@ -11,4 +11,8 @@ export interface AlertSettings {
   scoreDropThreshold: number;
   /** Ranking positions a brand must fall by to alert */
   rankDropThreshold: number;
+  /** Whether to send an email digest when new alerts fire */
+  emailEnabled: boolean;
+  /** Recipient address for alert email digests (empty when unset) */
+  emailRecipient: string;
 }

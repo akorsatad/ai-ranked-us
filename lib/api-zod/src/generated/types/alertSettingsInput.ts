@@ -17,4 +17,7 @@ export interface AlertSettingsInput {
      * @maximum 50
      */
   rankDropThreshold: number;
+  emailEnabled: boolean;
+  /** @maxLength 320 */
+  emailRecipient: string;
 }

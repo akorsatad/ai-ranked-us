@@ -57,6 +57,10 @@ export interface AlertSettings {
   scoreDropThreshold: number;
   /** Ranking positions a brand must fall by to alert */
   rankDropThreshold: number;
+  /** Whether to send an email digest when new alerts fire */
+  emailEnabled: boolean;
+  /** Recipient address for alert email digests (empty when unset) */
+  emailRecipient: string;
 }
 
 export interface AlertSettingsInput {
@@ -70,6 +74,9 @@ export interface AlertSettingsInput {
      * @maximum 50
      */
   rankDropThreshold: number;
+  emailEnabled: boolean;
+  /** @maxLength 320 */
+  emailRecipient: string;
 }
 
 export interface Industry {

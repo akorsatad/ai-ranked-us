@@ -17,6 +17,7 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
 
 export default function Alerts() {
@@ -147,6 +148,8 @@ function ThresholdSettings() {
   });
   const [scoreDrop, setScoreDrop] = useState<string | null>(null);
   const [rankDrop, setRankDrop] = useState<string | null>(null);
+  const [emailEnabled, setEmailEnabled] = useState<boolean | null>(null);
+  const [emailRecipient, setEmailRecipient] = useState<string | null>(null);
 
   const update = useUpdateAlertSettings({
     mutation: {
@@ -155,6 +158,8 @@ function ThresholdSettings() {
         queryClient.invalidateQueries({ queryKey: getGetAlertSettingsQueryKey() });
         setScoreDrop(null);
         setRankDrop(null);
+        setEmailEnabled(null);
+        setEmailRecipient(null);
       },
       onError: (error) => {
         toast({ variant: 'destructive', title: 'Failed to update', description: error.message });
@@ -164,7 +169,10 @@ function ThresholdSettings() {
 
   const scoreValue = scoreDrop ?? (settings ? String(settings.scoreDropThreshold) : '');
   const rankValue = rankDrop ?? (settings ? String(settings.rankDropThreshold) : '');
-  const dirty = scoreDrop !== null || rankDrop !== null;
+  const emailOn = emailEnabled ?? settings?.emailEnabled ?? false;
+  const recipientValue = emailRecipient ?? settings?.emailRecipient ?? '';
+  const dirty =
+    scoreDrop !== null || rankDrop !== null || emailEnabled !== null || emailRecipient !== null;
 
   const save = () => {
     const scoreDropThreshold = Number(scoreValue);
@@ -177,7 +185,23 @@ function ThresholdSettings() {
       toast({ variant: 'destructive', title: 'Invalid rank threshold', description: 'Must be between 1 and 50 positions.' });
       return;
     }
-    update.mutate({ data: { scoreDropThreshold, rankDropThreshold } });
+    const recipient = recipientValue.trim();
+    if (emailOn && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipient)) {
+      toast({
+        variant: 'destructive',
+        title: 'Invalid email address',
+        description: 'Enter a valid recipient email to enable alert emails.',
+      });
+      return;
+    }
+    update.mutate({
+      data: {
+        scoreDropThreshold,
+        rankDropThreshold,
+        emailEnabled: emailOn,
+        emailRecipient: recipient,
+      },
+    });
   };
 
   return (
@@ -217,6 +241,38 @@ function ThresholdSettings() {
             onChange={(e) => setRankDrop(e.target.value)}
             data-testid="input-rank-threshold"
           />
+        </div>
+        <div className="w-full border-t border-border pt-4 mt-2 flex flex-wrap items-end gap-4">
+          <div className="space-y-1.5">
+            <Label htmlFor="email-enabled">Email digest</Label>
+            <div className="flex items-center gap-2 h-9">
+              <Switch
+                id="email-enabled"
+                checked={emailOn}
+                onCheckedChange={(checked) => setEmailEnabled(checked)}
+                data-testid="switch-email-enabled"
+              />
+              <span className="text-sm text-muted-foreground font-mono">
+                {emailOn ? 'On' : 'Off'}
+              </span>
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="email-recipient">Recipient email</Label>
+            <Input
+              id="email-recipient"
+              type="email"
+              placeholder="you@example.com"
+              className="w-72 font-mono"
+              value={recipientValue}
+              onChange={(e) => setEmailRecipient(e.target.value)}
+              disabled={!emailOn}
+              data-testid="input-email-recipient"
+            />
+          </div>
+          <p className="text-xs text-muted-foreground basis-full">
+            When on, an email summarizing new alerts is sent after each survey run that detects any.
+          </p>
         </div>
         <Button onClick={save} disabled={!dirty || update.isPending} data-testid="button-save-thresholds">
           Save

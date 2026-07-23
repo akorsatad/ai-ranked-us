@@ -11,9 +11,12 @@ import {
 import { METRICS } from "./metrics";
 import { averageEntries } from "./aggregate";
 import { logger } from "./logger";
+import { sendAlertDigestEmail, type AlertEmailItem } from "./alertEmail";
 
 const SCORE_DROP_KEY = "alert_score_drop_threshold"; // points (0-100 scale)
 const RANK_DROP_KEY = "alert_rank_drop_threshold"; // positions
+const EMAIL_ENABLED_KEY = "alert_email_enabled";
+const EMAIL_RECIPIENT_KEY = "alert_email_recipient";
 
 export const DEFAULT_SCORE_DROP_THRESHOLD = 10;
 export const DEFAULT_RANK_DROP_THRESHOLD = 2;
@@ -21,6 +24,8 @@ export const DEFAULT_RANK_DROP_THRESHOLD = 2;
 export interface AlertSettings {
   scoreDropThreshold: number;
   rankDropThreshold: number;
+  emailEnabled: boolean;
+  emailRecipient: string;
 }
 
 async function readNumberSetting(key: string): Promise<number | null> {
@@ -33,29 +38,41 @@ async function readNumberSetting(key: string): Promise<number | null> {
   return Number.isFinite(value) ? value : null;
 }
 
+async function readStringSetting(key: string): Promise<string | null> {
+  const [row] = await db
+    .select()
+    .from(appSettingsTable)
+    .where(eq(appSettingsTable.key, key));
+  return row?.value ?? null;
+}
+
 export async function getAlertSettings(): Promise<AlertSettings> {
   return {
     scoreDropThreshold:
       (await readNumberSetting(SCORE_DROP_KEY)) ?? DEFAULT_SCORE_DROP_THRESHOLD,
     rankDropThreshold:
       (await readNumberSetting(RANK_DROP_KEY)) ?? DEFAULT_RANK_DROP_THRESHOLD,
+    emailEnabled: (await readStringSetting(EMAIL_ENABLED_KEY)) === "true",
+    emailRecipient: (await readStringSetting(EMAIL_RECIPIENT_KEY)) ?? "",
   };
 }
 
 export async function setAlertSettings(
   settings: AlertSettings,
 ): Promise<AlertSettings> {
-  const entries: [string, number][] = [
-    [SCORE_DROP_KEY, settings.scoreDropThreshold],
-    [RANK_DROP_KEY, settings.rankDropThreshold],
+  const entries: [string, string][] = [
+    [SCORE_DROP_KEY, String(settings.scoreDropThreshold)],
+    [RANK_DROP_KEY, String(settings.rankDropThreshold)],
+    [EMAIL_ENABLED_KEY, settings.emailEnabled ? "true" : "false"],
+    [EMAIL_RECIPIENT_KEY, settings.emailRecipient.trim()],
   ];
   for (const [key, value] of entries) {
     await db
       .insert(appSettingsTable)
-      .values({ key, value: String(value), updatedAt: new Date() })
+      .values({ key, value, updatedAt: new Date() })
       .onConflictDoUpdate({
         target: appSettingsTable.key,
-        set: { value: String(value), updatedAt: new Date() },
+        set: { value, updatedAt: new Date() },
       });
   }
   return getAlertSettings();
@@ -93,6 +110,7 @@ export async function detectAlertsForRun(run: SurveyRunRow): Promise<number> {
     );
 
   let created = 0;
+  const emailItems: AlertEmailItem[] = [];
 
   for (const metric of METRICS) {
     const industryIds = [
@@ -156,6 +174,15 @@ export async function detectAlertsForRun(run: SurveyRunRow): Promise<number> {
             threshold: Math.round(settings.scoreDropThreshold * 10),
           });
           created++;
+          emailItems.push({
+            brandName: entry.brandName,
+            industryName: industry.name,
+            metricLabel: metric.label,
+            kind: "score_drop",
+            previousValue: prev.score,
+            currentValue: entry.score,
+            delta: scoreDeterioration,
+          });
         }
 
         // Rank deterioration: rank number growing means the brand fell.
@@ -176,6 +203,15 @@ export async function detectAlertsForRun(run: SurveyRunRow): Promise<number> {
             threshold: settings.rankDropThreshold,
           });
           created++;
+          emailItems.push({
+            brandName: entry.brandName,
+            industryName: industry.name,
+            metricLabel: metric.label,
+            kind: "rank_drop",
+            previousValue: prev.rank,
+            currentValue: entry.rank,
+            delta: rankDeterioration,
+          });
         }
       }
     }
@@ -185,5 +221,10 @@ export async function detectAlertsForRun(run: SurveyRunRow): Promise<number> {
     { runId: run.id, alertsCreated: created, settings },
     "Alert detection completed",
   );
+
+  if (created > 0 && settings.emailEnabled && settings.emailRecipient) {
+    await sendAlertDigestEmail(settings.emailRecipient, run.id, emailItems);
+  }
+
   return created;
 }
