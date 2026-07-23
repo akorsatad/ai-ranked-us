@@ -5,11 +5,14 @@
  * AI Rank API — daily AI-engine brand sentiment surveys
  * OpenAPI spec version: 0.1.0
  */
+import type { AdminEngineProvider } from './adminEngineProvider';
 
-export interface Industry {
+export interface AdminEngine {
   id: number;
+  key: string;
   name: string;
-  slug: string;
-  country: string;
+  vendor: string;
+  provider: AdminEngineProvider;
+  model: string;
   enabled: boolean;
 }

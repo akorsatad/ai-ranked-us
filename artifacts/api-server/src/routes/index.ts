@@ -4,6 +4,7 @@ import catalogRouter from "./catalog";
 import overviewRouter from "./overview";
 import industriesRouter from "./industries";
 import runsRouter from "./runs";
+import adminRouter from "./admin";
 
 const router: IRouter = Router();
 
@@ -12,5 +13,6 @@ router.use(catalogRouter);
 router.use(overviewRouter);
 router.use(industriesRouter);
 router.use(runsRouter);
+router.use(adminRouter);
 
 export default router;

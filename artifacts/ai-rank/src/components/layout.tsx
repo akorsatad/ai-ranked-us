@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link, useLocation } from 'wouter';
-import { Activity, LayoutDashboard, History, Zap, ServerCrash } from 'lucide-react';
+import { Activity, LayoutDashboard, History, Zap, ServerCrash, Settings } from 'lucide-react';
 import { useHealthCheck, getHealthCheckQueryKey } from '@workspace/api-client-react';
 
 interface LayoutProps {
@@ -19,6 +19,7 @@ export function Layout({ children }: LayoutProps) {
   const navItems = [
     { href: '/', label: 'Overview', icon: LayoutDashboard },
     { href: '/runs', label: 'Runs History', icon: History },
+    { href: '/admin', label: 'Admin', icon: Settings },
   ];
 
   return (

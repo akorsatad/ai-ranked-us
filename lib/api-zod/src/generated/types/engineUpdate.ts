@@ -6,10 +6,9 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface Industry {
-  id: number;
-  name: string;
-  slug: string;
-  country: string;
-  enabled: boolean;
+export interface EngineUpdate {
+  name?: string;
+  vendor?: string;
+  model?: string;
+  enabled?: boolean;
 }

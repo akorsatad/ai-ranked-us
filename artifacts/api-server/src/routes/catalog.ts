@@ -11,9 +11,9 @@ router.get("/catalog", async (_req, res): Promise<void> => {
     db.select().from(enginesTable),
   ]);
   res.status(200).json({
-    industries,
-    brands,
-    engines: engines.map((e) => ({
+    industries: industries.filter((i) => i.enabled),
+    brands: brands.filter((b) => b.enabled),
+    engines: engines.filter((e) => e.enabled).map((e) => ({
       id: e.id,
       key: e.key,
       name: e.name,

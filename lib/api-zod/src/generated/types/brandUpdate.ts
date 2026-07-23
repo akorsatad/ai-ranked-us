@@ -6,10 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface Industry {
-  id: number;
-  name: string;
-  slug: string;
-  country: string;
-  enabled: boolean;
+export interface BrandUpdate {
+  name?: string;
+  enabled?: boolean;
 }

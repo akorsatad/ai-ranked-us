@@ -153,8 +153,12 @@ export async function startSurveyRun(
   const engines = (await db.select().from(enginesTable)).filter(
     (e) => e.enabled,
   );
-  const industries = await db.select().from(industriesTable);
-  const brands = await db.select().from(brandsTable);
+  const industries = (await db.select().from(industriesTable)).filter(
+    (i) => i.enabled,
+  );
+  const brands = (await db.select().from(brandsTable)).filter(
+    (b) => b.enabled,
+  );
 
   const queries: SurveyQuery[] = [];
   for (const engine of engines) {

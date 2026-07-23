@@ -10,4 +10,5 @@ export interface Brand {
   id: number;
   industryId: number;
   name: string;
+  enabled: boolean;
 }

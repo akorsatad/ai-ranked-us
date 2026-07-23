@@ -8,6 +8,11 @@ import { Layout } from './components/layout';
 import Dashboard from './pages/dashboard';
 import Industry from './pages/industry';
 import Runs from './pages/runs';
+import AdminRuns from './pages/admin/runs';
+import AdminBrands from './pages/admin/brands';
+import AdminEngines from './pages/admin/engines';
+import AdminApiKeys from './pages/admin/api-keys';
+import AdminData from './pages/admin/data';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -25,6 +30,12 @@ function Router() {
         <Route path="/" component={Dashboard} />
         <Route path="/industry/:id" component={Industry} />
         <Route path="/runs" component={Runs} />
+        <Route path="/admin" component={AdminRuns} />
+        <Route path="/admin/runs" component={AdminRuns} />
+        <Route path="/admin/brands" component={AdminBrands} />
+        <Route path="/admin/engines" component={AdminEngines} />
+        <Route path="/admin/api-keys" component={AdminApiKeys} />
+        <Route path="/admin/data" component={AdminData} />
         <Route component={NotFound} />
       </Switch>
     </Layout>

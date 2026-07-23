@@ -18,12 +18,132 @@ export interface Industry {
   name: string;
   slug: string;
   country: string;
+  enabled: boolean;
 }
 
 export interface Brand {
   id: number;
   industryId: number;
   name: string;
+  enabled: boolean;
+}
+
+export interface IndustryInput {
+  name: string;
+  country?: string;
+}
+
+export interface IndustryUpdate {
+  name?: string;
+  enabled?: boolean;
+}
+
+export interface BrandInput {
+  industryId: number;
+  name: string;
+}
+
+export interface BrandUpdate {
+  name?: string;
+  enabled?: boolean;
+}
+
+export type AdminEngineProvider = typeof AdminEngineProvider[keyof typeof AdminEngineProvider];
+
+
+export const AdminEngineProvider = {
+  openai: 'openai',
+  anthropic: 'anthropic',
+  gemini: 'gemini',
+  openrouter: 'openrouter',
+} as const;
+
+export interface AdminEngine {
+  id: number;
+  key: string;
+  name: string;
+  vendor: string;
+  provider: AdminEngineProvider;
+  model: string;
+  enabled: boolean;
+}
+
+export type EngineInputProvider = typeof EngineInputProvider[keyof typeof EngineInputProvider];
+
+
+export const EngineInputProvider = {
+  openai: 'openai',
+  anthropic: 'anthropic',
+  gemini: 'gemini',
+  openrouter: 'openrouter',
+} as const;
+
+export interface EngineInput {
+  key: string;
+  name: string;
+  vendor: string;
+  provider: EngineInputProvider;
+  model: string;
+}
+
+export interface EngineUpdate {
+  name?: string;
+  vendor?: string;
+  model?: string;
+  enabled?: boolean;
+}
+
+export interface AdminCatalog {
+  industries: Industry[];
+  brands: Brand[];
+  engines: AdminEngine[];
+}
+
+export type ApiKeyStatusProvider = typeof ApiKeyStatusProvider[keyof typeof ApiKeyStatusProvider];
+
+
+export const ApiKeyStatusProvider = {
+  openai: 'openai',
+  anthropic: 'anthropic',
+  gemini: 'gemini',
+  openrouter: 'openrouter',
+} as const;
+
+/**
+ * Which key the engine calls will use
+ */
+export type ApiKeyStatusSource = typeof ApiKeyStatusSource[keyof typeof ApiKeyStatusSource];
+
+
+export const ApiKeyStatusSource = {
+  stored: 'stored',
+  env: 'env',
+  none: 'none',
+} as const;
+
+export interface ApiKeyStatus {
+  provider: ApiKeyStatusProvider;
+  /**
+     * Last 4 characters of the stored key, or null when none stored
+     * @nullable
+     */
+  maskedKey: string | null;
+  /** Which key the engine calls will use */
+  source: ApiKeyStatusSource;
+}
+
+export interface ApiKeyInput {
+  /** The API key; empty string clears the stored key */
+  apiKey: string;
+}
+
+export type DataPageRowsItem = { [key: string]: unknown };
+
+export interface DataPage {
+  rows: DataPageRowsItem[];
+  total: number;
+  page: number;
+  pageSize: number;
 }
 
 export interface Engine {
@@ -170,5 +290,15 @@ metric: string;
  * Engine key to filter by; omitted = averaged across engines
  */
 engine?: string;
+};
+
+export type BrowseTableParams = {
+page?: number;
+pageSize?: number;
+industryId?: number;
+engineId?: number;
+runId?: number;
+metric?: string;
+status?: string;
 };
 

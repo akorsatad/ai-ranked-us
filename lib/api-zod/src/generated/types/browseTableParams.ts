@@ -6,10 +6,12 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface Industry {
-  id: number;
-  name: string;
-  slug: string;
-  country: string;
-  enabled: boolean;
-}
+export type BrowseTableParams = {
+page?: number;
+pageSize?: number;
+industryId?: number;
+engineId?: number;
+runId?: number;
+metric?: string;
+status?: string;
+};

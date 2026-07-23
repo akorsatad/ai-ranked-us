@@ -15,6 +15,7 @@ export const industriesTable = pgTable("industries", {
   name: text("name").notNull(),
   slug: text("slug").notNull().unique(),
   country: text("country").notNull().default("US"),
+  enabled: boolean("enabled").notNull().default(true),
 });
 
 export const brandsTable = pgTable("brands", {
@@ -23,6 +24,7 @@ export const brandsTable = pgTable("brands", {
     .notNull()
     .references(() => industriesTable.id),
   name: text("name").notNull(),
+  enabled: boolean("enabled").notNull().default(true),
 });
 
 export const enginesTable = pgTable("engines", {
@@ -33,6 +35,14 @@ export const enginesTable = pgTable("engines", {
   provider: text("provider").notNull(), // openai | anthropic | gemini | openrouter
   model: text("model").notNull(),
   enabled: boolean("enabled").notNull().default(true),
+});
+
+export const appSettingsTable = pgTable("app_settings", {
+  key: text("key").primaryKey(),
+  value: text("value").notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
 });
 
 export const surveyRunsTable = pgTable("survey_runs", {

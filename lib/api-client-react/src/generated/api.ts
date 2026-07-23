@@ -20,19 +20,33 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
+  AdminCatalog,
+  AdminEngine,
+  ApiKeyInput,
+  ApiKeyStatus,
   ApiMessage,
+  Brand,
+  BrandInput,
+  BrandUpdate,
+  BrowseTableParams,
   Catalog,
+  DataPage,
+  EngineInput,
+  EngineUpdate,
   GetIndustryRankingsParams,
   GetIndustryTrendsParams,
   HealthStatus,
+  Industry,
+  IndustryInput,
   IndustryRankings,
   IndustryTrends,
+  IndustryUpdate,
   Overview,
   SurveyRun
 } from './api.schemas';
 
 import { customFetch } from '../custom-fetch';
-import type { ErrorType } from '../custom-fetch';
+import type { ErrorType , BodyType } from '../custom-fetch';
 
 type AwaitedInput<T> = PromiseLike<T> | T;
 
@@ -615,4 +629,748 @@ export const useTriggerRun = <TError = ErrorType<ApiMessage>,
       > => {
       return useMutation(getTriggerRunMutationOptions(options));
     }
+
+export const getGetAdminCatalogUrl = () => {
+
+
+
+
+  return `/api/admin/catalog`
+}
+
+/**
+ * @summary Full admin catalog including disabled items and engine details
+ */
+export const getAdminCatalog = async ( options?: RequestInit): Promise<AdminCatalog> => {
+
+  return customFetch<AdminCatalog>(getGetAdminCatalogUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetAdminCatalogQueryKey = () => {
+    return [
+    `/api/admin/catalog`
+    ] as const;
+    }
+
+
+export const getGetAdminCatalogQueryOptions = <TData = Awaited<ReturnType<typeof getAdminCatalog>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAdminCatalog>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetAdminCatalogQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getAdminCatalog>>> = ({ signal }) => getAdminCatalog({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getAdminCatalog>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetAdminCatalogQueryResult = NonNullable<Awaited<ReturnType<typeof getAdminCatalog>>>
+export type GetAdminCatalogQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Full admin catalog including disabled items and engine details
+ */
+
+export function useGetAdminCatalog<TData = Awaited<ReturnType<typeof getAdminCatalog>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAdminCatalog>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetAdminCatalogQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateIndustryUrl = () => {
+
+
+
+
+  return `/api/admin/industries`
+}
+
+/**
+ * @summary Create an industry
+ */
+export const createIndustry = async (industryInput: IndustryInput, options?: RequestInit): Promise<Industry> => {
+
+  return customFetch<Industry>(getCreateIndustryUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(industryInput)
+  }
+);}
+
+
+
+
+
+export const getCreateIndustryMutationOptions = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createIndustry>>, TError,{data: BodyType<IndustryInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createIndustry>>, TError,{data: BodyType<IndustryInput>}, TContext> => {
+
+const mutationKey = ['createIndustry'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createIndustry>>, {data: BodyType<IndustryInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createIndustry(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateIndustryMutationResult = NonNullable<Awaited<ReturnType<typeof createIndustry>>>
+    export type CreateIndustryMutationBody = BodyType<IndustryInput>
+    export type CreateIndustryMutationError = ErrorType<ApiMessage>
+
+    /**
+ * @summary Create an industry
+ */
+export const useCreateIndustry = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createIndustry>>, TError,{data: BodyType<IndustryInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createIndustry>>,
+        TError,
+        {data: BodyType<IndustryInput>},
+        TContext
+      > => {
+      return useMutation(getCreateIndustryMutationOptions(options));
+    }
+
+export const getUpdateIndustryUrl = (industryId: number,) => {
+
+
+
+
+  return `/api/admin/industries/${industryId}`
+}
+
+/**
+ * @summary Update or enable/disable an industry
+ */
+export const updateIndustry = async (industryId: number,
+    industryUpdate: IndustryUpdate, options?: RequestInit): Promise<Industry> => {
+
+  return customFetch<Industry>(getUpdateIndustryUrl(industryId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(industryUpdate)
+  }
+);}
+
+
+
+
+
+export const getUpdateIndustryMutationOptions = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateIndustry>>, TError,{industryId: number;data: BodyType<IndustryUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateIndustry>>, TError,{industryId: number;data: BodyType<IndustryUpdate>}, TContext> => {
+
+const mutationKey = ['updateIndustry'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateIndustry>>, {industryId: number;data: BodyType<IndustryUpdate>}> = (props) => {
+          const {industryId,data} = props ?? {};
+
+          return  updateIndustry(industryId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateIndustryMutationResult = NonNullable<Awaited<ReturnType<typeof updateIndustry>>>
+    export type UpdateIndustryMutationBody = BodyType<IndustryUpdate>
+    export type UpdateIndustryMutationError = ErrorType<ApiMessage>
+
+    /**
+ * @summary Update or enable/disable an industry
+ */
+export const useUpdateIndustry = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateIndustry>>, TError,{industryId: number;data: BodyType<IndustryUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateIndustry>>,
+        TError,
+        {industryId: number;data: BodyType<IndustryUpdate>},
+        TContext
+      > => {
+      return useMutation(getUpdateIndustryMutationOptions(options));
+    }
+
+export const getCreateBrandUrl = () => {
+
+
+
+
+  return `/api/admin/brands`
+}
+
+/**
+ * @summary Create a brand in an industry
+ */
+export const createBrand = async (brandInput: BrandInput, options?: RequestInit): Promise<Brand> => {
+
+  return customFetch<Brand>(getCreateBrandUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(brandInput)
+  }
+);}
+
+
+
+
+
+export const getCreateBrandMutationOptions = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createBrand>>, TError,{data: BodyType<BrandInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createBrand>>, TError,{data: BodyType<BrandInput>}, TContext> => {
+
+const mutationKey = ['createBrand'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createBrand>>, {data: BodyType<BrandInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createBrand(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateBrandMutationResult = NonNullable<Awaited<ReturnType<typeof createBrand>>>
+    export type CreateBrandMutationBody = BodyType<BrandInput>
+    export type CreateBrandMutationError = ErrorType<ApiMessage>
+
+    /**
+ * @summary Create a brand in an industry
+ */
+export const useCreateBrand = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createBrand>>, TError,{data: BodyType<BrandInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createBrand>>,
+        TError,
+        {data: BodyType<BrandInput>},
+        TContext
+      > => {
+      return useMutation(getCreateBrandMutationOptions(options));
+    }
+
+export const getUpdateBrandUrl = (brandId: number,) => {
+
+
+
+
+  return `/api/admin/brands/${brandId}`
+}
+
+/**
+ * @summary Update or enable/disable a brand
+ */
+export const updateBrand = async (brandId: number,
+    brandUpdate: BrandUpdate, options?: RequestInit): Promise<Brand> => {
+
+  return customFetch<Brand>(getUpdateBrandUrl(brandId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(brandUpdate)
+  }
+);}
+
+
+
+
+
+export const getUpdateBrandMutationOptions = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateBrand>>, TError,{brandId: number;data: BodyType<BrandUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateBrand>>, TError,{brandId: number;data: BodyType<BrandUpdate>}, TContext> => {
+
+const mutationKey = ['updateBrand'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateBrand>>, {brandId: number;data: BodyType<BrandUpdate>}> = (props) => {
+          const {brandId,data} = props ?? {};
+
+          return  updateBrand(brandId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateBrandMutationResult = NonNullable<Awaited<ReturnType<typeof updateBrand>>>
+    export type UpdateBrandMutationBody = BodyType<BrandUpdate>
+    export type UpdateBrandMutationError = ErrorType<ApiMessage>
+
+    /**
+ * @summary Update or enable/disable a brand
+ */
+export const useUpdateBrand = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateBrand>>, TError,{brandId: number;data: BodyType<BrandUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateBrand>>,
+        TError,
+        {brandId: number;data: BodyType<BrandUpdate>},
+        TContext
+      > => {
+      return useMutation(getUpdateBrandMutationOptions(options));
+    }
+
+export const getCreateEngineUrl = () => {
+
+
+
+
+  return `/api/admin/engines`
+}
+
+/**
+ * @summary Add an AI engine
+ */
+export const createEngine = async (engineInput: EngineInput, options?: RequestInit): Promise<AdminEngine> => {
+
+  return customFetch<AdminEngine>(getCreateEngineUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(engineInput)
+  }
+);}
+
+
+
+
+
+export const getCreateEngineMutationOptions = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createEngine>>, TError,{data: BodyType<EngineInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createEngine>>, TError,{data: BodyType<EngineInput>}, TContext> => {
+
+const mutationKey = ['createEngine'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createEngine>>, {data: BodyType<EngineInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createEngine(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateEngineMutationResult = NonNullable<Awaited<ReturnType<typeof createEngine>>>
+    export type CreateEngineMutationBody = BodyType<EngineInput>
+    export type CreateEngineMutationError = ErrorType<ApiMessage>
+
+    /**
+ * @summary Add an AI engine
+ */
+export const useCreateEngine = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createEngine>>, TError,{data: BodyType<EngineInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createEngine>>,
+        TError,
+        {data: BodyType<EngineInput>},
+        TContext
+      > => {
+      return useMutation(getCreateEngineMutationOptions(options));
+    }
+
+export const getUpdateEngineUrl = (engineId: number,) => {
+
+
+
+
+  return `/api/admin/engines/${engineId}`
+}
+
+/**
+ * @summary Update or enable/disable an engine
+ */
+export const updateEngine = async (engineId: number,
+    engineUpdate: EngineUpdate, options?: RequestInit): Promise<AdminEngine> => {
+
+  return customFetch<AdminEngine>(getUpdateEngineUrl(engineId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(engineUpdate)
+  }
+);}
+
+
+
+
+
+export const getUpdateEngineMutationOptions = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateEngine>>, TError,{engineId: number;data: BodyType<EngineUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateEngine>>, TError,{engineId: number;data: BodyType<EngineUpdate>}, TContext> => {
+
+const mutationKey = ['updateEngine'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateEngine>>, {engineId: number;data: BodyType<EngineUpdate>}> = (props) => {
+          const {engineId,data} = props ?? {};
+
+          return  updateEngine(engineId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateEngineMutationResult = NonNullable<Awaited<ReturnType<typeof updateEngine>>>
+    export type UpdateEngineMutationBody = BodyType<EngineUpdate>
+    export type UpdateEngineMutationError = ErrorType<ApiMessage>
+
+    /**
+ * @summary Update or enable/disable an engine
+ */
+export const useUpdateEngine = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateEngine>>, TError,{engineId: number;data: BodyType<EngineUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateEngine>>,
+        TError,
+        {engineId: number;data: BodyType<EngineUpdate>},
+        TContext
+      > => {
+      return useMutation(getUpdateEngineMutationOptions(options));
+    }
+
+export const getListApiKeysUrl = () => {
+
+
+
+
+  return `/api/admin/api-keys`
+}
+
+/**
+ * @summary Per-provider API key status (masked)
+ */
+export const listApiKeys = async ( options?: RequestInit): Promise<ApiKeyStatus[]> => {
+
+  return customFetch<ApiKeyStatus[]>(getListApiKeysUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListApiKeysQueryKey = () => {
+    return [
+    `/api/admin/api-keys`
+    ] as const;
+    }
+
+
+export const getListApiKeysQueryOptions = <TData = Awaited<ReturnType<typeof listApiKeys>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listApiKeys>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListApiKeysQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listApiKeys>>> = ({ signal }) => listApiKeys({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listApiKeys>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListApiKeysQueryResult = NonNullable<Awaited<ReturnType<typeof listApiKeys>>>
+export type ListApiKeysQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Per-provider API key status (masked)
+ */
+
+export function useListApiKeys<TData = Awaited<ReturnType<typeof listApiKeys>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listApiKeys>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListApiKeysQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getSetApiKeyUrl = (provider: 'openai' | 'anthropic' | 'gemini' | 'openrouter',) => {
+
+
+
+
+  return `/api/admin/api-keys/${provider}`
+}
+
+/**
+ * @summary Set or clear a provider API key (empty string clears)
+ */
+export const setApiKey = async (provider: 'openai' | 'anthropic' | 'gemini' | 'openrouter',
+    apiKeyInput: ApiKeyInput, options?: RequestInit): Promise<ApiKeyStatus> => {
+
+  return customFetch<ApiKeyStatus>(getSetApiKeyUrl(provider),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(apiKeyInput)
+  }
+);}
+
+
+
+
+
+export const getSetApiKeyMutationOptions = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setApiKey>>, TError,{provider: 'openai' | 'anthropic' | 'gemini' | 'openrouter';data: BodyType<ApiKeyInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof setApiKey>>, TError,{provider: 'openai' | 'anthropic' | 'gemini' | 'openrouter';data: BodyType<ApiKeyInput>}, TContext> => {
+
+const mutationKey = ['setApiKey'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof setApiKey>>, {provider: 'openai' | 'anthropic' | 'gemini' | 'openrouter';data: BodyType<ApiKeyInput>}> = (props) => {
+          const {provider,data} = props ?? {};
+
+          return  setApiKey(provider,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SetApiKeyMutationResult = NonNullable<Awaited<ReturnType<typeof setApiKey>>>
+    export type SetApiKeyMutationBody = BodyType<ApiKeyInput>
+    export type SetApiKeyMutationError = ErrorType<ApiMessage>
+
+    /**
+ * @summary Set or clear a provider API key (empty string clears)
+ */
+export const useSetApiKey = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setApiKey>>, TError,{provider: 'openai' | 'anthropic' | 'gemini' | 'openrouter';data: BodyType<ApiKeyInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof setApiKey>>,
+        TError,
+        {provider: 'openai' | 'anthropic' | 'gemini' | 'openrouter';data: BodyType<ApiKeyInput>},
+        TContext
+      > => {
+      return useMutation(getSetApiKeyMutationOptions(options));
+    }
+
+export const getBrowseTableUrl = (table: 'industries' | 'brands' | 'engines' | 'survey_runs' | 'survey_responses',
+    params?: BrowseTableParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/admin/data/${table}?${stringifiedParams}` : `/api/admin/data/${table}`
+}
+
+/**
+ * @summary Read-only paginated rows from a core table
+ */
+export const browseTable = async (table: 'industries' | 'brands' | 'engines' | 'survey_runs' | 'survey_responses',
+    params?: BrowseTableParams, options?: RequestInit): Promise<DataPage> => {
+
+  return customFetch<DataPage>(getBrowseTableUrl(table,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getBrowseTableQueryKey = (table: 'industries' | 'brands' | 'engines' | 'survey_runs' | 'survey_responses',
+    params?: BrowseTableParams,) => {
+    return [
+    `/api/admin/data/${table}`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getBrowseTableQueryOptions = <TData = Awaited<ReturnType<typeof browseTable>>, TError = ErrorType<ApiMessage>>(table: 'industries' | 'brands' | 'engines' | 'survey_runs' | 'survey_responses',
+    params?: BrowseTableParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof browseTable>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getBrowseTableQueryKey(table,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof browseTable>>> = ({ signal }) => browseTable(table,params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: table !== null && table !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof browseTable>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type BrowseTableQueryResult = NonNullable<Awaited<ReturnType<typeof browseTable>>>
+export type BrowseTableQueryError = ErrorType<ApiMessage>
+
+
+/**
+ * @summary Read-only paginated rows from a core table
+ */
+
+export function useBrowseTable<TData = Awaited<ReturnType<typeof browseTable>>, TError = ErrorType<ApiMessage>>(
+ table: 'industries' | 'brands' | 'engines' | 'survey_runs' | 'survey_responses',
+    params?: BrowseTableParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof browseTable>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getBrowseTableQueryOptions(table,params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 

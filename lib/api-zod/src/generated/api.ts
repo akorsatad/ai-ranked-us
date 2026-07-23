@@ -25,12 +25,14 @@ export const GetCatalogResponse = zod.object({
   "id": zod.number(),
   "name": zod.string(),
   "slug": zod.string(),
-  "country": zod.string()
+  "country": zod.string(),
+  "enabled": zod.boolean()
 })),
   "brands": zod.array(zod.object({
   "id": zod.number(),
   "industryId": zod.number(),
-  "name": zod.string()
+  "name": zod.string(),
+  "enabled": zod.boolean()
 })),
   "engines": zod.array(zod.object({
   "id": zod.number(),
@@ -174,6 +176,210 @@ export const TriggerRunResponse = zod.object({
   "totalQueries": zod.number(),
   "succeededQueries": zod.number(),
   "failedQueries": zod.number()
+})
+
+
+/**
+ * @summary Full admin catalog including disabled items and engine details
+ */
+export const GetAdminCatalogResponse = zod.object({
+  "industries": zod.array(zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "slug": zod.string(),
+  "country": zod.string(),
+  "enabled": zod.boolean()
+})),
+  "brands": zod.array(zod.object({
+  "id": zod.number(),
+  "industryId": zod.number(),
+  "name": zod.string(),
+  "enabled": zod.boolean()
+})),
+  "engines": zod.array(zod.object({
+  "id": zod.number(),
+  "key": zod.string(),
+  "name": zod.string(),
+  "vendor": zod.string(),
+  "provider": zod.enum(['openai', 'anthropic', 'gemini', 'openrouter']),
+  "model": zod.string(),
+  "enabled": zod.boolean()
+}))
+})
+
+
+/**
+ * @summary Create an industry
+ */
+export const CreateIndustryBody = zod.object({
+  "name": zod.string(),
+  "country": zod.string().optional()
+})
+
+export const CreateIndustryResponse = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "slug": zod.string(),
+  "country": zod.string(),
+  "enabled": zod.boolean()
+})
+
+
+/**
+ * @summary Update or enable/disable an industry
+ */
+export const UpdateIndustryParams = zod.object({
+  "industryId": zod.coerce.number()
+})
+
+export const UpdateIndustryBody = zod.object({
+  "name": zod.string().optional(),
+  "enabled": zod.boolean().optional()
+})
+
+export const UpdateIndustryResponse = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "slug": zod.string(),
+  "country": zod.string(),
+  "enabled": zod.boolean()
+})
+
+
+/**
+ * @summary Create a brand in an industry
+ */
+export const CreateBrandBody = zod.object({
+  "industryId": zod.number(),
+  "name": zod.string()
+})
+
+export const CreateBrandResponse = zod.object({
+  "id": zod.number(),
+  "industryId": zod.number(),
+  "name": zod.string(),
+  "enabled": zod.boolean()
+})
+
+
+/**
+ * @summary Update or enable/disable a brand
+ */
+export const UpdateBrandParams = zod.object({
+  "brandId": zod.coerce.number()
+})
+
+export const UpdateBrandBody = zod.object({
+  "name": zod.string().optional(),
+  "enabled": zod.boolean().optional()
+})
+
+export const UpdateBrandResponse = zod.object({
+  "id": zod.number(),
+  "industryId": zod.number(),
+  "name": zod.string(),
+  "enabled": zod.boolean()
+})
+
+
+/**
+ * @summary Add an AI engine
+ */
+export const CreateEngineBody = zod.object({
+  "key": zod.string(),
+  "name": zod.string(),
+  "vendor": zod.string(),
+  "provider": zod.enum(['openai', 'anthropic', 'gemini', 'openrouter']),
+  "model": zod.string()
+})
+
+export const CreateEngineResponse = zod.object({
+  "id": zod.number(),
+  "key": zod.string(),
+  "name": zod.string(),
+  "vendor": zod.string(),
+  "provider": zod.enum(['openai', 'anthropic', 'gemini', 'openrouter']),
+  "model": zod.string(),
+  "enabled": zod.boolean()
+})
+
+
+/**
+ * @summary Update or enable/disable an engine
+ */
+export const UpdateEngineParams = zod.object({
+  "engineId": zod.coerce.number()
+})
+
+export const UpdateEngineBody = zod.object({
+  "name": zod.string().optional(),
+  "vendor": zod.string().optional(),
+  "model": zod.string().optional(),
+  "enabled": zod.boolean().optional()
+})
+
+export const UpdateEngineResponse = zod.object({
+  "id": zod.number(),
+  "key": zod.string(),
+  "name": zod.string(),
+  "vendor": zod.string(),
+  "provider": zod.enum(['openai', 'anthropic', 'gemini', 'openrouter']),
+  "model": zod.string(),
+  "enabled": zod.boolean()
+})
+
+
+/**
+ * @summary Per-provider API key status (masked)
+ */
+export const ListApiKeysResponseItem = zod.object({
+  "provider": zod.enum(['openai', 'anthropic', 'gemini', 'openrouter']),
+  "maskedKey": zod.string().nullable().describe('Last 4 characters of the stored key, or null when none stored'),
+  "source": zod.enum(['stored', 'env', 'none']).describe('Which key the engine calls will use')
+})
+export const ListApiKeysResponse = zod.array(ListApiKeysResponseItem)
+
+
+/**
+ * @summary Set or clear a provider API key (empty string clears)
+ */
+export const SetApiKeyParams = zod.object({
+  "provider": zod.enum(['openai', 'anthropic', 'gemini', 'openrouter'])
+})
+
+export const SetApiKeyBody = zod.object({
+  "apiKey": zod.string().describe('The API key; empty string clears the stored key')
+})
+
+export const SetApiKeyResponse = zod.object({
+  "provider": zod.enum(['openai', 'anthropic', 'gemini', 'openrouter']),
+  "maskedKey": zod.string().nullable().describe('Last 4 characters of the stored key, or null when none stored'),
+  "source": zod.enum(['stored', 'env', 'none']).describe('Which key the engine calls will use')
+})
+
+
+/**
+ * @summary Read-only paginated rows from a core table
+ */
+export const BrowseTableParams = zod.object({
+  "table": zod.enum(['industries', 'brands', 'engines', 'survey_runs', 'survey_responses'])
+})
+
+export const BrowseTableQueryParams = zod.object({
+  "page": zod.coerce.number().optional(),
+  "pageSize": zod.coerce.number().optional(),
+  "industryId": zod.coerce.number().optional(),
+  "engineId": zod.coerce.number().optional(),
+  "runId": zod.coerce.number().optional(),
+  "metric": zod.coerce.string().optional(),
+  "status": zod.coerce.string().optional()
+})
+
+export const BrowseTableResponse = zod.object({
+  "rows": zod.array(zod.record(zod.string(), zod.unknown())),
+  "total": zod.number(),
+  "page": zod.number(),
+  "pageSize": zod.number()
 })
 
 
