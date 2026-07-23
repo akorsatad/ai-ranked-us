@@ -35,6 +35,7 @@ import {
   clearStoredPromptTemplate,
   missingRequiredPlaceholders,
 } from "../lib/promptTemplate";
+import { requestAutoScopedRun } from "../lib/survey";
 
 const router: IRouter = Router();
 
@@ -168,6 +169,35 @@ router.patch("/industries/:id", async (req, res): Promise<void> => {
 
 // ---------- Brands ----------
 
+/**
+ * If the given (enabled) brand is now the ONLY enabled brand of an enabled
+ * industry, request an automatic survey run scoped to that industry so it
+ * populates with data right away.
+ */
+async function maybeAutoSurveyFirstEnabledBrand(
+  req: { log: { info: (obj: object, msg: string) => void } },
+  industryId: number,
+  brandId: number,
+): Promise<void> {
+  const [industry] = await db
+    .select()
+    .from(industriesTable)
+    .where(eq(industriesTable.id, industryId));
+  if (!industry?.enabled) return;
+  const [countRow] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(brandsTable)
+    .where(
+      and(eq(brandsTable.industryId, industryId), eq(brandsTable.enabled, true)),
+    );
+  if ((countRow?.count ?? 0) !== 1) return;
+  req.log.info(
+    { industryId, brandId },
+    "Industry got its first enabled brand — requesting automatic scoped survey run",
+  );
+  requestAutoScopedRun(industryId);
+}
+
 router.post("/brands", async (req, res): Promise<void> => {
   const parsed = CreateBrandBody.safeParse(req.body);
   if (!parsed.success) {
@@ -190,6 +220,15 @@ router.post("/brands", async (req, res): Promise<void> => {
         name: parsed.data.name.trim(),
       })
       .returning();
+    // If this is the industry's first enabled brand, kick off an automatic
+    // survey run scoped to this industry so it populates with data right away.
+    if (row && row.enabled) {
+      await maybeAutoSurveyFirstEnabledBrand(
+        req,
+        parsed.data.industryId,
+        row.id,
+      );
+    }
     res.status(201).json(row);
   } catch (err) {
     if (isUniqueViolation(err)) {
@@ -224,6 +263,10 @@ router.patch("/brands/:id", async (req, res): Promise<void> => {
     }
   }
   try {
+    const [previous] = await db
+      .select()
+      .from(brandsTable)
+      .where(eq(brandsTable.id, id));
     const [row] = await db
       .update(brandsTable)
       .set(parsed.data)
@@ -232,6 +275,14 @@ router.patch("/brands/:id", async (req, res): Promise<void> => {
     if (!row) {
       res.status(404).json({ message: "Brand not found" });
       return;
+    }
+    // Auto-survey when an industry gains its first enabled brand through this
+    // update (brand re-enabled, or an enabled brand moved to a new industry).
+    const becameEnabledHere =
+      row.enabled &&
+      (!previous?.enabled || previous.industryId !== row.industryId);
+    if (becameEnabledHere) {
+      await maybeAutoSurveyFirstEnabledBrand(req, row.industryId, row.id);
     }
     res.status(200).json(row);
   } catch (err) {

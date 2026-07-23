@@ -451,6 +451,7 @@ export type SurveyRunTrigger = typeof SurveyRunTrigger[keyof typeof SurveyRunTri
 export const SurveyRunTrigger = {
   scheduled: 'scheduled',
   manual: 'manual',
+  auto: 'auto',
 } as const;
 
 export interface SurveyRun {

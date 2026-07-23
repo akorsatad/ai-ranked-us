@@ -1202,7 +1202,7 @@ components:
           enum: [running, completed, failed, partial]
         trigger:
           type: string
-          enum: [scheduled, manual]
+          enum: [scheduled, manual, auto]
         industryId:
           type: ["integer", "null"]
           description: When set, the run was scoped to this industry only

@@ -26,6 +26,58 @@ export function isRunInProgress(): boolean {
   return runInProgress;
 }
 
+/**
+ * Industries waiting for an automatic scoped survey run. Populated when an
+ * auto run is requested while another run is already in progress; drained
+ * as soon as the current run finishes.
+ */
+const pendingAutoRunIndustryIds: number[] = [];
+
+/**
+ * Request an automatic survey run scoped to one industry (e.g. right after
+ * the industry gets its first brand). If a run is already in progress the
+ * request is queued and started once the current run finishes, instead of
+ * being dropped. Industries with no enabled brands are skipped at start
+ * time (they would produce zero queries).
+ */
+export function requestAutoScopedRun(industryId: number): void {
+  if (runInProgress) {
+    if (!pendingAutoRunIndustryIds.includes(industryId)) {
+      pendingAutoRunIndustryIds.push(industryId);
+      logger.info(
+        { industryId },
+        "Run in progress — queued automatic scoped survey run",
+      );
+    }
+    return;
+  }
+  void startSurveyRun("auto", industryId)
+    .then((run) => {
+      if (run) {
+        logger.info(
+          { runId: run.id, industryId },
+          "Automatic scoped survey run started",
+        );
+      } else if (runInProgress) {
+        // Lost the race to another run; re-queue instead of dropping.
+        requestAutoScopedRun(industryId);
+      }
+      // Otherwise the run was skipped (no surveyable queries) — nothing to do.
+    })
+    .catch((err) => {
+      logger.error(
+        { err, industryId },
+        "Failed to start automatic scoped survey run",
+      );
+    });
+}
+
+function drainPendingAutoRuns(): void {
+  const industryId = pendingAutoRunIndustryIds.shift();
+  if (industryId === undefined) return;
+  requestAutoScopedRun(industryId);
+}
+
 interface SurveyQuery {
   engine: EngineRow;
   industry: IndustryRow;
@@ -138,12 +190,32 @@ function parseResponse(
 }
 
 export async function startSurveyRun(
-  trigger: "scheduled" | "manual",
+  trigger: "scheduled" | "manual" | "auto",
   industryId?: number,
 ): Promise<SurveyRunRow | null> {
   if (runInProgress) return null;
   runInProgress = true;
+  try {
+    const run = await beginSurveyRun(trigger, industryId);
+    if (!run) {
+      // Nothing was started (e.g. zero surveyable queries) — release the lock.
+      runInProgress = false;
+      drainPendingAutoRuns();
+    }
+    return run;
+  } catch (err) {
+    // Release the lock if setup fails before the background run takes over,
+    // then let queued auto runs proceed.
+    runInProgress = false;
+    drainPendingAutoRuns();
+    throw err;
+  }
+}
 
+async function beginSurveyRun(
+  trigger: "scheduled" | "manual" | "auto",
+  industryId?: number,
+): Promise<SurveyRunRow | null> {
   const engines = (await db.select().from(enginesTable)).filter(
     (e) => e.enabled,
   );
@@ -167,6 +239,16 @@ export async function startSurveyRun(
     }
   }
 
+  // Auto-triggered scoped runs with nothing to survey (e.g. industry has no
+  // enabled brands yet) are skipped silently rather than recorded as empty runs.
+  if (trigger === "auto" && queries.length === 0) {
+    logger.info(
+      { industryId },
+      "Skipping automatic scoped run — no surveyable queries",
+    );
+    return null;
+  }
+
   const [run] = await db
     .insert(surveyRunsTable)
     .values({
@@ -178,7 +260,6 @@ export async function startSurveyRun(
     .returning();
 
   if (!run) {
-    runInProgress = false;
     throw new Error("Failed to create survey run");
   }
 
@@ -189,6 +270,7 @@ export async function startSurveyRun(
     })
     .finally(() => {
       runInProgress = false;
+      drainPendingAutoRuns();
     });
 
   return run;

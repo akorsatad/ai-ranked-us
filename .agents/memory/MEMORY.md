@@ -1,4 +1,5 @@
 - [Bundled server needs SDK deps locally](bundled-server-deps.md) — npm packages used via workspace libs must also be direct api-server deps, or the esbuild bundle fails to resolve them at runtime.
 - [Stale composite lib type builds](stale-composite-lib-types.md) — "missing export" typecheck errors from @workspace/db or api-zod usually mean stale dist; run `tsc -b lib/db lib/api-zod` first.
 - [Admin auth bootstrap](admin-auth-bootstrap.md) — first signed-in Clerk user claims sole admin via admin_users table; others get 403.
+- [Dev DB schema drift](dev-db-schema-drift.md) — "column does not exist" at runtime usually means run drizzle push in lib/db, not a code bug.
 - [Orval params name collisions](orval-param-collisions.md) — ops with both path+query params can collide in api-zod barrel; fix via explicit re-export in lib/api-zod/src/index.ts (existing pattern there).

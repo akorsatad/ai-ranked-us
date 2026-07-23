@@ -56,7 +56,7 @@ export const GetOverviewResponse = zod.object({
   "lastRun": zod.union([zod.object({
   "id": zod.number(),
   "status": zod.enum(['running', 'completed', 'failed', 'partial']),
-  "trigger": zod.enum(['scheduled', 'manual']),
+  "trigger": zod.enum(['scheduled', 'manual', 'auto']),
   "industryId": zod.number().nullable().describe('When set, the run was scoped to this industry only'),
   "startedAt": zod.string(),
   "completedAt": zod.string().nullable(),
@@ -206,7 +206,7 @@ export const GetIndustryHistoryResponse = zod.object({
 export const ListRunsResponseItem = zod.object({
   "id": zod.number(),
   "status": zod.enum(['running', 'completed', 'failed', 'partial']),
-  "trigger": zod.enum(['scheduled', 'manual']),
+  "trigger": zod.enum(['scheduled', 'manual', 'auto']),
   "industryId": zod.number().nullable().describe('When set, the run was scoped to this industry only'),
   "startedAt": zod.string(),
   "completedAt": zod.string().nullable(),
@@ -228,7 +228,7 @@ export const TriggerRunBody = zod.object({
 export const TriggerRunResponse = zod.object({
   "id": zod.number(),
   "status": zod.enum(['running', 'completed', 'failed', 'partial']),
-  "trigger": zod.enum(['scheduled', 'manual']),
+  "trigger": zod.enum(['scheduled', 'manual', 'auto']),
   "industryId": zod.number().nullable().describe('When set, the run was scoped to this industry only'),
   "startedAt": zod.string(),
   "completedAt": zod.string().nullable(),
