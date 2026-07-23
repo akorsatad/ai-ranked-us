@@ -6,7 +6,9 @@ import {
   timestamp,
   jsonb,
   boolean,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -18,14 +20,23 @@ export const industriesTable = pgTable("industries", {
   enabled: boolean("enabled").notNull().default(true),
 });
 
-export const brandsTable = pgTable("brands", {
-  id: serial("id").primaryKey(),
-  industryId: integer("industry_id")
-    .notNull()
-    .references(() => industriesTable.id),
-  name: text("name").notNull(),
-  enabled: boolean("enabled").notNull().default(true),
-});
+export const brandsTable = pgTable(
+  "brands",
+  {
+    id: serial("id").primaryKey(),
+    industryId: integer("industry_id")
+      .notNull()
+      .references(() => industriesTable.id),
+    name: text("name").notNull(),
+    enabled: boolean("enabled").notNull().default(true),
+  },
+  (table) => [
+    uniqueIndex("brands_industry_id_lower_name_unique").on(
+      table.industryId,
+      sql`lower(${table.name})`,
+    ),
+  ],
+);
 
 export const providerApiKeysTable = pgTable("provider_api_keys", {
   id: serial("id").primaryKey(),

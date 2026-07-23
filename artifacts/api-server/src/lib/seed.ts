@@ -229,6 +229,7 @@ export async function ensureSeeded(): Promise<void> {
       const [inserted] = await db
         .insert(industriesTable)
         .values({ name: industry.name, slug: industry.slug, country: "US" })
+        .onConflictDoNothing({ target: industriesTable.slug })
         .returning();
       if (!inserted) continue;
       row = inserted;
@@ -246,10 +247,14 @@ export async function ensureSeeded(): Promise<void> {
       (name) => !existingNames.has(name.toLowerCase()),
     );
     if (missing.length > 0) {
-      await db
+      // onConflictDoNothing guards against races with the admin UI; the
+      // unique index on (industry_id, lower(name)) is the source of truth.
+      const inserted = await db
         .insert(brandsTable)
-        .values(missing.map((name) => ({ industryId, name })));
-      newBrands += missing.length;
+        .values(missing.map((name) => ({ industryId, name })))
+        .onConflictDoNothing()
+        .returning();
+      newBrands += inserted.length;
     }
   }
 

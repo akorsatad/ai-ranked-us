@@ -28,6 +28,17 @@ import {
 
 const router: IRouter = Router();
 
+/** True when the error is a Postgres unique-constraint violation (23505). */
+function isUniqueViolation(err: unknown): boolean {
+  let current: unknown = err;
+  // Drizzle may wrap the driver error; walk the cause chain.
+  for (let depth = 0; depth < 5 && typeof current === "object" && current !== null; depth++) {
+    if ((current as { code?: string }).code === "23505") return true;
+    current = (current as { cause?: unknown }).cause;
+  }
+  return false;
+}
+
 function slugify(name: string): string {
   return name
     .toLowerCase()
@@ -62,11 +73,21 @@ router.post("/industries", async (req, res): Promise<void> => {
       .json({ message: `An industry with slug "${finalSlug}" already exists` });
     return;
   }
-  const [row] = await db
-    .insert(industriesTable)
-    .values({ name: name.trim(), slug: finalSlug, country: country ?? "US" })
-    .returning();
-  res.status(201).json(row);
+  try {
+    const [row] = await db
+      .insert(industriesTable)
+      .values({ name: name.trim(), slug: finalSlug, country: country ?? "US" })
+      .returning();
+    res.status(201).json(row);
+  } catch (err) {
+    if (isUniqueViolation(err)) {
+      res
+        .status(409)
+        .json({ message: "An industry with this name already exists" });
+      return;
+    }
+    throw err;
+  }
 });
 
 router.patch("/industries/:id", async (req, res): Promise<void> => {
@@ -80,16 +101,26 @@ router.patch("/industries/:id", async (req, res): Promise<void> => {
     res.status(400).json({ message: parsed.error.message });
     return;
   }
-  const [row] = await db
-    .update(industriesTable)
-    .set(parsed.data)
-    .where(eq(industriesTable.id, id))
-    .returning();
-  if (!row) {
-    res.status(404).json({ message: "Industry not found" });
-    return;
+  try {
+    const [row] = await db
+      .update(industriesTable)
+      .set(parsed.data)
+      .where(eq(industriesTable.id, id))
+      .returning();
+    if (!row) {
+      res.status(404).json({ message: "Industry not found" });
+      return;
+    }
+    res.status(200).json(row);
+  } catch (err) {
+    if (isUniqueViolation(err)) {
+      res
+        .status(409)
+        .json({ message: "An industry with this name already exists" });
+      return;
+    }
+    throw err;
   }
-  res.status(200).json(row);
 });
 
 // ---------- Brands ----------
@@ -108,14 +139,24 @@ router.post("/brands", async (req, res): Promise<void> => {
     res.status(404).json({ message: "Industry not found" });
     return;
   }
-  const [row] = await db
-    .insert(brandsTable)
-    .values({
-      industryId: parsed.data.industryId,
-      name: parsed.data.name.trim(),
-    })
-    .returning();
-  res.status(201).json(row);
+  try {
+    const [row] = await db
+      .insert(brandsTable)
+      .values({
+        industryId: parsed.data.industryId,
+        name: parsed.data.name.trim(),
+      })
+      .returning();
+    res.status(201).json(row);
+  } catch (err) {
+    if (isUniqueViolation(err)) {
+      res
+        .status(409)
+        .json({ message: "This brand already exists in this industry" });
+      return;
+    }
+    throw err;
+  }
 });
 
 router.patch("/brands/:id", async (req, res): Promise<void> => {
@@ -139,16 +180,26 @@ router.patch("/brands/:id", async (req, res): Promise<void> => {
       return;
     }
   }
-  const [row] = await db
-    .update(brandsTable)
-    .set(parsed.data)
-    .where(eq(brandsTable.id, id))
-    .returning();
-  if (!row) {
-    res.status(404).json({ message: "Brand not found" });
-    return;
+  try {
+    const [row] = await db
+      .update(brandsTable)
+      .set(parsed.data)
+      .where(eq(brandsTable.id, id))
+      .returning();
+    if (!row) {
+      res.status(404).json({ message: "Brand not found" });
+      return;
+    }
+    res.status(200).json(row);
+  } catch (err) {
+    if (isUniqueViolation(err)) {
+      res
+        .status(409)
+        .json({ message: "This brand already exists in this industry" });
+      return;
+    }
+    throw err;
   }
-  res.status(200).json(row);
 });
 
 // ---------- Engines ----------
