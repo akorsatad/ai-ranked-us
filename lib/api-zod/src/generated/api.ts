@@ -936,3 +936,148 @@ export const ResetPromptTemplateResponse = zod.object({
 })
 
 
+/**
+ * @summary Request a magic-link email
+ */
+export const RequestMagicLinkBody = zod.object({
+  "email": zod.string(),
+  "firstName": zod.string(),
+  "lastName": zod.string()
+})
+
+export const RequestMagicLinkResponse = zod.object({
+  "message": zod.string()
+})
+
+
+/**
+ * @summary Verify a magic-link token and create a session
+ */
+export const VerifyMagicLinkBody = zod.object({
+  "token": zod.string()
+})
+
+export const VerifyMagicLinkResponse = zod.object({
+  "id": zod.number(),
+  "email": zod.string(),
+  "firstName": zod.string(),
+  "lastName": zod.string()
+})
+
+
+/**
+ * @summary Get the current authenticated user
+ */
+export const GetMeResponse = zod.object({
+  "id": zod.number(),
+  "email": zod.string(),
+  "firstName": zod.string(),
+  "lastName": zod.string()
+})
+
+
+/**
+ * @summary Destroy the current session
+ */
+export const SignOutResponse = zod.object({
+  "message": zod.string()
+})
+
+
+/**
+ * @summary Ask an AI engine to suggest competitors for a brand
+ */
+export const SuggestCompetitorsBody = zod.object({
+  "brand": zod.string(),
+  "country": zod.string().optional()
+})
+
+export const SuggestCompetitorsResponse = zod.object({
+  "competitors": zod.array(zod.string())
+})
+
+
+/**
+ * @summary Run an ad-hoc ranking for a brand set
+ */
+export const RunAdHocRankBody = zod.object({
+  "brand": zod.string(),
+  "competitors": zod.array(zod.string()),
+  "country": zod.string().optional()
+})
+
+export const RunAdHocRankResponse = zod.object({
+  "id": zod.number(),
+  "brand": zod.string(),
+  "competitors": zod.array(zod.string()),
+  "country": zod.string(),
+  "status": zod.string(),
+  "error": zod.string().nullable(),
+  "createdAt": zod.string(),
+  "completedAt": zod.string().nullable()
+})
+
+
+/**
+ * @summary Poll the status and results of an ad-hoc ranking request
+ */
+export const GetAdHocRequestParams = zod.object({
+  "requestId": zod.coerce.number()
+})
+
+export const GetAdHocRequestResponse = zod.object({
+  "id": zod.number(),
+  "brand": zod.string(),
+  "competitors": zod.array(zod.string()),
+  "country": zod.string(),
+  "status": zod.string(),
+  "error": zod.string().nullable(),
+  "results": zod.union([zod.object({
+  "byEngine": zod.array(zod.object({
+  "engineKey": zod.string(),
+  "engineName": zod.string(),
+  "metrics": zod.array(zod.object({
+  "metricKey": zod.string(),
+  "metricLabel": zod.string(),
+  "higherIsBetter": zod.boolean(),
+  "entries": zod.array(zod.object({
+  "brandName": zod.string(),
+  "rank": zod.number(),
+  "score": zod.number(),
+  "rationale": zod.string().nullable()
+}))
+}))
+})),
+  "averaged": zod.array(zod.object({
+  "metricKey": zod.string(),
+  "metricLabel": zod.string(),
+  "higherIsBetter": zod.boolean(),
+  "entries": zod.array(zod.object({
+  "brandName": zod.string(),
+  "rank": zod.number(),
+  "score": zod.number(),
+  "rationale": zod.string().nullable()
+}))
+}))
+}),zod.null()]),
+  "createdAt": zod.string(),
+  "completedAt": zod.string().nullable()
+})
+
+
+/**
+ * @summary List past ad-hoc ranking requests for the current user
+ */
+export const GetRankHistoryResponseItem = zod.object({
+  "id": zod.number(),
+  "brand": zod.string(),
+  "competitors": zod.array(zod.string()),
+  "country": zod.string(),
+  "status": zod.string(),
+  "error": zod.string().nullable(),
+  "createdAt": zod.string(),
+  "completedAt": zod.string().nullable()
+})
+export const GetRankHistoryResponse = zod.array(GetRankHistoryResponseItem)
+
+

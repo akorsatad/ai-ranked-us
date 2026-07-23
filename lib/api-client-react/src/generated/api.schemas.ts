@@ -554,6 +554,104 @@ export interface Overview {
   leaders: IndustryLeader[];
 }
 
+export interface AuthUser {
+  id: number;
+  email: string;
+  firstName: string;
+  lastName: string;
+}
+
+export interface MagicLinkRequest {
+  email: string;
+  firstName: string;
+  lastName: string;
+}
+
+export interface MagicLinkVerify {
+  token: string;
+}
+
+export interface CurrentUser {
+  id: number;
+  email: string;
+  firstName: string;
+  lastName: string;
+}
+
+export interface SuggestCompetitorsInput {
+  brand: string;
+  country?: string;
+}
+
+export interface CompetitorSuggestions {
+  competitors: string[];
+}
+
+export interface AdHocRankInput {
+  brand: string;
+  competitors: string[];
+  country?: string;
+}
+
+export interface AdHocRankingEntry {
+  brandName: string;
+  rank: number;
+  score: number;
+  /** @nullable */
+  rationale: string | null;
+}
+
+export interface AdHocMetricResult {
+  metricKey: string;
+  metricLabel: string;
+  higherIsBetter: boolean;
+  entries: AdHocRankingEntry[];
+}
+
+export interface AdHocEngineResult {
+  engineKey: string;
+  engineName: string;
+  metrics: AdHocMetricResult[];
+}
+
+export interface AdHocResults {
+  byEngine: AdHocEngineResult[];
+  averaged: AdHocMetricResult[];
+}
+
+export interface AdHocRequestSummary {
+  id: number;
+  brand: string;
+  competitors: string[];
+  country: string;
+  status: string;
+  /** @nullable */
+  error: string | null;
+  createdAt: string;
+  /** @nullable */
+  completedAt: string | null;
+}
+
+export interface AdHocRequestDetail {
+  id: number;
+  brand: string;
+  competitors: string[];
+  country: string;
+  status: string;
+  /** @nullable */
+  error: string | null;
+  results: AdHocResults | null;
+  createdAt: string;
+  /** @nullable */
+  completedAt: string | null;
+}
+
+export interface RateLimitError {
+  message: string;
+  /** @nullable */
+  retryAt?: string | null;
+}
+
 /**
  * warn = start the run but flag it; block = refuse to start the run
  */

@@ -20,6 +20,10 @@ tags:
     description: Sharp-drop alerts computed after each survey run
   - name: admin
     description: Admin operations — manage catalog, keys, and browse data
+  - name: auth
+    description: Authentication (magic-link email)
+  - name: rank
+    description: Ad-hoc custom brand ranking
 paths:
   /healthz:
     get:
@@ -1000,6 +1004,188 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/PromptTemplateInfo"
+  /auth/request-link:
+    post:
+      operationId: requestMagicLink
+      tags: [auth]
+      summary: Request a magic-link email
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MagicLinkRequest"
+      responses:
+        "200":
+          description: Magic link sent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "400":
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+  /auth/verify:
+    post:
+      operationId: verifyMagicLink
+      tags: [auth]
+      summary: Verify a magic-link token and create a session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MagicLinkVerify"
+      responses:
+        "200":
+          description: Session created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthUser"
+        "400":
+          description: Invalid or expired token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+  /auth/me:
+    get:
+      operationId: getMe
+      tags: [auth]
+      summary: Get the current authenticated user
+      responses:
+        "200":
+          description: Current user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthUser"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+  /auth/session:
+    delete:
+      operationId: signOut
+      tags: [auth]
+      summary: Destroy the current session
+      responses:
+        "200":
+          description: Signed out
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+  /rank/suggest-competitors:
+    post:
+      operationId: suggestCompetitors
+      tags: [rank]
+      summary: Ask an AI engine to suggest competitors for a brand
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SuggestCompetitorsInput"
+      responses:
+        "200":
+          description: Suggested competitors
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CompetitorSuggestions"
+        "400":
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+  /rank/run:
+    post:
+      operationId: runAdHocRank
+      tags: [rank]
+      summary: Run an ad-hoc ranking for a brand set
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdHocRankInput"
+      responses:
+        "202":
+          description: Request accepted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdHocRequestSummary"
+        "400":
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "401":
+          description: Authentication required for subsequent queries
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RateLimitError"
+        "429":
+          description: Daily limit reached
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RateLimitError"
+  /rank/requests/{requestId}:
+    get:
+      operationId: getAdHocRequest
+      tags: [rank]
+      summary: Poll the status and results of an ad-hoc ranking request
+      parameters:
+        - name: requestId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Request detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdHocRequestDetail"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+  /rank/history:
+    get:
+      operationId: getRankHistory
+      tags: [rank]
+      summary: List past ad-hoc ranking requests for the current user
+      responses:
+        "200":
+          description: History list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AdHocRequestSummary"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
 components:
   schemas:
     HealthStatus:
@@ -1539,6 +1725,139 @@ components:
           items:
             $ref: "#/components/schemas/IndustryLeader"
       required: [lastRun, industriesCount, brandsCount, enginesCount, responsesCount, leaders]
+    AuthUser:
+      type: object
+      properties:
+        id: { type: integer }
+        email: { type: string }
+        firstName: { type: string }
+        lastName: { type: string }
+      required: [id, email, firstName, lastName]
+    MagicLinkRequest:
+      type: object
+      properties:
+        email: { type: string }
+        firstName: { type: string }
+        lastName: { type: string }
+      required: [email, firstName, lastName]
+    MagicLinkVerify:
+      type: object
+      properties:
+        token: { type: string }
+      required: [token]
+    CurrentUser:
+      type: object
+      properties:
+        id: { type: integer }
+        email: { type: string }
+        firstName: { type: string }
+        lastName: { type: string }
+      required: [id, email, firstName, lastName]
+    SuggestCompetitorsInput:
+      type: object
+      properties:
+        brand: { type: string }
+        country: { type: string }
+      required: [brand]
+    CompetitorSuggestions:
+      type: object
+      properties:
+        competitors:
+          type: array
+          items:
+            type: string
+      required: [competitors]
+    AdHocRankInput:
+      type: object
+      properties:
+        brand: { type: string }
+        competitors:
+          type: array
+          items:
+            type: string
+        country: { type: string }
+      required: [brand, competitors]
+    AdHocRankingEntry:
+      type: object
+      properties:
+        brandName: { type: string }
+        rank: { type: integer }
+        score: { type: number }
+        rationale: { type: ["string", "null"] }
+      required: [brandName, rank, score, rationale]
+    AdHocMetricResult:
+      type: object
+      properties:
+        metricKey: { type: string }
+        metricLabel: { type: string }
+        higherIsBetter: { type: boolean }
+        entries:
+          type: array
+          items:
+            $ref: "#/components/schemas/AdHocRankingEntry"
+      required: [metricKey, metricLabel, higherIsBetter, entries]
+    AdHocEngineResult:
+      type: object
+      properties:
+        engineKey: { type: string }
+        engineName: { type: string }
+        metrics:
+          type: array
+          items:
+            $ref: "#/components/schemas/AdHocMetricResult"
+      required: [engineKey, engineName, metrics]
+    AdHocResults:
+      type: object
+      properties:
+        byEngine:
+          type: array
+          items:
+            $ref: "#/components/schemas/AdHocEngineResult"
+        averaged:
+          type: array
+          items:
+            $ref: "#/components/schemas/AdHocMetricResult"
+      required: [byEngine, averaged]
+    AdHocRequestSummary:
+      type: object
+      properties:
+        id: { type: integer }
+        brand: { type: string }
+        competitors:
+          type: array
+          items:
+            type: string
+        country: { type: string }
+        status: { type: string }
+        error: { type: ["string", "null"] }
+        createdAt: { type: string }
+        completedAt: { type: ["string", "null"] }
+      required: [id, brand, competitors, country, status, error, createdAt, completedAt]
+    AdHocRequestDetail:
+      type: object
+      properties:
+        id: { type: integer }
+        brand: { type: string }
+        competitors:
+          type: array
+          items:
+            type: string
+        country: { type: string }
+        status: { type: string }
+        error: { type: ["string", "null"] }
+        results:
+          oneOf:
+            - $ref: "#/components/schemas/AdHocResults"
+            - type: "null"
+        createdAt: { type: string }
+        completedAt: { type: ["string", "null"] }
+      required: [id, brand, competitors, country, status, error, results, createdAt, completedAt]
+    RateLimitError:
+      type: object
+      properties:
+        message: { type: string }
+        retryAt: { type: ["string", "null"] }
+      required: [message]
     SurveyRun:
       type: object
       properties:

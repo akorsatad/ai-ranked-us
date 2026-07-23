@@ -20,6 +20,9 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
+  AdHocRankInput,
+  AdHocRequestDetail,
+  AdHocRequestSummary,
   AdminEngine,
   AdminMe,
   AlertFeed,
@@ -28,11 +31,13 @@ import type {
   ApiKeyInput,
   ApiKeyTestResult,
   ApiMessage,
+  AuthUser,
   Brand,
   BrandInput,
   BrandUpdate,
   BrowseTableParams,
   Catalog,
+  CompetitorSuggestions,
   CostSummary,
   EngineInput,
   EngineUpdate,
@@ -52,6 +57,8 @@ import type {
   KeyPreflightSettings,
   ListAlertsParams,
   ListTrendSnapshotsParams,
+  MagicLinkRequest,
+  MagicLinkVerify,
   MarkAlertsReadInput,
   ModelResults,
   MoversReport,
@@ -59,6 +66,8 @@ import type {
   PromptTemplateInfo,
   PromptTemplateInput,
   ProviderKeyStatus,
+  RateLimitError,
+  SuggestCompetitorsInput,
   SurveyRun,
   TablePage,
   TrendSnapshot,
@@ -3086,4 +3095,590 @@ export const useResetPromptTemplate = <TError = ErrorType<unknown>,
       > => {
       return useMutation(getResetPromptTemplateMutationOptions(options));
     }
+
+export const getRequestMagicLinkUrl = () => {
+
+
+
+
+  return `/api/auth/request-link`
+}
+
+/**
+ * @summary Request a magic-link email
+ */
+export const requestMagicLink = async (magicLinkRequest: MagicLinkRequest, options?: RequestInit): Promise<ApiMessage> => {
+
+  return customFetch<ApiMessage>(getRequestMagicLinkUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(magicLinkRequest)
+  }
+);}
+
+
+
+
+
+export const getRequestMagicLinkMutationOptions = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof requestMagicLink>>, TError,{data: BodyType<MagicLinkRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof requestMagicLink>>, TError,{data: BodyType<MagicLinkRequest>}, TContext> => {
+
+const mutationKey = ['requestMagicLink'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof requestMagicLink>>, {data: BodyType<MagicLinkRequest>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  requestMagicLink(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RequestMagicLinkMutationResult = NonNullable<Awaited<ReturnType<typeof requestMagicLink>>>
+    export type RequestMagicLinkMutationBody = BodyType<MagicLinkRequest>
+    export type RequestMagicLinkMutationError = ErrorType<ApiMessage>
+
+    /**
+ * @summary Request a magic-link email
+ */
+export const useRequestMagicLink = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof requestMagicLink>>, TError,{data: BodyType<MagicLinkRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof requestMagicLink>>,
+        TError,
+        {data: BodyType<MagicLinkRequest>},
+        TContext
+      > => {
+      return useMutation(getRequestMagicLinkMutationOptions(options));
+    }
+
+export const getVerifyMagicLinkUrl = () => {
+
+
+
+
+  return `/api/auth/verify`
+}
+
+/**
+ * @summary Verify a magic-link token and create a session
+ */
+export const verifyMagicLink = async (magicLinkVerify: MagicLinkVerify, options?: RequestInit): Promise<AuthUser> => {
+
+  return customFetch<AuthUser>(getVerifyMagicLinkUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(magicLinkVerify)
+  }
+);}
+
+
+
+
+
+export const getVerifyMagicLinkMutationOptions = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof verifyMagicLink>>, TError,{data: BodyType<MagicLinkVerify>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof verifyMagicLink>>, TError,{data: BodyType<MagicLinkVerify>}, TContext> => {
+
+const mutationKey = ['verifyMagicLink'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof verifyMagicLink>>, {data: BodyType<MagicLinkVerify>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  verifyMagicLink(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type VerifyMagicLinkMutationResult = NonNullable<Awaited<ReturnType<typeof verifyMagicLink>>>
+    export type VerifyMagicLinkMutationBody = BodyType<MagicLinkVerify>
+    export type VerifyMagicLinkMutationError = ErrorType<ApiMessage>
+
+    /**
+ * @summary Verify a magic-link token and create a session
+ */
+export const useVerifyMagicLink = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof verifyMagicLink>>, TError,{data: BodyType<MagicLinkVerify>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof verifyMagicLink>>,
+        TError,
+        {data: BodyType<MagicLinkVerify>},
+        TContext
+      > => {
+      return useMutation(getVerifyMagicLinkMutationOptions(options));
+    }
+
+export const getGetMeUrl = () => {
+
+
+
+
+  return `/api/auth/me`
+}
+
+/**
+ * @summary Get the current authenticated user
+ */
+export const getMe = async ( options?: RequestInit): Promise<AuthUser> => {
+
+  return customFetch<AuthUser>(getGetMeUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetMeQueryKey = () => {
+    return [
+    `/api/auth/me`
+    ] as const;
+    }
+
+
+export const getGetMeQueryOptions = <TData = Awaited<ReturnType<typeof getMe>>, TError = ErrorType<ApiMessage>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMe>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMeQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMe>>> = ({ signal }) => getMe({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMe>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetMeQueryResult = NonNullable<Awaited<ReturnType<typeof getMe>>>
+export type GetMeQueryError = ErrorType<ApiMessage>
+
+
+/**
+ * @summary Get the current authenticated user
+ */
+
+export function useGetMe<TData = Awaited<ReturnType<typeof getMe>>, TError = ErrorType<ApiMessage>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMe>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetMeQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getSignOutUrl = () => {
+
+
+
+
+  return `/api/auth/session`
+}
+
+/**
+ * @summary Destroy the current session
+ */
+export const signOut = async ( options?: RequestInit): Promise<ApiMessage> => {
+
+  return customFetch<ApiMessage>(getSignOutUrl(),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getSignOutMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof signOut>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof signOut>>, TError,void, TContext> => {
+
+const mutationKey = ['signOut'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof signOut>>, void> = () => {
+
+
+          return  signOut(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SignOutMutationResult = NonNullable<Awaited<ReturnType<typeof signOut>>>
+
+    export type SignOutMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Destroy the current session
+ */
+export const useSignOut = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof signOut>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof signOut>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getSignOutMutationOptions(options));
+    }
+
+export const getSuggestCompetitorsUrl = () => {
+
+
+
+
+  return `/api/rank/suggest-competitors`
+}
+
+/**
+ * @summary Ask an AI engine to suggest competitors for a brand
+ */
+export const suggestCompetitors = async (suggestCompetitorsInput: SuggestCompetitorsInput, options?: RequestInit): Promise<CompetitorSuggestions> => {
+
+  return customFetch<CompetitorSuggestions>(getSuggestCompetitorsUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(suggestCompetitorsInput)
+  }
+);}
+
+
+
+
+
+export const getSuggestCompetitorsMutationOptions = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof suggestCompetitors>>, TError,{data: BodyType<SuggestCompetitorsInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof suggestCompetitors>>, TError,{data: BodyType<SuggestCompetitorsInput>}, TContext> => {
+
+const mutationKey = ['suggestCompetitors'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof suggestCompetitors>>, {data: BodyType<SuggestCompetitorsInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  suggestCompetitors(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SuggestCompetitorsMutationResult = NonNullable<Awaited<ReturnType<typeof suggestCompetitors>>>
+    export type SuggestCompetitorsMutationBody = BodyType<SuggestCompetitorsInput>
+    export type SuggestCompetitorsMutationError = ErrorType<ApiMessage>
+
+    /**
+ * @summary Ask an AI engine to suggest competitors for a brand
+ */
+export const useSuggestCompetitors = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof suggestCompetitors>>, TError,{data: BodyType<SuggestCompetitorsInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof suggestCompetitors>>,
+        TError,
+        {data: BodyType<SuggestCompetitorsInput>},
+        TContext
+      > => {
+      return useMutation(getSuggestCompetitorsMutationOptions(options));
+    }
+
+export const getRunAdHocRankUrl = () => {
+
+
+
+
+  return `/api/rank/run`
+}
+
+/**
+ * @summary Run an ad-hoc ranking for a brand set
+ */
+export const runAdHocRank = async (adHocRankInput: AdHocRankInput, options?: RequestInit): Promise<AdHocRequestSummary> => {
+
+  return customFetch<AdHocRequestSummary>(getRunAdHocRankUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(adHocRankInput)
+  }
+);}
+
+
+
+
+
+export const getRunAdHocRankMutationOptions = <TError = ErrorType<ApiMessage | RateLimitError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof runAdHocRank>>, TError,{data: BodyType<AdHocRankInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof runAdHocRank>>, TError,{data: BodyType<AdHocRankInput>}, TContext> => {
+
+const mutationKey = ['runAdHocRank'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof runAdHocRank>>, {data: BodyType<AdHocRankInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  runAdHocRank(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RunAdHocRankMutationResult = NonNullable<Awaited<ReturnType<typeof runAdHocRank>>>
+    export type RunAdHocRankMutationBody = BodyType<AdHocRankInput>
+    export type RunAdHocRankMutationError = ErrorType<ApiMessage | RateLimitError>
+
+    /**
+ * @summary Run an ad-hoc ranking for a brand set
+ */
+export const useRunAdHocRank = <TError = ErrorType<ApiMessage | RateLimitError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof runAdHocRank>>, TError,{data: BodyType<AdHocRankInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof runAdHocRank>>,
+        TError,
+        {data: BodyType<AdHocRankInput>},
+        TContext
+      > => {
+      return useMutation(getRunAdHocRankMutationOptions(options));
+    }
+
+export const getGetAdHocRequestUrl = (requestId: number,) => {
+
+
+
+
+  return `/api/rank/requests/${requestId}`
+}
+
+/**
+ * @summary Poll the status and results of an ad-hoc ranking request
+ */
+export const getAdHocRequest = async (requestId: number, options?: RequestInit): Promise<AdHocRequestDetail> => {
+
+  return customFetch<AdHocRequestDetail>(getGetAdHocRequestUrl(requestId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetAdHocRequestQueryKey = (requestId: number,) => {
+    return [
+    `/api/rank/requests/${requestId}`
+    ] as const;
+    }
+
+
+export const getGetAdHocRequestQueryOptions = <TData = Awaited<ReturnType<typeof getAdHocRequest>>, TError = ErrorType<ApiMessage>>(requestId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAdHocRequest>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetAdHocRequestQueryKey(requestId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getAdHocRequest>>> = ({ signal }) => getAdHocRequest(requestId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: requestId !== null && requestId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getAdHocRequest>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetAdHocRequestQueryResult = NonNullable<Awaited<ReturnType<typeof getAdHocRequest>>>
+export type GetAdHocRequestQueryError = ErrorType<ApiMessage>
+
+
+/**
+ * @summary Poll the status and results of an ad-hoc ranking request
+ */
+
+export function useGetAdHocRequest<TData = Awaited<ReturnType<typeof getAdHocRequest>>, TError = ErrorType<ApiMessage>>(
+ requestId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAdHocRequest>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetAdHocRequestQueryOptions(requestId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetRankHistoryUrl = () => {
+
+
+
+
+  return `/api/rank/history`
+}
+
+/**
+ * @summary List past ad-hoc ranking requests for the current user
+ */
+export const getRankHistory = async ( options?: RequestInit): Promise<AdHocRequestSummary[]> => {
+
+  return customFetch<AdHocRequestSummary[]>(getGetRankHistoryUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetRankHistoryQueryKey = () => {
+    return [
+    `/api/rank/history`
+    ] as const;
+    }
+
+
+export const getGetRankHistoryQueryOptions = <TData = Awaited<ReturnType<typeof getRankHistory>>, TError = ErrorType<ApiMessage>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getRankHistory>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetRankHistoryQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getRankHistory>>> = ({ signal }) => getRankHistory({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getRankHistory>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetRankHistoryQueryResult = NonNullable<Awaited<ReturnType<typeof getRankHistory>>>
+export type GetRankHistoryQueryError = ErrorType<ApiMessage>
+
+
+/**
+ * @summary List past ad-hoc ranking requests for the current user
+ */
+
+export function useGetRankHistory<TData = Awaited<ReturnType<typeof getRankHistory>>, TError = ErrorType<ApiMessage>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getRankHistory>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetRankHistoryQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 

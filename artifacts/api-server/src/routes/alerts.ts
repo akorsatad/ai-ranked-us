@@ -72,7 +72,7 @@ router.get("/alerts", async (req, res): Promise<void> => {
   return;
 });
 
-router.post("/alerts/mark-read", async (req, res): Promise<void> => {
+router.post("/alerts/mark-read", requireAdmin, async (req, res): Promise<void> => {
   const body = MarkAlertsReadBody.safeParse(req.body);
   if (!body.success) {
     res.status(400).json({ message: "Invalid input" });

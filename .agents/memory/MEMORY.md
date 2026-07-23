@@ -5,3 +5,4 @@
 - [AI Rank design direction](design-direction.md) — datainc.ai reference is LIGHT (off-white + emerald, Inter/IBM Plex Mono); light default, token-driven theming only.
 - [Per-page OG share previews](og-share-previews.md) — static SPA can't inject meta; api-server claims the page path and serves index.html with injected OG tags + dynamic resvg PNG.
 - [Orval params name collisions](orval-param-collisions.md) — ops with both path+query params can collide in api-zod barrel; fix via explicit re-export in lib/api-zod/src/index.ts (existing pattern there).
+- [Magic-link security](magic-link-security.md) — use APP_BASE_URL env var (not request headers) for link URLs; make token redemption atomic via UPDATE…WHERE usedAt IS NULL…RETURNING; never gate /admin with magic-link requireSession (Clerk-only there).

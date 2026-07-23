@@ -9,7 +9,7 @@ import NotFound from '@/pages/not-found';
 import { Redirect, Route, Switch, useLocation, Router as WouterRouter } from 'wouter';
 
 import { Layout } from './components/layout';
-import Dashboard from './pages/dashboard';
+import Explore from './pages/explore';
 import Industry from './pages/industry';
 import Runs from './pages/runs';
 import { AdminLayout } from './pages/admin/layout';
@@ -24,6 +24,10 @@ import AdminData from './pages/admin/data';
 import AdminQueries from './pages/admin/queries';
 import { Terms, Privacy } from './pages/legal';
 import Alerts from './pages/alerts';
+import Home from './pages/home';
+import Results from './pages/results';
+import AuthVerify from './pages/auth-verify';
+import History from './pages/history';
 
 // REQUIRED — copy verbatim. Resolves the key from window.location.hostname so the
 // same build serves multiple Clerk custom domains.
@@ -152,22 +156,37 @@ function AdminRoutes() {
 
 function Router() {
   return (
-    <Layout>
-      <Switch>
-        <Route path="/" component={Dashboard} />
-        <Route path="/industry/:id" component={Industry} />
-        <Route path="/runs">
-          <Redirect to="/admin/runs" />
-        </Route>
-        <Route path="/sign-in/*?" component={SignInPage} />
-        <Route path="/sign-up/*?" component={SignUpPage} />
-        <Route path="/admin/*?" component={AdminRoutes} />
-        <Route path="/terms" component={Terms} />
-        <Route path="/privacy" component={Privacy} />
-        <Route path="/alerts" component={Alerts} />
-        <Route component={NotFound} />
-      </Switch>
-    </Layout>
+    <Switch>
+      {/* Clerk auth pages — no main layout */}
+      <Route path="/sign-in/*?" component={SignInPage} />
+      <Route path="/sign-up/*?" component={SignUpPage} />
+
+      {/* Magic-link verify — no layout chrome needed */}
+      <Route path="/auth/verify" component={AuthVerify} />
+
+      {/* Admin section — uses AdminGuard + AdminLayout */}
+      <Route path="/admin/*?" component={AdminRoutes} />
+
+      {/* All other routes use the shared layout */}
+      <Route>
+        <Layout>
+          <Switch>
+            <Route path="/" component={Home} />
+            <Route path="/explore" component={Explore} />
+            <Route path="/industry/:id" component={Industry} />
+            <Route path="/runs">
+              <Redirect to="/admin/runs" />
+            </Route>
+            <Route path="/alerts" component={Alerts} />
+            <Route path="/results/:id" component={Results} />
+            <Route path="/history" component={History} />
+            <Route path="/terms" component={Terms} />
+            <Route path="/privacy" component={Privacy} />
+            <Route component={NotFound} />
+          </Switch>
+        </Layout>
+      </Route>
+    </Switch>
   );
 }
 

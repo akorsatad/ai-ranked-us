@@ -170,13 +170,13 @@ function ThresholdSettings() {
 
   const sendTest = useSendTestAlertEmail({
     mutation: {
-      onSuccess: (result) => {
+      onSuccess: (result: { message?: string }) => {
         toast({
           title: 'Test email sent',
           description: result.message ?? 'Check the recipient inbox to confirm delivery.',
         });
       },
-      onError: (error) => {
+      onError: (error: { message?: string }) => {
         toast({
           variant: 'destructive',
           title: 'Test email failed',

@@ -1,0 +1,107 @@
+import {
+  pgTable,
+  text,
+  serial,
+  integer,
+  timestamp,
+  jsonb,
+} from "drizzle-orm/pg-core";
+
+// ── Users ─────────────────────────────────────────────────────────────────────
+
+export const usersTable = pgTable("users", {
+  id: serial("id").primaryKey(),
+  email: text("email").notNull().unique(),
+  firstName: text("first_name").notNull(),
+  lastName: text("last_name").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+export type UserRow = typeof usersTable.$inferSelect;
+
+// ── Magic-link tokens ─────────────────────────────────────────────────────────
+
+export const magicLinkTokensTable = pgTable("magic_link_tokens", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id")
+    .notNull()
+    .references(() => usersTable.id),
+  token: text("token").notNull().unique(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  usedAt: timestamp("used_at", { withTimezone: true }),
+});
+
+export type MagicLinkTokenRow = typeof magicLinkTokensTable.$inferSelect;
+
+// ── Sessions ──────────────────────────────────────────────────────────────────
+
+export const sessionsTable = pgTable("sessions", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id")
+    .notNull()
+    .references(() => usersTable.id),
+  token: text("token").notNull().unique(),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+});
+
+export type SessionRow = typeof sessionsTable.$inferSelect;
+
+// ── Ad-hoc ranking requests ───────────────────────────────────────────────────
+
+export interface AdHocRankingEntry {
+  brandName: string;
+  rank: number;
+  score: number;
+  rationale: string | null;
+}
+
+export interface AdHocMetricResult {
+  metricKey: string;
+  metricLabel: string;
+  higherIsBetter: boolean;
+  entries: AdHocRankingEntry[];
+}
+
+export interface AdHocEngineResult {
+  engineKey: string;
+  engineName: string;
+  metrics: AdHocMetricResult[];
+}
+
+export interface AdHocResults {
+  byEngine: AdHocEngineResult[];
+  averaged: AdHocMetricResult[];
+}
+
+export const adHocRequestsTable = pgTable("ad_hoc_requests", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => usersTable.id),
+  visitorId: text("visitor_id"),
+  brand: text("brand").notNull(),
+  competitors: jsonb("competitors").$type<string[]>().notNull(),
+  country: text("country").notNull().default("US"),
+  status: text("status").notNull().default("pending"), // pending | running | completed | failed
+  results: jsonb("results").$type<AdHocResults>(),
+  error: text("error"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  completedAt: timestamp("completed_at", { withTimezone: true }),
+});
+
+export type AdHocRequestRow = typeof adHocRequestsTable.$inferSelect;
+
+// ── Visitor usage tracking (anonymous rate limiting) ──────────────────────────
+
+export const visitorUsageTable = pgTable("visitor_usage", {
+  visitorId: text("visitor_id").primaryKey(),
+  queriesUsed: integer("queries_used").notNull().default(0),
+  lastQueryAt: timestamp("last_query_at", { withTimezone: true }),
+});
+
+export type VisitorUsageRow = typeof visitorUsageTable.$inferSelect;
