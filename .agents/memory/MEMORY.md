@@ -1,0 +1,1 @@
+- [Bundled server needs SDK deps locally](bundled-server-deps.md) — npm packages used via workspace libs must also be direct api-server deps, or the esbuild bundle fails to resolve them at runtime.

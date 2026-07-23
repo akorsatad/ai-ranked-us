@@ -10,7 +10,7 @@ export interface HealthStatus {
 }
 
 export interface ApiMessage {
-  error: string;
+  message: string;
 }
 
 export interface Industry {

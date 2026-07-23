@@ -7,5 +7,5 @@
  */
 
 export interface ApiMessage {
-  error: string;
+  message: string;
 }

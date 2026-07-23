@@ -50,10 +50,11 @@ router.get("/overview", async (_req, res): Promise<void> => {
           metric.key,
         );
         if (responses.length === 0) continue;
-        const averaged = averageEntries(responses.map((r) => r.response));
-        const top = metric.higherIsBetter
-          ? averaged[0]
-          : averaged[averaged.length - 1];
+        const averaged = averageEntries(
+          responses.map((r) => r.response),
+          metric.higherIsBetter,
+        );
+        const top = averaged[0];
         if (!top) continue;
         leaders.push({
           industryId: industry.id,

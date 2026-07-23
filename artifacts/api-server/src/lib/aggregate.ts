@@ -38,11 +38,27 @@ export async function latestResponsesByEngine(
 }
 
 /**
- * Average per-brand scores across engine responses and re-rank.
- * Higher score = rank 1.
+ * Re-rank entries so rank 1 = best brand on the metric.
+ * For higherIsBetter metrics the highest score wins; for inverted metrics
+ * (e.g. negative sentiment) the LOWEST score wins.
+ */
+export function rankEntries(
+  entries: StoredRankingEntry[],
+  higherIsBetter: boolean,
+): StoredRankingEntry[] {
+  const sorted = [...entries].sort((a, b) =>
+    higherIsBetter ? b.score - a.score : a.score - b.score,
+  );
+  return sorted.map((entry, i) => ({ ...entry, rank: i + 1 }));
+}
+
+/**
+ * Average per-brand scores across engine responses and re-rank so that
+ * rank 1 = best brand on the metric (see rankEntries).
  */
 export function averageEntries(
   responses: SurveyResponseRow[],
+  higherIsBetter: boolean,
 ): StoredRankingEntry[] {
   const byBrand = new Map<
     number,
@@ -67,15 +83,14 @@ export function averageEntries(
       }
     }
   }
-  const averaged = [...byBrand.entries()]
-    .map(([brandId, v]) => ({
-      brandId,
-      brandName: v.brandName,
-      score: Math.round((v.total / v.count) * 10) / 10,
-      rationale: v.rationale,
-    }))
-    .sort((a, b) => b.score - a.score);
-  return averaged.map((entry, i) => ({ ...entry, rank: i + 1 }));
+  const averaged = [...byBrand.entries()].map(([brandId, v]) => ({
+    brandId,
+    brandName: v.brandName,
+    rank: 0,
+    score: Math.round((v.total / v.count) * 10) / 10,
+    rationale: v.rationale,
+  }));
+  return rankEntries(averaged, higherIsBetter);
 }
 
 /**

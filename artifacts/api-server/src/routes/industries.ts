@@ -12,6 +12,7 @@ import {
   latestResponsesByEngine,
   averageEntries,
   averageTrends,
+  rankEntries,
 } from "../lib/aggregate";
 
 const router: IRouter = Router();
@@ -44,11 +45,14 @@ router.get(
       industryId: industry.id,
       industryName: industry.name,
       metric: metric.key,
-      average: averageEntries(responses.map((r) => r.response)),
+      average: averageEntries(
+        responses.map((r) => r.response),
+        metric.higherIsBetter,
+      ),
       byEngine: responses.map(({ engine, response }) => ({
         engineKey: engine.key,
         engineName: engine.name,
-        entries: response.entries ?? [],
+        entries: rankEntries(response.entries ?? [], metric.higherIsBetter),
         surveyedAt: response.createdAt.toISOString(),
       })),
     });
