@@ -12,13 +12,19 @@ import { sql } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
-export const industriesTable = pgTable("industries", {
-  id: serial("id").primaryKey(),
-  name: text("name").notNull(),
-  slug: text("slug").notNull().unique(),
-  country: text("country").notNull().default("US"),
-  enabled: boolean("enabled").notNull().default(true),
-});
+export const industriesTable = pgTable(
+  "industries",
+  {
+    id: serial("id").primaryKey(),
+    name: text("name").notNull(),
+    slug: text("slug").notNull().unique(),
+    country: text("country").notNull().default("US"),
+    enabled: boolean("enabled").notNull().default(true),
+  },
+  (table) => [
+    uniqueIndex("industries_lower_name_unique").on(sql`lower(${table.name})`),
+  ],
+);
 
 export const brandsTable = pgTable(
   "brands",

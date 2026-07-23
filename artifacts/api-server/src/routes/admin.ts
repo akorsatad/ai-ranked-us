@@ -102,10 +102,29 @@ router.patch("/industries/:id", async (req, res): Promise<void> => {
     res.status(400).json({ message: parsed.error.message });
     return;
   }
+  const update = { ...parsed.data };
+  if (update.name !== undefined) {
+    update.name = update.name.trim();
+    const [conflict] = await db
+      .select({ id: industriesTable.id })
+      .from(industriesTable)
+      .where(
+        and(
+          sql`lower(${industriesTable.name}) = lower(${update.name})`,
+          sql`${industriesTable.id} <> ${id}`,
+        ),
+      );
+    if (conflict) {
+      res
+        .status(409)
+        .json({ message: "An industry with this name already exists" });
+      return;
+    }
+  }
   try {
     const [row] = await db
       .update(industriesTable)
-      .set(parsed.data)
+      .set(update)
       .where(eq(industriesTable.id, id))
       .returning();
     if (!row) {
