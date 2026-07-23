@@ -32,7 +32,8 @@ export function Layout({ children }: LayoutProps) {
                 <Zap className="w-5 h-5 fill-current" />
               </div>
               <span className="font-sans font-bold text-xl tracking-tight text-foreground">
-                AI<span className="text-primary">Rank</span>
+                AI<span className="text-primary">Ranked</span>
+                <span className="ml-1.5 text-xs font-semibold tracking-widest text-muted-foreground align-middle">US</span>
               </span>
             </Link>
             
@@ -83,6 +84,15 @@ export function Layout({ children }: LayoutProps) {
       <main className="flex-1">
         {children}
       </main>
+      <footer className="border-t border-border bg-card">
+        <div className="px-6 py-4 flex flex-col sm:flex-row items-center justify-between gap-2 text-sm text-muted-foreground">
+          <span>&copy; {new Date().getFullYear()} AI Ranked US. All rights reserved.</span>
+          <nav className="flex items-center gap-4">
+            <Link href="/terms" className="hover:text-foreground transition-colors">Terms of Service</Link>
+            <Link href="/privacy" className="hover:text-foreground transition-colors">Privacy Policy</Link>
+          </nav>
+        </div>
+      </footer>
     </div>
   );
 }
