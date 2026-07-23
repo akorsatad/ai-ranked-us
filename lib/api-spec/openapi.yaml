@@ -654,6 +654,30 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiMessage"
+  /alerts/settings/test-email:
+    post:
+      operationId: sendTestAlertEmail
+      tags: [alerts]
+      summary: Send a sample alert digest email to the saved recipient
+      responses:
+        "200":
+          description: Test email sent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "400":
+          description: No valid recipient configured
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "502":
+          description: Email provider rejected the send
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
   /admin/prompt-template:
     get:
       operationId: getPromptTemplate

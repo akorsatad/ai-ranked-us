@@ -2076,6 +2076,77 @@ export const useUpdateAlertSettings = <TError = ErrorType<ApiMessage>,
       return useMutation(getUpdateAlertSettingsMutationOptions(options));
     }
 
+export const getSendTestAlertEmailUrl = () => {
+
+
+
+
+  return `/api/alerts/settings/test-email`
+}
+
+/**
+ * @summary Send a sample alert digest email to the saved recipient
+ */
+export const sendTestAlertEmail = async ( options?: RequestInit): Promise<ApiMessage> => {
+
+  return customFetch<ApiMessage>(getSendTestAlertEmailUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getSendTestAlertEmailMutationOptions = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sendTestAlertEmail>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof sendTestAlertEmail>>, TError,void, TContext> => {
+
+const mutationKey = ['sendTestAlertEmail'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof sendTestAlertEmail>>, void> = () => {
+
+
+          return  sendTestAlertEmail(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SendTestAlertEmailMutationResult = NonNullable<Awaited<ReturnType<typeof sendTestAlertEmail>>>
+
+    export type SendTestAlertEmailMutationError = ErrorType<ApiMessage>
+
+    /**
+ * @summary Send a sample alert digest email to the saved recipient
+ */
+export const useSendTestAlertEmail = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sendTestAlertEmail>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof sendTestAlertEmail>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getSendTestAlertEmailMutationOptions(options));
+    }
+
 export const getGetPromptTemplateUrl = () => {
 
 

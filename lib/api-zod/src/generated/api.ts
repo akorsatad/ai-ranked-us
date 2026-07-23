@@ -592,6 +592,14 @@ export const UpdateAlertSettingsResponse = zod.object({
 
 
 /**
+ * @summary Send a sample alert digest email to the saved recipient
+ */
+export const SendTestAlertEmailResponse = zod.object({
+  "message": zod.string()
+})
+
+
+/**
  * @summary Current survey prompt template, placeholders, and example values
  */
 export const GetPromptTemplateResponse = zod.object({

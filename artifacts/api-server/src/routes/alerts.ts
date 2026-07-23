@@ -7,6 +7,7 @@ import {
   UpdateAlertSettingsBody,
 } from "@workspace/api-zod";
 import { getAlertSettings, setAlertSettings } from "../lib/alerts";
+import { sendTestAlertEmail } from "../lib/alertEmail";
 
 const router: IRouter = Router();
 
@@ -122,6 +123,26 @@ router.put("/alerts/settings", async (req, res): Promise<void> => {
     emailRecipient: recipient,
   });
   res.status(200).json(updated);
+  return;
+});
+
+router.post("/alerts/settings/test-email", async (_req, res): Promise<void> => {
+  const settings = await getAlertSettings();
+  const recipient = settings.emailRecipient.trim();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipient)) {
+    res.status(400).json({
+      message: "Save a valid recipient email first, then send a test.",
+    });
+    return;
+  }
+  const result = await sendTestAlertEmail(recipient);
+  if (!result.ok) {
+    res.status(502).json({
+      message: result.error ?? "The email provider rejected the send.",
+    });
+    return;
+  }
+  res.status(200).json({ message: `Test email sent to ${recipient}` });
   return;
 });
 

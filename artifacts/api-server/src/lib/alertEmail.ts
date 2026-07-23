@@ -26,17 +26,19 @@ function describe(item: AlertEmailItem): string {
   return `fell ${item.delta} position${item.delta === 1 ? "" : "s"} (#${item.previousValue} → #${item.currentValue})`;
 }
 
-/**
- * Send an alert digest email via the Resend connection. Throws are caught
- * and logged by the caller boundary here so a mail failure never breaks
- * alert detection.
- */
-export async function sendAlertDigestEmail(
-  recipient: string,
+export interface SendEmailResult {
+  ok: boolean;
+  /** Human-readable provider error when ok is false. */
+  error?: string;
+}
+
+function buildDigest(
   runId: number,
   items: AlertEmailItem[],
-): Promise<boolean> {
-  const subject = `AI Rank: ${items.length} new brand alert${items.length === 1 ? "" : "s"} (run #${runId})`;
+  opts?: { test?: boolean },
+): { subject: string; html: string; text: string } {
+  const testPrefix = opts?.test ? "[Test] " : "";
+  const subject = `${testPrefix}AI Rank: ${items.length} new brand alert${items.length === 1 ? "" : "s"} (run #${runId})`;
 
   const rows = items
     .map(
@@ -72,6 +74,19 @@ export async function sendAlertDigestEmail(
     .map((i) => `- ${i.brandName} (${i.industryName}, ${i.metricLabel}): ${describe(i)}`)
     .join("\n");
 
+  return {
+    subject,
+    html,
+    text: `Survey run #${runId} detected ${items.length} new alert(s):\n\n${text}`,
+  };
+}
+
+async function sendEmail(
+  recipient: string,
+  subject: string,
+  html: string,
+  text: string,
+): Promise<SendEmailResult> {
   try {
     const connectors = new ReplitConnectors();
     const response = await connectors.proxy("resend", "/emails", {
@@ -82,21 +97,80 @@ export async function sendAlertDigestEmail(
         to: [recipient],
         subject,
         html,
-        text: `Survey run #${runId} detected ${items.length} new alert(s):\n\n${text}`,
+        text,
       }),
     });
     if (!response.ok) {
       const body = await response.text().catch(() => "");
-      logger.error(
-        { status: response.status, body, recipient, runId },
-        "Alert digest email failed",
-      );
-      return false;
+      logger.error({ status: response.status, body, recipient }, "Alert email failed");
+      let detail = body;
+      try {
+        const parsed = JSON.parse(body) as { message?: string };
+        if (parsed?.message) detail = parsed.message;
+      } catch {
+        // keep raw body
+      }
+      return {
+        ok: false,
+        error: detail
+          ? `Email provider error (${response.status}): ${detail}`
+          : `Email provider error (${response.status})`,
+      };
     }
-    logger.info({ recipient, runId, alerts: items.length }, "Alert digest email sent");
-    return true;
+    logger.info({ recipient }, "Alert email sent");
+    return { ok: true };
   } catch (error) {
-    logger.error({ error, recipient, runId }, "Alert digest email failed");
-    return false;
+    logger.error({ error, recipient }, "Alert email failed");
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : "Unknown email send failure",
+    };
   }
+}
+
+/**
+ * Send an alert digest email via the Resend connection. Failures are logged
+ * and reported as `false` so a mail failure never breaks alert detection.
+ */
+export async function sendAlertDigestEmail(
+  recipient: string,
+  runId: number,
+  items: AlertEmailItem[],
+): Promise<boolean> {
+  const { subject, html, text } = buildDigest(runId, items);
+  return (await sendEmail(recipient, subject, html, text)).ok;
+}
+
+/**
+ * Send a sample digest to verify delivery works. Returns the provider error
+ * detail on failure so the UI can surface it.
+ */
+export async function sendTestAlertEmail(recipient: string): Promise<SendEmailResult> {
+  const sampleItems: AlertEmailItem[] = [
+    {
+      brandName: "Example Brand",
+      industryName: "Sample Industry",
+      metricLabel: "Positive Sentiment",
+      kind: "score_drop",
+      previousValue: 82.5,
+      currentValue: 71.0,
+      delta: 11.5,
+    },
+    {
+      brandName: "Another Brand",
+      industryName: "Sample Industry",
+      metricLabel: "Overall Rank",
+      kind: "rank_drop",
+      previousValue: 2,
+      currentValue: 5,
+      delta: 3,
+    },
+  ];
+  const { subject, html, text } = buildDigest(0, sampleItems, { test: true });
+  return sendEmail(
+    recipient,
+    subject,
+    `<p style="font-family:system-ui,-apple-system,sans-serif;max-width:640px;margin:16px auto 0;color:#555;">This is a <strong>test</strong> alert email from AI Rank — the data below is sample data.</p>${html}`,
+    `This is a TEST alert email from AI Rank — the data below is sample data.\n\n${text}`,
+  );
 }

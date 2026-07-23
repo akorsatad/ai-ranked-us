@@ -6,11 +6,12 @@ import {
   useGetAlertSettings,
   getGetAlertSettingsQueryKey,
   useUpdateAlertSettings,
+  useSendTestAlertEmail,
   BrandAlert,
 } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
-import { BellOff, TrendingDown, ArrowDownWideNarrow, CheckCheck, Settings2 } from 'lucide-react';
+import { BellOff, TrendingDown, ArrowDownWideNarrow, CheckCheck, Settings2, Send } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -167,6 +168,24 @@ function ThresholdSettings() {
     },
   });
 
+  const sendTest = useSendTestAlertEmail({
+    mutation: {
+      onSuccess: (result) => {
+        toast({
+          title: 'Test email sent',
+          description: result.message ?? 'Check the recipient inbox to confirm delivery.',
+        });
+      },
+      onError: (error) => {
+        toast({
+          variant: 'destructive',
+          title: 'Test email failed',
+          description: error.message,
+        });
+      },
+    },
+  });
+
   const scoreValue = scoreDrop ?? (settings ? String(settings.scoreDropThreshold) : '');
   const rankValue = rankDrop ?? (settings ? String(settings.rankDropThreshold) : '');
   const emailOn = emailEnabled ?? settings?.emailEnabled ?? false;
@@ -270,6 +289,16 @@ function ThresholdSettings() {
               data-testid="input-email-recipient"
             />
           </div>
+          <Button
+            variant="outline"
+            className="gap-2"
+            disabled={!emailOn || dirty || sendTest.isPending || !(settings?.emailRecipient ?? '').trim()}
+            onClick={() => sendTest.mutate()}
+            data-testid="button-send-test-email"
+          >
+            <Send className="w-4 h-4" />
+            {sendTest.isPending ? 'Sending…' : 'Send test email'}
+          </Button>
           <p className="text-xs text-muted-foreground basis-full">
             When on, an email summarizing new alerts is sent after each survey run that detects any.
           </p>
