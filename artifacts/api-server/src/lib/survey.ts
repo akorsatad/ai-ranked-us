@@ -22,6 +22,29 @@ import { logger } from "./logger";
 
 let runInProgress = false;
 
+/**
+ * Mark any survey runs left in status "running" (e.g. after a server
+ * restart interrupted them) as failed, so they don't show as in-progress
+ * forever. Call once on server startup, before any new run can begin.
+ */
+export async function failInterruptedRuns(): Promise<void> {
+  const interrupted = await db
+    .update(surveyRunsTable)
+    .set({
+      status: "failed",
+      completedAt: new Date(),
+      error: "Interrupted by server restart",
+    })
+    .where(eq(surveyRunsTable.status, "running"))
+    .returning({ id: surveyRunsTable.id });
+  if (interrupted.length > 0) {
+    logger.warn(
+      { runIds: interrupted.map((r) => r.id) },
+      "Marked interrupted survey runs as failed after restart",
+    );
+  }
+}
+
 export function isRunInProgress(): boolean {
   return runInProgress;
 }

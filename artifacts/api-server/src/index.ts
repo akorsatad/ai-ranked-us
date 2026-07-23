@@ -2,6 +2,7 @@ import app from "./app";
 import { logger } from "./lib/logger";
 import { ensureSeeded } from "./lib/seed";
 import { startScheduler } from "./lib/scheduler";
+import { failInterruptedRuns } from "./lib/survey";
 
 const rawPort = process.env["PORT"];
 
@@ -26,8 +27,9 @@ app.listen(port, (err) => {
   logger.info({ port }, "Server listening");
 
   ensureSeeded()
+    .then(() => failInterruptedRuns())
     .then(() => startScheduler())
-    .catch((seedErr) => {
-      logger.error({ err: seedErr }, "Failed to seed catalog");
+    .catch((startupErr) => {
+      logger.error({ err: startupErr }, "Startup tasks failed");
     });
 });
