@@ -8,7 +8,11 @@ import {
   useGetIndustryTrends,
   getGetIndustryTrendsQueryKey,
   useGetIndustryHistory,
-  getGetIndustryHistoryQueryKey
+  getGetIndustryHistoryQueryKey,
+  useListTrendSnapshots,
+  getListTrendSnapshotsQueryKey,
+  useGetTrendSnapshot,
+  getGetTrendSnapshotQueryKey
 } from '@workspace/api-client-react';
 import { 
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Legend
@@ -16,10 +20,9 @@ import {
 import { 
   Building2, 
   TrendingUp, 
-  History,
+  GitCompareArrows,
   Bot, 
   Info,
-  ChevronRight,
   ArrowLeft,
   ArrowUp,
   ArrowDown,
@@ -27,10 +30,14 @@ import {
 } from 'lucide-react';
 import { Link } from 'wouter';
 import { Button } from '@/components/ui/button';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue
+} from '@/components/ui/select';
 
 // Generate colors based on index for the chart
 const CHART_COLORS = [
@@ -66,6 +73,29 @@ function RankChange({ rank, previousRank }: { rank: number; previousRank?: numbe
   );
 }
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+function dateKey(d: Date): string {
+  return d.toISOString().slice(0, 10);
+}
+
+function shortDate(key: string): string {
+  return new Date(`${key}T00:00:00Z`).toLocaleDateString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    timeZone: 'UTC',
+  });
+}
+
+const tooltipStyle = {
+  backgroundColor: 'hsl(var(--card))',
+  borderColor: 'hsl(var(--border))',
+  borderRadius: '0.5rem',
+  fontFamily: 'var(--app-font-mono)',
+  fontSize: '12px',
+  color: 'hsl(var(--foreground))',
+} as const;
+
 export default function Industry() {
   const [, params] = useRoute('/industry/:id');
   const industryId = parseInt(params?.id || '0', 10);
@@ -75,6 +105,10 @@ export default function Industry() {
   });
 
   const [activeMetric, setActiveMetric] = useState<string>('');
+  const [showMeasured, setShowMeasured] = useState(true);
+  const [showTrend, setShowTrend] = useState(true);
+  const [snapshotA, setSnapshotA] = useState<string>('');
+  const [snapshotB, setSnapshotB] = useState<string>('');
 
   // Set default metric once catalog loads
   React.useEffect(() => {
@@ -82,6 +116,12 @@ export default function Industry() {
       setActiveMetric(catalog.metrics[0].key);
     }
   }, [catalog, activeMetric]);
+
+  // Reset snapshot picks when the metric changes
+  React.useEffect(() => {
+    setSnapshotA('');
+    setSnapshotB('');
+  }, [activeMetric]);
 
   const { data: rankings, isLoading: isLoadingRankings } = useGetIndustryRankings(
     industryId, 
@@ -116,52 +156,118 @@ export default function Industry() {
     }
   );
 
+  const { data: snapshotList } = useListTrendSnapshots(
+    industryId,
+    { metric: activeMetric },
+    {
+      query: {
+        enabled: !!industryId && !!activeMetric,
+        queryKey: getListTrendSnapshotsQueryKey(industryId, { metric: activeMetric })
+      }
+    }
+  );
+
+  const snapshotDates = snapshotList?.snapshots.map(s => s.date) ?? [];
+
+  // Default the perception-shift picks: A = oldest, B = newest.
+  React.useEffect(() => {
+    if (snapshotDates.length >= 2) {
+      if (!snapshotA || !snapshotDates.includes(snapshotA)) {
+        setSnapshotA(snapshotDates[snapshotDates.length - 1]);
+      }
+      if (!snapshotB || !snapshotDates.includes(snapshotB)) {
+        setSnapshotB(snapshotDates[0]);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [snapshotList]);
+
+  const { data: snapA } = useGetTrendSnapshot(
+    industryId, snapshotA, { metric: activeMetric },
+    {
+      query: {
+        enabled: !!industryId && !!activeMetric && !!snapshotA,
+        queryKey: getGetTrendSnapshotQueryKey(industryId, snapshotA, { metric: activeMetric })
+      }
+    }
+  );
+  const { data: snapB } = useGetTrendSnapshot(
+    industryId, snapshotB, { metric: activeMetric },
+    {
+      query: {
+        enabled: !!industryId && !!activeMetric && !!snapshotB,
+        queryKey: getGetTrendSnapshotQueryKey(industryId, snapshotB, { metric: activeMetric })
+      }
+    }
+  );
+
   const industry = catalog?.industries.find(i => i.id === industryId);
   const metricInfo = catalog?.metrics.find(m => m.key === activeMetric);
 
-  // Transform trends data for Recharts
-  const chartData = useMemo(() => {
-    if (!trends || trends.brands.length === 0) return [];
-    
-    // Assume all brands have same points length, we map by weekIndex
-    const weeksCount = trends.brands[0].points.length;
-    const data = [];
-    
-    for (let i = 0; i < weeksCount; i++) {
-      const point: any = { 
-        name: trends.brands[0].points[i].weekLabel,
-        index: i
-      };
-      
-      trends.brands.forEach((brand) => {
-        point[brand.brandName] = brand.points[i].score;
-      });
-      data.push(point);
-    }
-    
-    return data;
-  }, [trends]);
+  // Merge measured daily history and the latest 13-week estimated trend onto
+  // one date-keyed axis. Trend weeks are anchored to the latest snapshot date.
+  const combinedChart = useMemo(() => {
+    const rows = new Map<string, Record<string, unknown>>();
+    const getRow = (key: string) => {
+      let row = rows.get(key);
+      if (!row) {
+        row = { dateKey: key, name: shortDate(key) };
+        rows.set(key, row);
+      }
+      return row;
+    };
 
-  // Transform measured per-run history for Recharts (points keyed by runId)
-  const historyChartData = useMemo(() => {
-    if (!history || history.brands.length === 0) return [];
-
-    const runMap = new Map<number, { name: string; runId: number; [brand: string]: any }>();
-    for (const brand of history.brands) {
-      for (const point of brand.points) {
-        let row = runMap.get(point.runId);
-        if (!row) {
-          row = {
-            runId: point.runId,
-            name: new Date(point.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
-          };
-          runMap.set(point.runId, row);
+    const measuredKeys: string[] = [];
+    if (history) {
+      for (const brand of history.brands) {
+        const seriesKey = `${brand.brandName} · measured`;
+        measuredKeys.push(seriesKey);
+        for (const point of brand.points) {
+          getRow(dateKey(new Date(point.date)))[seriesKey] = point.score;
         }
-        row[brand.brandName] = point.score;
       }
     }
-    return [...runMap.values()].sort((a, b) => a.runId - b.runId);
-  }, [history]);
+
+    const trendKeys: string[] = [];
+    if (trends && trends.brands.length > 0) {
+      const anchorKey = snapshotDates[0] ?? dateKey(new Date());
+      const anchor = new Date(`${anchorKey}T00:00:00Z`).getTime();
+      for (const brand of trends.brands) {
+        const seriesKey = `${brand.brandName} · 13w est.`;
+        trendKeys.push(seriesKey);
+        for (const point of brand.points) {
+          const d = new Date(anchor - (12 - point.weekIndex) * 7 * DAY_MS);
+          getRow(dateKey(d))[seriesKey] = point.score;
+        }
+      }
+    }
+
+    const data = [...rows.values()].sort((a, b) =>
+      String(a.dateKey) < String(b.dateKey) ? -1 : 1,
+    );
+    return { data, measuredKeys, trendKeys };
+  }, [history, trends, snapshotDates]);
+
+  // Perception shift: overlay two snapshots on the weekIndex axis.
+  const shiftChart = useMemo(() => {
+    if (!snapA || !snapB) return { data: [], brands: [] as string[] };
+    const rows: Record<string, unknown>[] = [];
+    for (let i = 0; i < 13; i++) {
+      rows.push({ weekIndex: i, name: snapB.brands[0]?.points.find(p => p.weekIndex === i)?.weekLabel ?? `W${i}` });
+    }
+    const brandNames = new Set<string>();
+    for (const [snap, tag] of [[snapA, 'A'], [snapB, 'B']] as const) {
+      for (const brand of snap.brands) {
+        brandNames.add(brand.brandName);
+        for (const point of brand.points) {
+          if (point.weekIndex >= 0 && point.weekIndex <= 12) {
+            rows[point.weekIndex][`${brand.brandName} · ${tag}`] = point.score;
+          }
+        }
+      }
+    }
+    return { data: rows, brands: [...brandNames] };
+  }, [snapA, snapB]);
 
   if (isLoadingCatalog || !industry) {
     return (
@@ -172,6 +278,11 @@ export default function Industry() {
       </div>
     );
   }
+
+  const isLoadingCombined = isLoadingTrends || isLoadingHistory;
+  const hasCombinedData = combinedChart.data.length > 0 &&
+    ((showMeasured && combinedChart.measuredKeys.length > 0) ||
+     (showTrend && combinedChart.trendKeys.length > 0));
 
   return (
     <div className="p-6 md:p-10 max-w-[1600px] mx-auto space-y-8">
@@ -224,29 +335,40 @@ export default function Industry() {
       {/* Content Grid */}
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
         
-        {/* Left Column: Chart */}
+        {/* Left Column: Charts */}
         <div className="xl:col-span-2 space-y-8">
+          {/* Combined dual-series chart */}
           <Card className="border-border">
             <CardHeader className="border-b border-border bg-muted/20">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-wrap items-center justify-between gap-4">
                 <div>
                   <CardTitle className="flex items-center gap-2">
                     <TrendingUp className="w-5 h-5 text-primary" />
-                    13-Week Trend
+                    Score History
                   </CardTitle>
                   <CardDescription>
-                    AI consensus sentiment over time
+                    Real measured daily scores (solid) vs the AI-estimated 13-week lookback (dashed)
                   </CardDescription>
+                </div>
+                <div className="flex items-center gap-6">
+                  <div className="flex items-center gap-2">
+                    <Switch id="toggle-measured" checked={showMeasured} onCheckedChange={setShowMeasured} />
+                    <Label htmlFor="toggle-measured" className="font-mono text-xs cursor-pointer">MEASURED</Label>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Switch id="toggle-trend" checked={showTrend} onCheckedChange={setShowTrend} />
+                    <Label htmlFor="toggle-trend" className="font-mono text-xs cursor-pointer">13W ESTIMATE</Label>
+                  </div>
                 </div>
               </div>
             </CardHeader>
             <CardContent className="p-6">
-              {isLoadingTrends ? (
+              {isLoadingCombined ? (
                 <Skeleton className="h-[400px] w-full" />
-              ) : chartData.length > 0 ? (
+              ) : hasCombinedData ? (
                 <div className="h-[400px] w-full">
                   <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={chartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                    <LineChart data={combinedChart.data} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
                       <XAxis 
                         dataKey="name" 
@@ -262,105 +384,33 @@ export default function Industry() {
                         fontFamily="var(--app-font-mono)"
                         tickMargin={10}
                       />
-                      <RechartsTooltip 
-                        contentStyle={{ 
-                          backgroundColor: 'hsl(var(--card))', 
-                          borderColor: 'hsl(var(--border))',
-                          borderRadius: '0.5rem',
-                          fontFamily: 'var(--app-font-mono)',
-                          fontSize: '12px',
-                          color: 'hsl(var(--foreground))'
-                        }}
-                        itemStyle={{ color: 'hsl(var(--foreground))' }}
-                      />
+                      <RechartsTooltip contentStyle={tooltipStyle} itemStyle={{ color: 'hsl(var(--foreground))' }} />
                       <Legend 
-                        wrapperStyle={{ paddingTop: '20px', fontFamily: 'var(--app-font-sans)', fontSize: '14px' }}
+                        wrapperStyle={{ paddingTop: '20px', fontFamily: 'var(--app-font-sans)', fontSize: '13px' }}
                       />
-                      {trends?.brands.map((brand, i) => (
+                      {showTrend && trends?.brands.map((brand, i) => (
                         <Line 
-                          key={brand.brandId}
+                          key={`t-${brand.brandId}`}
+                          isAnimationActive={false}
                           type="monotone" 
-                          dataKey={brand.brandName} 
+                          dataKey={`${brand.brandName} · 13w est.`}
                           stroke={CHART_COLORS[i % CHART_COLORS.length]} 
-                          strokeWidth={2}
-                          dot={{ r: 4, strokeWidth: 2 }}
-                          activeDot={{ r: 6, strokeWidth: 0 }}
+                          strokeWidth={1.5}
+                          strokeDasharray="6 4"
+                          strokeOpacity={0.65}
+                          dot={false}
+                          activeDot={{ r: 4, strokeWidth: 0 }}
+                          connectNulls
                         />
                       ))}
-                    </LineChart>
-                  </ResponsiveContainer>
-                </div>
-              ) : (
-                <div className="h-[400px] flex items-center justify-center text-muted-foreground font-mono">
-                  No trend data available.
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Measured per-run history */}
-          <Card className="border-border">
-            <CardHeader className="border-b border-border bg-muted/20">
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle className="flex items-center gap-2">
-                    <History className="w-5 h-5 text-primary" />
-                    Measured History
-                  </CardTitle>
-                  <CardDescription>
-                    Real day-over-day scores from stored survey runs (averaged across engines)
-                  </CardDescription>
-                </div>
-                {history && (
-                  <span className="text-xs font-mono bg-primary/10 px-2 py-1 rounded-md text-primary shrink-0">
-                    {history.runsCount} {history.runsCount === 1 ? 'RUN' : 'RUNS'}
-                  </span>
-                )}
-              </div>
-            </CardHeader>
-            <CardContent className="p-6">
-              {isLoadingHistory ? (
-                <Skeleton className="h-[300px] w-full" />
-              ) : historyChartData.length > 1 ? (
-                <div className="h-[300px] w-full">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={historyChartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
-                      <XAxis 
-                        dataKey="name" 
-                        stroke="hsl(var(--muted-foreground))" 
-                        fontSize={12} 
-                        fontFamily="var(--app-font-mono)"
-                        tickMargin={10}
-                      />
-                      <YAxis 
-                        domain={[0, 100]} 
-                        stroke="hsl(var(--muted-foreground))" 
-                        fontSize={12}
-                        fontFamily="var(--app-font-mono)"
-                        tickMargin={10}
-                      />
-                      <RechartsTooltip 
-                        contentStyle={{ 
-                          backgroundColor: 'hsl(var(--card))', 
-                          borderColor: 'hsl(var(--border))',
-                          borderRadius: '0.5rem',
-                          fontFamily: 'var(--app-font-mono)',
-                          fontSize: '12px',
-                          color: 'hsl(var(--foreground))'
-                        }}
-                        itemStyle={{ color: 'hsl(var(--foreground))' }}
-                      />
-                      <Legend 
-                        wrapperStyle={{ paddingTop: '20px', fontFamily: 'var(--app-font-sans)', fontSize: '14px' }}
-                      />
-                      {history?.brands.map((brand, i) => (
+                      {showMeasured && history?.brands.map((brand, i) => (
                         <Line 
-                          key={brand.brandId}
+                          key={`m-${brand.brandId}`}
+                          isAnimationActive={false}
                           type="monotone" 
-                          dataKey={brand.brandName} 
+                          dataKey={`${brand.brandName} · measured`}
                           stroke={CHART_COLORS[i % CHART_COLORS.length]} 
-                          strokeWidth={2}
+                          strokeWidth={2.5}
                           dot={{ r: 4, strokeWidth: 2 }}
                           activeDot={{ r: 6, strokeWidth: 0 }}
                           connectNulls
@@ -370,11 +420,119 @@ export default function Industry() {
                   </ResponsiveContainer>
                 </div>
               ) : (
-                <div className="h-[120px] flex items-center justify-center text-center text-muted-foreground font-mono text-sm px-6">
-                  {historyChartData.length === 1
-                    ? 'One run recorded — measured history appears once a second survey run completes.'
-                    : 'No measured history yet. Run surveys to start building real day-over-day data.'}
+                <div className="h-[400px] flex items-center justify-center text-muted-foreground font-mono text-sm text-center px-6">
+                  {!showMeasured && !showTrend
+                    ? 'Both series hidden — toggle one back on above.'
+                    : 'No data yet. Run surveys to start building history.'}
                 </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Perception shift */}
+          <Card className="border-border">
+            <CardHeader className="border-b border-border bg-muted/20">
+              <div className="flex flex-wrap items-center justify-between gap-4">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <GitCompareArrows className="w-5 h-5 text-primary" />
+                    Perception Shift
+                  </CardTitle>
+                  <CardDescription>
+                    Compare 13-week estimates from two survey days to see how engines revise the past
+                  </CardDescription>
+                </div>
+                {snapshotDates.length >= 2 && (
+                  <div className="flex items-center gap-2">
+                    <Select value={snapshotA} onValueChange={setSnapshotA}>
+                      <SelectTrigger className="w-[130px] font-mono text-xs" aria-label="Snapshot A date">
+                        <SelectValue placeholder="Date A" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {snapshotDates.map(d => (
+                          <SelectItem key={d} value={d} className="font-mono text-xs">{shortDate(d)}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <span className="text-muted-foreground font-mono text-xs">vs</span>
+                    <Select value={snapshotB} onValueChange={setSnapshotB}>
+                      <SelectTrigger className="w-[130px] font-mono text-xs" aria-label="Snapshot B date">
+                        <SelectValue placeholder="Date B" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {snapshotDates.map(d => (
+                          <SelectItem key={d} value={d} className="font-mono text-xs">{shortDate(d)}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+              </div>
+            </CardHeader>
+            <CardContent className="p-6">
+              {snapshotDates.length < 2 ? (
+                <div className="h-[120px] flex items-center justify-center text-center text-muted-foreground font-mono text-sm px-6">
+                  Snapshots from at least two different days are needed — each daily run stores its own 13-week estimate.
+                </div>
+              ) : shiftChart.data.length > 0 ? (
+                <>
+                  <div className="h-[340px] w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={shiftChart.data} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+                        <XAxis 
+                          dataKey="name" 
+                          stroke="hsl(var(--muted-foreground))" 
+                          fontSize={12} 
+                          fontFamily="var(--app-font-mono)"
+                          tickMargin={10}
+                        />
+                        <YAxis 
+                          domain={[0, 100]} 
+                          stroke="hsl(var(--muted-foreground))" 
+                          fontSize={12}
+                          fontFamily="var(--app-font-mono)"
+                          tickMargin={10}
+                        />
+                        <RechartsTooltip contentStyle={tooltipStyle} itemStyle={{ color: 'hsl(var(--foreground))' }} />
+                        <Legend 
+                          wrapperStyle={{ paddingTop: '20px', fontFamily: 'var(--app-font-sans)', fontSize: '13px' }}
+                        />
+                        {shiftChart.brands.map((brandName, i) => (
+                          <Line 
+                            key={`a-${brandName}`}
+                            isAnimationActive={false}
+                          type="monotone" 
+                            dataKey={`${brandName} · A`}
+                            stroke={CHART_COLORS[i % CHART_COLORS.length]} 
+                            strokeWidth={1.5}
+                            strokeDasharray="5 5"
+                            strokeOpacity={0.5}
+                            dot={false}
+                            connectNulls
+                          />
+                        ))}
+                        {shiftChart.brands.map((brandName, i) => (
+                          <Line 
+                            key={`b-${brandName}`}
+                            isAnimationActive={false}
+                          type="monotone" 
+                            dataKey={`${brandName} · B`}
+                            stroke={CHART_COLORS[i % CHART_COLORS.length]} 
+                            strokeWidth={2.5}
+                            dot={false}
+                            connectNulls
+                          />
+                        ))}
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <p className="text-xs text-muted-foreground font-mono mt-2 text-center">
+                    A ({snapshotA && shortDate(snapshotA)}, dashed) vs B ({snapshotB && shortDate(snapshotB)}, solid)
+                  </p>
+                </>
+              ) : (
+                <Skeleton className="h-[340px] w-full" />
               )}
             </CardContent>
           </Card>

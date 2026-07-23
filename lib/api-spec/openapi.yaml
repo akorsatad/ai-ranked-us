@@ -152,6 +152,12 @@ paths:
           description: Metric key (e.g. positive_sentiment)
           schema:
             type: string
+        - name: engine
+          in: query
+          required: false
+          description: Engine key to filter by; omitted = averaged across engines
+          schema:
+            type: string
       responses:
         "200":
           description: Historical series from stored survey runs
@@ -161,6 +167,82 @@ paths:
                 $ref: "#/components/schemas/IndustryHistory"
         "404":
           description: Industry not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+  /industries/{industryId}/trend-snapshots:
+    get:
+      operationId: listTrendSnapshots
+      tags: [rankings]
+      summary: Dates of stored 13-week trend snapshots for an industry metric
+      parameters:
+        - name: industryId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: metric
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: engine
+          in: query
+          required: false
+          description: Engine key to filter by; omitted = all engines
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Snapshot dates, newest first
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TrendSnapshotList"
+        "404":
+          description: Industry not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+  /industries/{industryId}/trend-snapshots/{date}:
+    get:
+      operationId: getTrendSnapshot
+      tags: [rankings]
+      summary: 13-week trend snapshot as estimated on a specific date
+      parameters:
+        - name: industryId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: date
+          in: path
+          required: true
+          description: Snapshot date (YYYY-MM-DD)
+          schema:
+            type: string
+        - name: metric
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: engine
+          in: query
+          required: false
+          description: Engine key to filter by; omitted = averaged across engines
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Trend lines as estimated on that date
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TrendSnapshot"
+        "404":
+          description: Industry or snapshot not found
           content:
             application/json:
               schema:
@@ -1264,6 +1346,49 @@ components:
           items:
             $ref: "#/components/schemas/BrandTrend"
       required: [industryId, industryName, metric, engine, brands]
+    TrendSnapshotDate:
+      type: object
+      properties:
+        date:
+          type: string
+          description: Snapshot date (YYYY-MM-DD)
+        runIds:
+          type: array
+          items:
+            type: integer
+        enginesCount:
+          type: integer
+          description: Number of engines that contributed a snapshot this date
+      required: [date, runIds, enginesCount]
+    TrendSnapshotList:
+      type: object
+      properties:
+        industryId: { type: integer }
+        industryName: { type: string }
+        metric: { type: string }
+        snapshots:
+          type: array
+          description: Newest first
+          items:
+            $ref: "#/components/schemas/TrendSnapshotDate"
+      required: [industryId, industryName, metric, snapshots]
+    TrendSnapshot:
+      type: object
+      properties:
+        industryId: { type: integer }
+        industryName: { type: string }
+        metric: { type: string }
+        date:
+          type: string
+          description: Snapshot date (YYYY-MM-DD)
+        engine:
+          type: ["string", "null"]
+          description: Engine key, or null when averaged across engines
+        brands:
+          type: array
+          items:
+            $ref: "#/components/schemas/BrandTrend"
+      required: [industryId, industryName, metric, date, engine, brands]
     Mover:
       type: object
       properties:

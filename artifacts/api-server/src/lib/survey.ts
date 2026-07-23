@@ -24,6 +24,7 @@ import { batchProcess } from "@workspace/integrations-openai-ai-server/batch";
 import { METRICS, type MetricDef } from "./metrics";
 import { callEngine } from "./engineClients";
 import { detectAlertsForRun } from "./alerts";
+import { recordSeriesForResponse } from "./series";
 import { logger } from "./logger";
 
 let runInProgress = false;
@@ -560,17 +561,23 @@ async function executeRun(
       try {
         raw = await callEngine(query.engine, prompt);
         const { entries, trend } = parseResponse(query, raw);
-        await db.insert(surveyResponsesTable).values({
-          runId: run.id,
-          engineId: query.engine.id,
-          industryId: query.industry.id,
-          metricKey: query.metric.key,
-          status: "ok",
-          entries,
-          trend,
-          prompt,
-          rawResponse: raw,
-        });
+        const [inserted] = await db
+          .insert(surveyResponsesTable)
+          .values({
+            runId: run.id,
+            engineId: query.engine.id,
+            industryId: query.industry.id,
+            metricKey: query.metric.key,
+            status: "ok",
+            entries,
+            trend,
+            prompt,
+            rawResponse: raw,
+          })
+          .returning();
+        if (inserted) {
+          await recordSeriesForResponse(inserted);
+        }
         succeeded++;
       } catch (err) {
         failed++;

@@ -378,6 +378,36 @@ export interface IndustryTrends {
   brands: BrandTrend[];
 }
 
+export interface TrendSnapshotDate {
+  /** Snapshot date (YYYY-MM-DD) */
+  date: string;
+  runIds: number[];
+  /** Number of engines that contributed a snapshot this date */
+  enginesCount: number;
+}
+
+export interface TrendSnapshotList {
+  industryId: number;
+  industryName: string;
+  metric: string;
+  /** Newest first */
+  snapshots: TrendSnapshotDate[];
+}
+
+export interface TrendSnapshot {
+  industryId: number;
+  industryName: string;
+  metric: string;
+  /** Snapshot date (YYYY-MM-DD) */
+  date: string;
+  /**
+     * Engine key, or null when averaged across engines
+     * @nullable
+     */
+  engine: string | null;
+  brands: BrandTrend[];
+}
+
 export interface Mover {
   industryId: number;
   industryName: string;
@@ -553,6 +583,26 @@ export type GetIndustryHistoryParams = {
  * Metric key (e.g. positive_sentiment)
  */
 metric: string;
+/**
+ * Engine key to filter by; omitted = averaged across engines
+ */
+engine?: string;
+};
+
+export type ListTrendSnapshotsParams = {
+metric: string;
+/**
+ * Engine key to filter by; omitted = all engines
+ */
+engine?: string;
+};
+
+export type GetTrendSnapshotParams = {
+metric: string;
+/**
+ * Engine key to filter by; omitted = averaged across engines
+ */
+engine?: string;
 };
 
 export type BrowseTableParams = {

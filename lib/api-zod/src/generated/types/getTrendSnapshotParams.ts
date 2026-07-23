@@ -6,10 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export type GetIndustryHistoryParams = {
-/**
- * Metric key (e.g. positive_sentiment)
- */
+export type GetTrendSnapshotParams = {
 metric: string;
 /**
  * Engine key to filter by; omitted = averaged across engines

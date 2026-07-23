@@ -38,6 +38,7 @@ import type {
   GetIndustryHistoryParams,
   GetIndustryRankingsParams,
   GetIndustryTrendsParams,
+  GetTrendSnapshotParams,
   HealthStatus,
   Industry,
   IndustryHistory,
@@ -47,6 +48,7 @@ import type {
   IndustryUpdate,
   KeyPreflightSettings,
   ListAlertsParams,
+  ListTrendSnapshotsParams,
   MarkAlertsReadInput,
   MoversReport,
   Overview,
@@ -55,6 +57,8 @@ import type {
   ProviderKeyStatus,
   SurveyRun,
   TablePage,
+  TrendSnapshot,
+  TrendSnapshotList,
   TriggerRunInput,
   UnreadCount
 } from './api.schemas';
@@ -650,6 +654,189 @@ export function useGetIndustryHistory<TData = Awaited<ReturnType<typeof getIndus
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetIndustryHistoryQueryOptions(industryId,params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getListTrendSnapshotsUrl = (industryId: number,
+    params: ListTrendSnapshotsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/industries/${industryId}/trend-snapshots?${stringifiedParams}` : `/api/industries/${industryId}/trend-snapshots`
+}
+
+/**
+ * @summary Dates of stored 13-week trend snapshots for an industry metric
+ */
+export const listTrendSnapshots = async (industryId: number,
+    params: ListTrendSnapshotsParams, options?: RequestInit): Promise<TrendSnapshotList> => {
+
+  return customFetch<TrendSnapshotList>(getListTrendSnapshotsUrl(industryId,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListTrendSnapshotsQueryKey = (industryId: number,
+    params?: ListTrendSnapshotsParams,) => {
+    return [
+    `/api/industries/${industryId}/trend-snapshots`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListTrendSnapshotsQueryOptions = <TData = Awaited<ReturnType<typeof listTrendSnapshots>>, TError = ErrorType<ApiMessage>>(industryId: number,
+    params: ListTrendSnapshotsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listTrendSnapshots>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListTrendSnapshotsQueryKey(industryId,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listTrendSnapshots>>> = ({ signal }) => listTrendSnapshots(industryId,params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: industryId !== null && industryId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listTrendSnapshots>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListTrendSnapshotsQueryResult = NonNullable<Awaited<ReturnType<typeof listTrendSnapshots>>>
+export type ListTrendSnapshotsQueryError = ErrorType<ApiMessage>
+
+
+/**
+ * @summary Dates of stored 13-week trend snapshots for an industry metric
+ */
+
+export function useListTrendSnapshots<TData = Awaited<ReturnType<typeof listTrendSnapshots>>, TError = ErrorType<ApiMessage>>(
+ industryId: number,
+    params: ListTrendSnapshotsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listTrendSnapshots>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListTrendSnapshotsQueryOptions(industryId,params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetTrendSnapshotUrl = (industryId: number,
+    date: string,
+    params: GetTrendSnapshotParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/industries/${industryId}/trend-snapshots/${date}?${stringifiedParams}` : `/api/industries/${industryId}/trend-snapshots/${date}`
+}
+
+/**
+ * @summary 13-week trend snapshot as estimated on a specific date
+ */
+export const getTrendSnapshot = async (industryId: number,
+    date: string,
+    params: GetTrendSnapshotParams, options?: RequestInit): Promise<TrendSnapshot> => {
+
+  return customFetch<TrendSnapshot>(getGetTrendSnapshotUrl(industryId,date,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetTrendSnapshotQueryKey = (industryId: number,
+    date: string,
+    params?: GetTrendSnapshotParams,) => {
+    return [
+    `/api/industries/${industryId}/trend-snapshots/${date}`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetTrendSnapshotQueryOptions = <TData = Awaited<ReturnType<typeof getTrendSnapshot>>, TError = ErrorType<ApiMessage>>(industryId: number,
+    date: string,
+    params: GetTrendSnapshotParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getTrendSnapshot>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetTrendSnapshotQueryKey(industryId,date,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getTrendSnapshot>>> = ({ signal }) => getTrendSnapshot(industryId,date,params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: industryId !== null && industryId !== undefined && date !== null && date !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getTrendSnapshot>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetTrendSnapshotQueryResult = NonNullable<Awaited<ReturnType<typeof getTrendSnapshot>>>
+export type GetTrendSnapshotQueryError = ErrorType<ApiMessage>
+
+
+/**
+ * @summary 13-week trend snapshot as estimated on a specific date
+ */
+
+export function useGetTrendSnapshot<TData = Awaited<ReturnType<typeof getTrendSnapshot>>, TError = ErrorType<ApiMessage>>(
+ industryId: number,
+    date: string,
+    params: GetTrendSnapshotParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getTrendSnapshot>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetTrendSnapshotQueryOptions(industryId,date,params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

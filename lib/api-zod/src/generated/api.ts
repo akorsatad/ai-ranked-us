@@ -187,7 +187,8 @@ export const GetIndustryHistoryParams = zod.object({
 })
 
 export const GetIndustryHistoryQueryParams = zod.object({
-  "metric": zod.coerce.string().describe('Metric key (e.g. positive_sentiment)')
+  "metric": zod.coerce.string().describe('Metric key (e.g. positive_sentiment)'),
+  "engine": zod.coerce.string().optional().describe('Engine key to filter by; omitted = averaged across engines')
 })
 
 export const GetIndustryHistoryResponse = zod.object({
@@ -201,6 +202,61 @@ export const GetIndustryHistoryResponse = zod.object({
   "points": zod.array(zod.object({
   "runId": zod.number(),
   "date": zod.string().describe('ISO timestamp of the run\'s responses'),
+  "score": zod.number()
+}))
+}))
+})
+
+
+/**
+ * @summary Dates of stored 13-week trend snapshots for an industry metric
+ */
+export const ListTrendSnapshotsParams = zod.object({
+  "industryId": zod.coerce.number()
+})
+
+export const ListTrendSnapshotsQueryParams = zod.object({
+  "metric": zod.coerce.string(),
+  "engine": zod.coerce.string().optional().describe('Engine key to filter by; omitted = all engines')
+})
+
+export const ListTrendSnapshotsResponse = zod.object({
+  "industryId": zod.number(),
+  "industryName": zod.string(),
+  "metric": zod.string(),
+  "snapshots": zod.array(zod.object({
+  "date": zod.string().describe('Snapshot date (YYYY-MM-DD)'),
+  "runIds": zod.array(zod.number()),
+  "enginesCount": zod.number().describe('Number of engines that contributed a snapshot this date')
+})).describe('Newest first')
+})
+
+
+/**
+ * @summary 13-week trend snapshot as estimated on a specific date
+ */
+export const GetTrendSnapshotParams = zod.object({
+  "industryId": zod.coerce.number(),
+  "date": zod.coerce.string().describe('Snapshot date (YYYY-MM-DD)')
+})
+
+export const GetTrendSnapshotQueryParams = zod.object({
+  "metric": zod.coerce.string(),
+  "engine": zod.coerce.string().optional().describe('Engine key to filter by; omitted = averaged across engines')
+})
+
+export const GetTrendSnapshotResponse = zod.object({
+  "industryId": zod.number(),
+  "industryName": zod.string(),
+  "metric": zod.string(),
+  "date": zod.string().describe('Snapshot date (YYYY-MM-DD)'),
+  "engine": zod.string().nullable().describe('Engine key, or null when averaged across engines'),
+  "brands": zod.array(zod.object({
+  "brandId": zod.number(),
+  "brandName": zod.string(),
+  "points": zod.array(zod.object({
+  "weekIndex": zod.number().describe('0 = 12 weeks ago ... 12 = current week'),
+  "weekLabel": zod.string(),
   "score": zod.number()
 }))
 }))

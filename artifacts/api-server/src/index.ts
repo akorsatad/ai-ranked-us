@@ -3,6 +3,7 @@ import { logger } from "./lib/logger";
 import { ensureSeeded } from "./lib/seed";
 import { startScheduler } from "./lib/scheduler";
 import { failInterruptedRuns, recoverPendingAutoRuns } from "./lib/survey";
+import { backfillSeries } from "./lib/series";
 
 const rawPort = process.env["PORT"];
 
@@ -28,6 +29,7 @@ app.listen(port, (err) => {
 
   ensureSeeded()
     .then(() => failInterruptedRuns())
+    .then(() => backfillSeries())
     .then(() => {
       startScheduler();
       return recoverPendingAutoRuns();

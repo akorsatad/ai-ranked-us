@@ -6,5 +6,7 @@ export {
   GetIndustryRankingsParams,
   GetIndustryTrendsParams,
   GetIndustryHistoryParams,
+  ListTrendSnapshotsParams,
+  GetTrendSnapshotParams,
   BrowseTableParams,
 } from "./generated/api";

@@ -209,7 +209,7 @@ export function computeMovers(
  * Average trend points across engine responses per brand.
  */
 export function averageTrends(
-  responses: SurveyResponseRow[],
+  responses: { trend: StoredBrandTrend[] | null }[],
 ): StoredBrandTrend[] {
   const byBrand = new Map<
     number,

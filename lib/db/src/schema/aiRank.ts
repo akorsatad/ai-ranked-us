@@ -152,6 +152,78 @@ export const surveyResponsesTable = pgTable("survey_responses", {
     .defaultNow(),
 });
 
+/**
+ * Structured per-day measured scores/ranks — one row per brand within a
+ * successful survey response. Mirrors survey_responses.entries but queryable.
+ */
+export const dailyMeasurementsTable = pgTable(
+  "daily_measurements",
+  {
+    id: serial("id").primaryKey(),
+    responseId: integer("response_id")
+      .notNull()
+      .references(() => surveyResponsesTable.id),
+    runId: integer("run_id")
+      .notNull()
+      .references(() => surveyRunsTable.id),
+    engineId: integer("engine_id")
+      .notNull()
+      .references(() => enginesTable.id),
+    industryId: integer("industry_id")
+      .notNull()
+      .references(() => industriesTable.id),
+    metricKey: text("metric_key").notNull(),
+    brandId: integer("brand_id")
+      .notNull()
+      .references(() => brandsTable.id),
+    brandName: text("brand_name").notNull(),
+    rank: integer("rank").notNull(),
+    scoreX10: integer("score_x10").notNull(), // score * 10 to keep one decimal
+    measuredAt: timestamp("measured_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    uniqueIndex("daily_measurements_response_brand_unique").on(
+      table.responseId,
+      table.brandId,
+    ),
+  ],
+);
+
+/**
+ * Per-day snapshots of the AI-estimated 13-week trend — one row per
+ * successful survey response, preserving every day's estimate of the past.
+ */
+export const trendSnapshotsTable = pgTable(
+  "trend_snapshots",
+  {
+    id: serial("id").primaryKey(),
+    responseId: integer("response_id")
+      .notNull()
+      .references(() => surveyResponsesTable.id),
+    runId: integer("run_id")
+      .notNull()
+      .references(() => surveyRunsTable.id),
+    engineId: integer("engine_id")
+      .notNull()
+      .references(() => enginesTable.id),
+    industryId: integer("industry_id")
+      .notNull()
+      .references(() => industriesTable.id),
+    metricKey: text("metric_key").notNull(),
+    snapshotDate: text("snapshot_date").notNull(), // YYYY-MM-DD (UTC)
+    trend: jsonb("trend").$type<StoredBrandTrend[]>().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("trend_snapshots_response_unique").on(table.responseId),
+  ],
+);
+
+export type DailyMeasurementRow = typeof dailyMeasurementsTable.$inferSelect;
+export type TrendSnapshotRow = typeof trendSnapshotsTable.$inferSelect;
+
 export const brandAlertsTable = pgTable("brand_alerts", {
   id: serial("id").primaryKey(),
   runId: integer("run_id")
