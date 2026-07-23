@@ -810,6 +810,219 @@ export const useTriggerRun = <TError = ErrorType<ApiMessage>,
       return useMutation(getTriggerRunMutationOptions(options));
     }
 
+export const getPauseRunUrl = (runId: number,) => {
+
+
+
+
+  return `/api/runs/${runId}/pause`
+}
+
+/**
+ * @summary Pause an in-progress survey run
+ */
+export const pauseRun = async (runId: number, options?: RequestInit): Promise<SurveyRun> => {
+
+  return customFetch<SurveyRun>(getPauseRunUrl(runId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getPauseRunMutationOptions = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof pauseRun>>, TError,{runId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof pauseRun>>, TError,{runId: number}, TContext> => {
+
+const mutationKey = ['pauseRun'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof pauseRun>>, {runId: number}> = (props) => {
+          const {runId} = props ?? {};
+
+          return  pauseRun(runId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PauseRunMutationResult = NonNullable<Awaited<ReturnType<typeof pauseRun>>>
+
+    export type PauseRunMutationError = ErrorType<ApiMessage>
+
+    /**
+ * @summary Pause an in-progress survey run
+ */
+export const usePauseRun = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof pauseRun>>, TError,{runId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof pauseRun>>,
+        TError,
+        {runId: number},
+        TContext
+      > => {
+      return useMutation(getPauseRunMutationOptions(options));
+    }
+
+export const getResumeRunUrl = (runId: number,) => {
+
+
+
+
+  return `/api/runs/${runId}/resume`
+}
+
+/**
+ * @summary Resume a paused survey run
+ */
+export const resumeRun = async (runId: number, options?: RequestInit): Promise<SurveyRun> => {
+
+  return customFetch<SurveyRun>(getResumeRunUrl(runId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getResumeRunMutationOptions = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof resumeRun>>, TError,{runId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof resumeRun>>, TError,{runId: number}, TContext> => {
+
+const mutationKey = ['resumeRun'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof resumeRun>>, {runId: number}> = (props) => {
+          const {runId} = props ?? {};
+
+          return  resumeRun(runId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ResumeRunMutationResult = NonNullable<Awaited<ReturnType<typeof resumeRun>>>
+
+    export type ResumeRunMutationError = ErrorType<ApiMessage>
+
+    /**
+ * @summary Resume a paused survey run
+ */
+export const useResumeRun = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof resumeRun>>, TError,{runId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof resumeRun>>,
+        TError,
+        {runId: number},
+        TContext
+      > => {
+      return useMutation(getResumeRunMutationOptions(options));
+    }
+
+export const getCancelRunUrl = (runId: number,) => {
+
+
+
+
+  return `/api/runs/${runId}/cancel`
+}
+
+/**
+ * @summary Cancel a running or paused survey run
+ */
+export const cancelRun = async (runId: number, options?: RequestInit): Promise<SurveyRun> => {
+
+  return customFetch<SurveyRun>(getCancelRunUrl(runId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getCancelRunMutationOptions = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof cancelRun>>, TError,{runId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof cancelRun>>, TError,{runId: number}, TContext> => {
+
+const mutationKey = ['cancelRun'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof cancelRun>>, {runId: number}> = (props) => {
+          const {runId} = props ?? {};
+
+          return  cancelRun(runId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CancelRunMutationResult = NonNullable<Awaited<ReturnType<typeof cancelRun>>>
+
+    export type CancelRunMutationError = ErrorType<ApiMessage>
+
+    /**
+ * @summary Cancel a running or paused survey run
+ */
+export const useCancelRun = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof cancelRun>>, TError,{runId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof cancelRun>>,
+        TError,
+        {runId: number},
+        TContext
+      > => {
+      return useMutation(getCancelRunMutationOptions(options));
+    }
+
 export const getCreateIndustryUrl = () => {
 
 

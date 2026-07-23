@@ -445,6 +445,10 @@ export type SurveyRunStatus = typeof SurveyRunStatus[keyof typeof SurveyRunStatu
 
 export const SurveyRunStatus = {
   running: 'running',
+  pausing: 'pausing',
+  paused: 'paused',
+  cancelling: 'cancelling',
+  cancelled: 'cancelled',
   completed: 'completed',
   failed: 'failed',
   partial: 'partial',

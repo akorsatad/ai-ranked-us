@@ -220,6 +220,105 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiMessage"
+  /runs/{runId}/pause:
+    post:
+      operationId: pauseRun
+      tags: [runs]
+      summary: Pause an in-progress survey run
+      parameters:
+        - name: runId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Run paused
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SurveyRun"
+        "202":
+          description: Pause requested; the run stops between queries
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SurveyRun"
+        "404":
+          description: Run not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "409":
+          description: Run is not in a pausable state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+  /runs/{runId}/resume:
+    post:
+      operationId: resumeRun
+      tags: [runs]
+      summary: Resume a paused survey run
+      parameters:
+        - name: runId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "202":
+          description: Run resumed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SurveyRun"
+        "404":
+          description: Run not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "409":
+          description: Run is not paused, or another run is in progress
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+  /runs/{runId}/cancel:
+    post:
+      operationId: cancelRun
+      tags: [runs]
+      summary: Cancel a running or paused survey run
+      parameters:
+        - name: runId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Run cancelled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SurveyRun"
+        "202":
+          description: Cancel requested; the run stops between queries
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SurveyRun"
+        "404":
+          description: Run not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "409":
+          description: Run is not in a cancellable state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
   /industries:
     post:
       operationId: createIndustry
@@ -1267,7 +1366,17 @@ components:
         id: { type: integer }
         status:
           type: string
-          enum: [running, completed, failed, partial]
+          enum:
+            [
+              running,
+              pausing,
+              paused,
+              cancelling,
+              cancelled,
+              completed,
+              failed,
+              partial,
+            ]
         trigger:
           type: string
           enum: [scheduled, manual, auto]

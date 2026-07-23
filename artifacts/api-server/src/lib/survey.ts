@@ -27,6 +27,7 @@ import { detectAlertsForRun } from "./alerts";
 import { logger } from "./logger";
 
 let runInProgress = false;
+let activeRunId: number | null = null;
 
 /**
  * Mark any survey runs left in status "running" (e.g. after a server
@@ -53,6 +54,22 @@ export async function failInterruptedRuns(): Promise<void> {
 
 export function isRunInProgress(): boolean {
   return runInProgress;
+}
+
+export function getActiveRunId(): number | null {
+  return runInProgress ? activeRunId : null;
+}
+
+// In-memory control signals for active runs, keyed by run id. Backed by a DB
+// status check inside the run loop so a signal also takes effect if it was
+// recorded in the DB (e.g. status set to "pausing"/"cancelling").
+type ControlSignal = "pause" | "cancel";
+const runControls = new Map<number, ControlSignal>();
+
+export function signalRun(runId: number, signal: ControlSignal): void {
+  // Cancel always wins over pause.
+  if (runControls.get(runId) === "cancel") return;
+  runControls.set(runId, signal);
 }
 
 /**
@@ -286,6 +303,7 @@ export async function startSurveyRun(
 ): Promise<StartRunResult> {
   if (runInProgress) return { kind: "in_progress" };
   runInProgress = true;
+  activeRunId = null;
   try {
     const result = await beginSurveyRun(trigger, industryId);
     if (result.kind !== "started") {
@@ -346,25 +364,9 @@ async function beginSurveyRun(
     }
   }
 
-  const industries = (await db.select().from(industriesTable)).filter(
-    (i) => i.enabled && (industryId == null || i.id === industryId),
-  );
-  const brands = (await db.select().from(brandsTable)).filter(
-    (b) => b.enabled,
-  );
-
-  const queries: SurveyQuery[] = [];
-  for (const engine of engines) {
-    for (const industry of industries) {
-      const industryBrands = brands.filter(
-        (b) => b.industryId === industry.id,
-      );
-      if (industryBrands.length === 0) continue;
-      for (const metric of METRICS) {
-        queries.push({ engine, industry, brands: industryBrands, metric });
-      }
-    }
-  }
+  const industries = await db.select().from(industriesTable);
+  const brands = await db.select().from(brandsTable);
+  const queries = buildAllQueries(engines, industries, brands, industryId);
 
   // Auto-triggered scoped runs with nothing to survey (e.g. industry has no
   // enabled brands yet) are skipped silently rather than recorded as empty runs.
@@ -392,28 +394,154 @@ async function beginSurveyRun(
   }
 
   // Fire and forget — run continues in the background.
+  activeRunId = run.id;
   void executeRun(run, queries)
     .catch((err) => {
       logger.error({ err, runId: run.id }, "Survey run crashed");
     })
     .finally(() => {
       runInProgress = false;
+      activeRunId = null;
+      runControls.delete(run.id);
       drainPendingAutoRuns();
     });
 
   return { kind: "started", run };
 }
 
+function buildAllQueries(
+  engines: EngineRow[],
+  industries: IndustryRow[],
+  brands: BrandRow[],
+  industryId?: number | null,
+): SurveyQuery[] {
+  const queries: SurveyQuery[] = [];
+  for (const engine of engines.filter((e) => e.enabled)) {
+    for (const industry of industries.filter(
+      (i) => i.enabled && (industryId == null || i.id === industryId),
+    )) {
+      const industryBrands = brands.filter(
+        (b) => b.enabled && b.industryId === industry.id,
+      );
+      if (industryBrands.length === 0) continue;
+      for (const metric of METRICS) {
+        queries.push({ engine, industry, brands: industryBrands, metric });
+      }
+    }
+  }
+  return queries;
+}
+
+export async function resumeSurveyRun(
+  run: SurveyRunRow,
+): Promise<{ ok: true } | { ok: false; message: string }> {
+  if (runInProgress) {
+    return { ok: false, message: "Another survey run is already in progress" };
+  }
+  runInProgress = true;
+  activeRunId = run.id;
+  try {
+    const engines = await db.select().from(enginesTable);
+    const industries = await db.select().from(industriesTable);
+    const brands = await db.select().from(brandsTable);
+    const allQueries = buildAllQueries(
+      engines,
+      industries,
+      brands,
+      run.industryId,
+    );
+
+    // Skip queries that already have a stored response (succeeded or failed).
+    const existing = await db
+      .select({
+        engineId: surveyResponsesTable.engineId,
+        industryId: surveyResponsesTable.industryId,
+        metricKey: surveyResponsesTable.metricKey,
+        status: surveyResponsesTable.status,
+      })
+      .from(surveyResponsesTable)
+      .where(eq(surveyResponsesTable.runId, run.id));
+    const done = new Set(
+      existing.map((r) => `${r.engineId}:${r.industryId}:${r.metricKey}`),
+    );
+    const remaining = allQueries.filter(
+      (q) => !done.has(`${q.engine.id}:${q.industry.id}:${q.metric.key}`),
+    );
+    const succeededSoFar = existing.filter((r) => r.status === "ok").length;
+    const failedSoFar = existing.length - succeededSoFar;
+
+    runControls.delete(run.id);
+    await db
+      .update(surveyRunsTable)
+      .set({
+        status: "running",
+        error: null,
+        totalQueries: existing.length + remaining.length,
+        succeededQueries: succeededSoFar,
+        failedQueries: failedSoFar,
+      })
+      .where(eq(surveyRunsTable.id, run.id));
+
+    logger.info(
+      { runId: run.id, remaining: remaining.length },
+      "Survey run resumed",
+    );
+    void executeRun(run, remaining, {
+      initialSucceeded: succeededSoFar,
+      initialFailed: failedSoFar,
+    })
+      .catch((err) => {
+        logger.error({ err, runId: run.id }, "Resumed survey run crashed");
+      })
+      .finally(() => {
+        runInProgress = false;
+        activeRunId = null;
+        runControls.delete(run.id);
+      });
+    return { ok: true };
+  } catch (err) {
+    runInProgress = false;
+    activeRunId = null;
+    throw err;
+  }
+}
+
 async function executeRun(
   run: SurveyRunRow,
   queries: SurveyQuery[],
+  opts: { initialSucceeded?: number; initialFailed?: number } = {},
 ): Promise<void> {
   logger.info(
     { runId: run.id, totalQueries: queries.length },
     "Survey run started",
   );
-  let succeeded = 0;
-  let failed = 0;
+  let succeeded = opts.initialSucceeded ?? 0;
+  let failed = opts.initialFailed ?? 0;
+  let skipped = 0;
+
+  // Signal check: in-memory map first, then a throttled DB status check so a
+  // signal recorded only in the DB still takes effect.
+  let lastDbCheck = 0;
+  const getSignal = async (): Promise<ControlSignal | null> => {
+    const local = runControls.get(run.id);
+    if (local) return local;
+    const now = Date.now();
+    if (now - lastDbCheck < 2000) return null;
+    lastDbCheck = now;
+    const [row] = await db
+      .select({ status: surveyRunsTable.status })
+      .from(surveyRunsTable)
+      .where(eq(surveyRunsTable.id, run.id));
+    if (row?.status === "pausing") {
+      signalRun(run.id, "pause");
+      return "pause";
+    }
+    if (row?.status === "cancelling") {
+      signalRun(run.id, "cancel");
+      return "cancel";
+    }
+    return null;
+  };
 
   // Resolve the template once so every query in the run uses the same text.
   const { template } = await getActivePromptTemplate();
@@ -421,6 +549,11 @@ async function executeRun(
   await batchProcess(
     queries,
     async (query) => {
+      // Stop dispatching new work once a pause/cancel signal is present.
+      if ((await getSignal()) != null) {
+        skipped++;
+        return null;
+      }
       // Every query is an entirely new, isolated request to the engine.
       const prompt = buildPrompt(query, template);
       let raw: string | null = null;
@@ -468,24 +601,39 @@ async function executeRun(
     { concurrency: 4, retries: 2 },
   );
 
-  const status =
-    failed === 0 ? "completed" : succeeded === 0 ? "failed" : "partial";
+  const signal = runControls.get(run.id) ?? null;
+  runControls.delete(run.id);
+
+  let status: string;
+  let completedAt: Date | null = new Date();
+  if (signal === "cancel") {
+    status = "cancelled";
+  } else if (signal === "pause") {
+    status = "paused";
+    completedAt = null;
+  } else {
+    status = failed === 0 ? "completed" : succeeded === 0 ? "failed" : "partial";
+  }
+
   await db
     .update(surveyRunsTable)
     .set({
       status,
-      completedAt: new Date(),
+      completedAt,
       succeededQueries: succeeded,
       failedQueries: failed,
       error:
-        succeeded === 0 && failed > 0
+        signal == null && succeeded === 0 && failed > 0
           ? "All engine queries failed. Check that AI integrations are provisioned."
           : null,
     })
     .where(eq(surveyRunsTable.id, run.id));
-  logger.info({ runId: run.id, status, succeeded, failed }, "Survey run done");
+  logger.info(
+    { runId: run.id, status, succeeded, failed, skipped },
+    "Survey run done",
+  );
 
-  if (succeeded > 0) {
+  if (signal == null && succeeded > 0) {
     try {
       await detectAlertsForRun(run);
     } catch (err) {

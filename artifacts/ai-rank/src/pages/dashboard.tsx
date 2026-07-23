@@ -41,13 +41,13 @@ export default function Dashboard() {
     query: {
       queryKey: getListRunsQueryKey(),
       refetchInterval: (query) => {
-        const activeRun = query.state.data?.some(r => r.status === 'running');
+        const activeRun = query.state.data?.some(r => ['running', 'pausing', 'cancelling'].includes(r.status));
         return activeRun ? 3000 : false;
       }
     }
   });
 
-  const isRunning = runs?.some(r => r.status === 'running');
+  const isRunning = runs?.some(r => ['running', 'pausing', 'cancelling'].includes(r.status));
 
   const { data: overview, isLoading: isLoadingOverview } = useGetOverview({
     query: {

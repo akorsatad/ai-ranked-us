@@ -94,7 +94,7 @@ export interface StoredKeyWarning {
 
 export const surveyRunsTable = pgTable("survey_runs", {
   id: serial("id").primaryKey(),
-  status: text("status").notNull().default("running"), // running | completed | failed | partial
+  status: text("status").notNull().default("running"), // running | pausing | paused | cancelling | cancelled | completed | failed | partial
   trigger: text("trigger").notNull().default("manual"), // scheduled | manual
   industryId: integer("industry_id").references(() => industriesTable.id), // null = full run, set = scoped to one industry
   startedAt: timestamp("started_at", { withTimezone: true })

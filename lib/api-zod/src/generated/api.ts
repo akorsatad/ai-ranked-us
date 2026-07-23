@@ -55,7 +55,7 @@ export const GetCatalogResponse = zod.object({
 export const GetOverviewResponse = zod.object({
   "lastRun": zod.union([zod.object({
   "id": zod.number(),
-  "status": zod.enum(['running', 'completed', 'failed', 'partial']),
+  "status": zod.enum(['running', 'pausing', 'paused', 'cancelling', 'cancelled', 'completed', 'failed', 'partial']),
   "trigger": zod.enum(['scheduled', 'manual', 'auto']),
   "industryId": zod.number().nullable().describe('When set, the run was scoped to this industry only'),
   "startedAt": zod.string(),
@@ -212,7 +212,7 @@ export const GetIndustryHistoryResponse = zod.object({
  */
 export const ListRunsResponseItem = zod.object({
   "id": zod.number(),
-  "status": zod.enum(['running', 'completed', 'failed', 'partial']),
+  "status": zod.enum(['running', 'pausing', 'paused', 'cancelling', 'cancelled', 'completed', 'failed', 'partial']),
   "trigger": zod.enum(['scheduled', 'manual', 'auto']),
   "industryId": zod.number().nullable().describe('When set, the run was scoped to this industry only'),
   "startedAt": zod.string(),
@@ -239,7 +239,70 @@ export const TriggerRunBody = zod.object({
 
 export const TriggerRunResponse = zod.object({
   "id": zod.number(),
-  "status": zod.enum(['running', 'completed', 'failed', 'partial']),
+  "status": zod.enum(['running', 'pausing', 'paused', 'cancelling', 'cancelled', 'completed', 'failed', 'partial']),
+  "trigger": zod.enum(['scheduled', 'manual', 'auto']),
+  "industryId": zod.number().nullable().describe('When set, the run was scoped to this industry only'),
+  "startedAt": zod.string(),
+  "completedAt": zod.string().nullable(),
+  "error": zod.string().nullable(),
+  "totalQueries": zod.number(),
+  "succeededQueries": zod.number(),
+  "failedQueries": zod.number()
+})
+
+
+/**
+ * @summary Pause an in-progress survey run
+ */
+export const PauseRunParams = zod.object({
+  "runId": zod.coerce.number()
+})
+
+export const PauseRunResponse = zod.object({
+  "id": zod.number(),
+  "status": zod.enum(['running', 'pausing', 'paused', 'cancelling', 'cancelled', 'completed', 'failed', 'partial']),
+  "trigger": zod.enum(['scheduled', 'manual', 'auto']),
+  "industryId": zod.number().nullable().describe('When set, the run was scoped to this industry only'),
+  "startedAt": zod.string(),
+  "completedAt": zod.string().nullable(),
+  "error": zod.string().nullable(),
+  "totalQueries": zod.number(),
+  "succeededQueries": zod.number(),
+  "failedQueries": zod.number()
+})
+
+
+/**
+ * @summary Resume a paused survey run
+ */
+export const ResumeRunParams = zod.object({
+  "runId": zod.coerce.number()
+})
+
+export const ResumeRunResponse = zod.object({
+  "id": zod.number(),
+  "status": zod.enum(['running', 'pausing', 'paused', 'cancelling', 'cancelled', 'completed', 'failed', 'partial']),
+  "trigger": zod.enum(['scheduled', 'manual', 'auto']),
+  "industryId": zod.number().nullable().describe('When set, the run was scoped to this industry only'),
+  "startedAt": zod.string(),
+  "completedAt": zod.string().nullable(),
+  "error": zod.string().nullable(),
+  "totalQueries": zod.number(),
+  "succeededQueries": zod.number(),
+  "failedQueries": zod.number()
+})
+
+
+/**
+ * @summary Cancel a running or paused survey run
+ */
+export const CancelRunParams = zod.object({
+  "runId": zod.coerce.number()
+})
+
+export const CancelRunResponse = zod.object({
+  "id": zod.number(),
+  "status": zod.enum(['running', 'pausing', 'paused', 'cancelling', 'cancelled', 'completed', 'failed', 'partial']),
   "trigger": zod.enum(['scheduled', 'manual', 'auto']),
   "industryId": zod.number().nullable().describe('When set, the run was scoped to this industry only'),
   "startedAt": zod.string(),

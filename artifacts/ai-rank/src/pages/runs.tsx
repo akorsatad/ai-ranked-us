@@ -3,6 +3,9 @@ import {
   useListRuns,
   getListRunsQueryKey,
   useTriggerRun,
+  usePauseRun,
+  useResumeRun,
+  useCancelRun,
   SurveyRun,
   useBrowseTable,
   useGetCatalog,
@@ -10,13 +13,15 @@ import {
 } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
-import { Play, CheckCircle2, XCircle, Clock, AlertCircle, RefreshCw, ChevronDown, ChevronRight, Terminal, KeyRound } from 'lucide-react';
+import { Play, CheckCircle2, XCircle, Clock, AlertCircle, RefreshCw, ChevronDown, ChevronRight, Terminal, KeyRound, Pause, Ban } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
+
+const ACTIVE_STATUSES = ['running', 'pausing', 'cancelling'];
 
 export default function Runs() {
   const { toast } = useToast();
@@ -26,13 +31,13 @@ export default function Runs() {
     query: {
       queryKey: getListRunsQueryKey(),
       refetchInterval: (query) => {
-        const activeRun = query.state.data?.some(r => r.status === 'running');
+        const activeRun = query.state.data?.some(r => ACTIVE_STATUSES.includes(r.status));
         return activeRun ? 3000 : false;
       }
     }
   });
 
-  const isRunning = runs?.some(r => r.status === 'running');
+  const isRunning = runs?.some(r => ACTIVE_STATUSES.includes(r.status));
 
   const triggerRun = useTriggerRun({
     mutation: {
@@ -116,9 +121,30 @@ export default function Runs() {
 }
 
 function RunRow({ run }: { run: SurveyRun }) {
-  const isRunning = run.status === 'running';
+  const isRunning = ACTIVE_STATUSES.includes(run.status);
   const [expanded, setExpanded] = useState(false);
-  
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  const refresh = () => queryClient.invalidateQueries({ queryKey: getListRunsQueryKey() });
+  const onError = (error: { message?: string }) => {
+    toast({
+      variant: "destructive",
+      title: "Run control failed",
+      description: error.message || "An unknown error occurred",
+    });
+    refresh();
+  };
+
+  const pauseRun = usePauseRun({ mutation: { onSuccess: refresh, onError } });
+  const resumeRun = useResumeRun({ mutation: { onSuccess: refresh, onError } });
+  const cancelRun = useCancelRun({ mutation: { onSuccess: refresh, onError } });
+  const controlPending = pauseRun.isPending || resumeRun.isPending || cancelRun.isPending;
+
+  const canPause = run.status === 'running';
+  const canResume = run.status === 'paused';
+  const canCancel = ['running', 'pausing', 'paused'].includes(run.status);
+
   let statusIcon;
   let statusColor;
   
@@ -130,6 +156,19 @@ function RunRow({ run }: { run: SurveyRun }) {
     case 'running':
       statusIcon = <RefreshCw className="w-5 h-5 text-primary animate-spin" />;
       statusColor = 'bg-primary/10 text-primary border-primary/20';
+      break;
+    case 'pausing':
+    case 'cancelling':
+      statusIcon = <RefreshCw className="w-5 h-5 text-muted-foreground animate-spin" />;
+      statusColor = 'bg-muted text-muted-foreground border-border';
+      break;
+    case 'paused':
+      statusIcon = <Pause className="w-5 h-5 text-amber-500" />;
+      statusColor = 'bg-amber-500/10 text-amber-600 border-amber-500/20';
+      break;
+    case 'cancelled':
+      statusIcon = <Ban className="w-5 h-5 text-muted-foreground" />;
+      statusColor = 'bg-muted text-muted-foreground border-border';
       break;
     case 'failed':
       statusIcon = <XCircle className="w-5 h-5 text-destructive" />;
@@ -193,6 +232,50 @@ function RunRow({ run }: { run: SurveyRun }) {
           )}
         </div>
       </div>
+
+      {(canPause || canResume || canCancel) && (
+        <div className="flex items-center gap-2">
+          {canPause && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5 font-mono"
+              disabled={controlPending}
+              onClick={() => pauseRun.mutate({ runId: run.id })}
+              data-testid={`button-pause-run-${run.id}`}
+            >
+              <Pause className="w-3.5 h-3.5" />
+              Pause
+            </Button>
+          )}
+          {canResume && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5 font-mono"
+              disabled={controlPending}
+              onClick={() => resumeRun.mutate({ runId: run.id })}
+              data-testid={`button-resume-run-${run.id}`}
+            >
+              <Play className="w-3.5 h-3.5" />
+              Resume
+            </Button>
+          )}
+          {canCancel && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5 font-mono text-destructive hover:text-destructive"
+              disabled={controlPending}
+              onClick={() => cancelRun.mutate({ runId: run.id })}
+              data-testid={`button-cancel-run-${run.id}`}
+            >
+              <Ban className="w-3.5 h-3.5" />
+              Cancel
+            </Button>
+          )}
+        </div>
+      )}
 
       <div className="w-full md:w-64 space-y-2">
         <div className="flex justify-between text-sm font-mono">
