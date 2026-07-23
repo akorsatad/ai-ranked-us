@@ -16,6 +16,9 @@ const CATALOG: { name: string; slug: string; brands: string[] }[] = [
       "Wells Fargo",
       "Citibank",
       "Capital One",
+      "U.S. Bank",
+      "PNC Bank",
+      "Goldman Sachs",
     ],
   },
   {
@@ -27,17 +30,38 @@ const CATALOG: { name: string; slug: string; brands: string[] }[] = [
       "American Airlines",
       "Southwest Airlines",
       "JetBlue",
+      "Alaska Airlines",
+      "Spirit Airlines",
+      "Frontier Airlines",
     ],
   },
   {
     name: "Retail",
     slug: "retail",
-    brands: ["Walmart", "Target", "Costco", "Amazon", "The Home Depot"],
+    brands: [
+      "Walmart",
+      "Target",
+      "Costco",
+      "Amazon",
+      "The Home Depot",
+      "Lowe's",
+      "Best Buy",
+      "Kroger",
+    ],
   },
   {
     name: "Telecom",
     slug: "telecom",
-    brands: ["Verizon", "T-Mobile", "AT&T", "Xfinity (Comcast)", "Spectrum"],
+    brands: [
+      "Verizon",
+      "T-Mobile",
+      "AT&T",
+      "Xfinity (Comcast)",
+      "Spectrum",
+      "Mint Mobile",
+      "Google Fi",
+      "Cox Communications",
+    ],
   },
   {
     name: "Fast Food",
@@ -48,17 +72,104 @@ const CATALOG: { name: string; slug: string; brands: string[] }[] = [
       "Wendy's",
       "Taco Bell",
       "Burger King",
+      "Subway",
+      "Chipotle",
+      "Popeyes",
     ],
   },
   {
     name: "Automotive",
     slug: "automotive",
-    brands: ["Toyota", "Ford", "Tesla", "Honda", "Chevrolet"],
+    brands: [
+      "Toyota",
+      "Ford",
+      "Tesla",
+      "Honda",
+      "Chevrolet",
+      "BMW",
+      "Hyundai",
+      "Subaru",
+    ],
   },
   {
     name: "Technology",
     slug: "technology",
-    brands: ["Apple", "Google", "Microsoft", "Samsung", "Meta"],
+    brands: [
+      "Apple",
+      "Google",
+      "Microsoft",
+      "Samsung",
+      "Meta",
+      "Nvidia",
+      "Sony",
+      "Dell",
+    ],
+  },
+  {
+    name: "Insurance",
+    slug: "insurance",
+    brands: [
+      "State Farm",
+      "GEICO",
+      "Progressive",
+      "Allstate",
+      "USAA",
+      "Liberty Mutual",
+      "Nationwide",
+      "Farmers Insurance",
+    ],
+  },
+  {
+    name: "Streaming",
+    slug: "streaming",
+    brands: [
+      "Netflix",
+      "Disney+",
+      "Hulu",
+      "Max",
+      "Amazon Prime Video",
+      "Apple TV+",
+      "Paramount+",
+      "Peacock",
+    ],
+  },
+  {
+    name: "Hotels",
+    slug: "hotels",
+    brands: [
+      "Marriott",
+      "Hilton",
+      "Hyatt",
+      "Holiday Inn (IHG)",
+      "Best Western",
+      "Four Seasons",
+      "Wyndham",
+      "Motel 6",
+    ],
+  },
+  {
+    name: "Grocery Delivery",
+    slug: "grocery-delivery",
+    brands: [
+      "Instacart",
+      "DoorDash",
+      "Uber Eats",
+      "Amazon Fresh",
+      "Walmart+",
+      "Shipt",
+    ],
+  },
+  {
+    name: "Fitness",
+    slug: "fitness",
+    brands: [
+      "Planet Fitness",
+      "Peloton",
+      "Equinox",
+      "LA Fitness",
+      "Orangetheory",
+      "Crunch Fitness",
+    ],
   },
 ];
 
@@ -99,20 +210,54 @@ const ENGINES: {
   },
 ];
 
+/**
+ * Idempotent catalog sync: inserts any industries or brands from CATALOG
+ * that are missing in the database. Never deletes or modifies existing rows,
+ * so admin-made changes (renames, disables, additions) are preserved.
+ */
 export async function ensureSeeded(): Promise<void> {
-  const existing = await db.select().from(industriesTable);
-  if (existing.length === 0) {
-    for (const industry of CATALOG) {
-      const [row] = await db
+  const existingIndustries = await db.select().from(industriesTable);
+  const existingBrands = await db.select().from(brandsTable);
+
+  const industryBySlug = new Map(existingIndustries.map((i) => [i.slug, i]));
+  let newIndustries = 0;
+  let newBrands = 0;
+
+  for (const industry of CATALOG) {
+    let row = industryBySlug.get(industry.slug);
+    if (!row) {
+      const [inserted] = await db
         .insert(industriesTable)
         .values({ name: industry.name, slug: industry.slug, country: "US" })
         .returning();
-      if (!row) continue;
+      if (!inserted) continue;
+      row = inserted;
+      industryBySlug.set(industry.slug, row);
+      newIndustries++;
+    }
+
+    const industryId = row.id;
+    const existingNames = new Set(
+      existingBrands
+        .filter((b) => b.industryId === industryId)
+        .map((b) => b.name.toLowerCase()),
+    );
+    const missing = industry.brands.filter(
+      (name) => !existingNames.has(name.toLowerCase()),
+    );
+    if (missing.length > 0) {
       await db
         .insert(brandsTable)
-        .values(industry.brands.map((name) => ({ industryId: row.id, name })));
+        .values(missing.map((name) => ({ industryId, name })));
+      newBrands += missing.length;
     }
-    logger.info("Seeded industries and brands");
+  }
+
+  if (newIndustries > 0 || newBrands > 0) {
+    logger.info(
+      { newIndustries, newBrands },
+      "Synced catalog: added missing industries and brands",
+    );
   }
 
   const existingEngines = await db.select().from(enginesTable);
