@@ -25,6 +25,7 @@ import type {
   AlertSettings,
   AlertSettingsInput,
   ApiKeyInput,
+  ApiKeyTestResult,
   ApiMessage,
   Brand,
   BrandInput,
@@ -1360,6 +1361,77 @@ export const useDeleteApiKey = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getDeleteApiKeyMutationOptions(options));
+    }
+
+export const getTestApiKeyUrl = (provider: 'openai' | 'anthropic' | 'gemini' | 'openrouter',) => {
+
+
+
+
+  return `/api/settings/api-keys/${provider}/test`
+}
+
+/**
+ * @summary Verify the active key for a provider with a minimal live call
+ */
+export const testApiKey = async (provider: 'openai' | 'anthropic' | 'gemini' | 'openrouter', options?: RequestInit): Promise<ApiKeyTestResult> => {
+
+  return customFetch<ApiKeyTestResult>(getTestApiKeyUrl(provider),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getTestApiKeyMutationOptions = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof testApiKey>>, TError,{provider: 'openai' | 'anthropic' | 'gemini' | 'openrouter'}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof testApiKey>>, TError,{provider: 'openai' | 'anthropic' | 'gemini' | 'openrouter'}, TContext> => {
+
+const mutationKey = ['testApiKey'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof testApiKey>>, {provider: 'openai' | 'anthropic' | 'gemini' | 'openrouter'}> = (props) => {
+          const {provider} = props ?? {};
+
+          return  testApiKey(provider,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type TestApiKeyMutationResult = NonNullable<Awaited<ReturnType<typeof testApiKey>>>
+
+    export type TestApiKeyMutationError = ErrorType<ApiMessage>
+
+    /**
+ * @summary Verify the active key for a provider with a minimal live call
+ */
+export const useTestApiKey = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof testApiKey>>, TError,{provider: 'openai' | 'anthropic' | 'gemini' | 'openrouter'}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof testApiKey>>,
+        TError,
+        {provider: 'openai' | 'anthropic' | 'gemini' | 'openrouter'},
+        TContext
+      > => {
+      return useMutation(getTestApiKeyMutationOptions(options));
     }
 
 export const getBrowseTableUrl = (table: 'industries' | 'brands' | 'engines' | 'survey_runs' | 'survey_responses',

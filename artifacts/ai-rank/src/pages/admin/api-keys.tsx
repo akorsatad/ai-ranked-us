@@ -4,10 +4,12 @@ import {
   getListApiKeysQueryKey,
   useSetApiKey,
   useDeleteApiKey,
+  useTestApiKey,
   ProviderKeyStatus,
+  ApiKeyTestResult,
 } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
-import { KeyRound, Trash2, Save } from 'lucide-react';
+import { KeyRound, Trash2, Save, FlaskConical, CheckCircle2, XCircle, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -44,6 +46,7 @@ export default function AdminApiKeys() {
 
 function ProviderCard({ status }: { status: ProviderKeyStatus }) {
   const [value, setValue] = useState('');
+  const [testResult, setTestResult] = useState<ApiKeyTestResult | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const invalidate = () =>
@@ -53,6 +56,7 @@ function ProviderCard({ status }: { status: ProviderKeyStatus }) {
     mutation: {
       onSuccess: () => {
         setValue('');
+        setTestResult(null);
         toast({ title: `${PROVIDER_LABELS[status.provider]} key saved` });
         invalidate();
       },
@@ -63,6 +67,7 @@ function ProviderCard({ status }: { status: ProviderKeyStatus }) {
   const deleteKey = useDeleteApiKey({
     mutation: {
       onSuccess: () => {
+        setTestResult(null);
         toast({ title: `${PROVIDER_LABELS[status.provider]} key removed` });
         invalidate();
       },
@@ -70,6 +75,20 @@ function ProviderCard({ status }: { status: ProviderKeyStatus }) {
         toast({ variant: 'destructive', title: 'Failed to remove key', description: e.message }),
     },
   });
+
+  const testKey = useTestApiKey({
+    mutation: {
+      onSuccess: (result) => setTestResult(result),
+      onError: (e) =>
+        setTestResult({
+          provider: status.provider,
+          ok: false,
+          source: status.hasStoredKey ? 'stored' : 'env',
+          error: e.message,
+        }),
+    },
+  });
+  const canTest = status.hasStoredKey || status.hasEnvKey;
 
   return (
     <Card className="border-border">
@@ -126,6 +145,48 @@ function ProviderCard({ status }: { status: ProviderKeyStatus }) {
           >
             <Trash2 className="w-4 h-4" /> Remove
           </Button>
+        )}
+        {canTest && (
+          <Button
+            variant="outline"
+            onClick={() => {
+              setTestResult(null);
+              testKey.mutate({ provider: status.provider });
+            }}
+            disabled={testKey.isPending}
+            className="gap-2"
+          >
+            {testKey.isPending ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <FlaskConical className="w-4 h-4" />
+            )}
+            {testKey.isPending ? 'Testing…' : 'Test key'}
+          </Button>
+        )}
+        {testResult && !testKey.isPending && (
+          <div
+            className={`flex items-start gap-2 font-mono text-xs w-full mt-1 ${
+              testResult.ok ? 'text-accent' : 'text-destructive'
+            }`}
+          >
+            {testResult.ok ? (
+              <>
+                <CheckCircle2 className="w-4 h-4 shrink-0" />
+                <span>
+                  Key works ({testResult.source === 'stored' ? 'stored key' : 'environment key'})
+                </span>
+              </>
+            ) : (
+              <>
+                <XCircle className="w-4 h-4 shrink-0" />
+                <span className="break-all">
+                  Invalid key ({testResult.source === 'stored' ? 'stored key' : 'environment key'})
+                  {testResult.error ? ` — ${testResult.error}` : ''}
+                </span>
+              </>
+            )}
+          </div>
         )}
       </CardContent>
     </Card>

@@ -221,6 +221,39 @@ export interface ApiKeyInput {
   key: string;
 }
 
+export type ApiKeyTestResultProvider = typeof ApiKeyTestResultProvider[keyof typeof ApiKeyTestResultProvider];
+
+
+export const ApiKeyTestResultProvider = {
+  openai: 'openai',
+  anthropic: 'anthropic',
+  gemini: 'gemini',
+  openrouter: 'openrouter',
+} as const;
+
+/**
+ * Which key was tested (stored keys take precedence)
+ */
+export type ApiKeyTestResultSource = typeof ApiKeyTestResultSource[keyof typeof ApiKeyTestResultSource];
+
+
+export const ApiKeyTestResultSource = {
+  stored: 'stored',
+  env: 'env',
+} as const;
+
+export interface ApiKeyTestResult {
+  provider: ApiKeyTestResultProvider;
+  ok: boolean;
+  /** Which key was tested (stored keys take precedence) */
+  source: ApiKeyTestResultSource;
+  /**
+     * Provider error message when ok is false
+     * @nullable
+     */
+  error: string | null;
+}
+
 export type TablePageRowsItem = { [key: string]: unknown };
 
 export interface TablePage {

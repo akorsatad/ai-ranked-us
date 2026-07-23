@@ -404,6 +404,21 @@ export const DeleteApiKeyResponse = zod.object({
 
 
 /**
+ * @summary Verify the active key for a provider with a minimal live call
+ */
+export const TestApiKeyParams = zod.object({
+  "provider": zod.enum(['openai', 'anthropic', 'gemini', 'openrouter'])
+})
+
+export const TestApiKeyResponse = zod.object({
+  "provider": zod.enum(['openai', 'anthropic', 'gemini', 'openrouter']),
+  "ok": zod.boolean(),
+  "source": zod.enum(['stored', 'env']).describe('Which key was tested (stored keys take precedence)'),
+  "error": zod.string().nullable().describe('Provider error message when ok is false')
+})
+
+
+/**
  * @summary Read-only paginated rows from a core table
  */
 export const BrowseTableParams = zod.object({

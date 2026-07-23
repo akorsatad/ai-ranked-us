@@ -76,6 +76,117 @@ export async function keyStatuses(): Promise<ProviderKeyStatus[]> {
   });
 }
 
+export interface ApiKeyTestResult {
+  provider: Provider;
+  ok: boolean;
+  source: "stored" | "env";
+  error: string | null;
+}
+
+function errorMessage(err: unknown): string {
+  if (err instanceof Error) return err.message;
+  return String(err);
+}
+
+/** Cheap models used for the minimal test generation on env/integration keys. */
+const TEST_MODELS: Record<Provider, string> = {
+  openai: "gpt-4o-mini",
+  anthropic: "claude-haiku-4-5",
+  gemini: "gemini-2.5-flash",
+  openrouter: "openai/gpt-4o-mini",
+};
+
+/**
+ * Verifies the active key for a provider by making a minimal live call.
+ * Stored keys are checked with a free models-list call against the
+ * provider's own API; env/integration keys go through the Replit proxy,
+ * which only supports generation endpoints, so those get a 1-token
+ * generation instead. Stored keys take precedence over env keys,
+ * mirroring engineClients.callEngine resolution.
+ * Returns null if no key is configured at all.
+ */
+export async function testProviderKey(
+  provider: Provider,
+): Promise<ApiKeyTestResult | null> {
+  const storedKey = await getStoredKey(provider);
+  const source: "stored" | "env" = storedKey ? "stored" : "env";
+  if (!storedKey && !hasEnvKey(provider)) return null;
+
+  try {
+    switch (provider) {
+      case "openai": {
+        if (storedKey) {
+          const { default: OpenAI } = await import("openai");
+          await new OpenAI({ apiKey: storedKey }).models.list();
+        } else {
+          const client = (
+            await import("@workspace/integrations-openai-ai-server")
+          ).openai;
+          await client.chat.completions.create({
+            model: TEST_MODELS.openai,
+            max_completion_tokens: 1,
+            messages: [{ role: "user", content: "ping" }],
+          });
+        }
+        break;
+      }
+      case "anthropic": {
+        if (storedKey) {
+          const { default: Anthropic } = await import("@anthropic-ai/sdk");
+          await new Anthropic({ apiKey: storedKey }).models.list({ limit: 1 });
+        } else {
+          const client = (await import("@workspace/integrations-anthropic-ai"))
+            .anthropic;
+          await client.messages.create({
+            model: TEST_MODELS.anthropic,
+            max_tokens: 1,
+            messages: [{ role: "user", content: "ping" }],
+          });
+        }
+        break;
+      }
+      case "gemini": {
+        if (storedKey) {
+          const { GoogleGenAI } = await import("@google/genai");
+          await new GoogleGenAI({ apiKey: storedKey }).models.list({
+            config: { pageSize: 1 },
+          });
+        } else {
+          const client = (await import("@workspace/integrations-gemini-ai")).ai;
+          await client.models.generateContent({
+            model: TEST_MODELS.gemini,
+            contents: [{ role: "user", parts: [{ text: "ping" }] }],
+            config: { maxOutputTokens: 1 },
+          });
+        }
+        break;
+      }
+      case "openrouter": {
+        if (storedKey) {
+          const { default: OpenAI } = await import("openai");
+          await new OpenAI({
+            apiKey: storedKey,
+            baseURL: "https://openrouter.ai/api/v1",
+          }).models.list();
+        } else {
+          const client = (
+            await import("@workspace/integrations-openrouter-ai")
+          ).openrouter;
+          await client.chat.completions.create({
+            model: TEST_MODELS.openrouter,
+            max_tokens: 1,
+            messages: [{ role: "user", content: "ping" }],
+          });
+        }
+        break;
+      }
+    }
+    return { provider, ok: true, source, error: null };
+  } catch (err) {
+    return { provider, ok: false, source, error: errorMessage(err) };
+  }
+}
+
 export function statusFor(
   provider: Provider,
   row: ProviderApiKeyRow | null,

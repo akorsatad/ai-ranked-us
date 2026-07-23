@@ -428,6 +428,31 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ProviderKeyStatus"
+  /settings/api-keys/{provider}/test:
+    post:
+      operationId: testApiKey
+      tags: [admin]
+      summary: Verify the active key for a provider with a minimal live call
+      parameters:
+        - name: provider
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [openai, anthropic, gemini, openrouter]
+      responses:
+        "200":
+          description: Test result (ok=false carries the provider error)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiKeyTestResult"
+        "400":
+          description: Unknown provider or no key configured
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
   /admin/tables/{table}:
     get:
       operationId: browseTable
@@ -780,6 +805,21 @@ components:
       properties:
         key: { type: string, minLength: 8 }
       required: [key]
+    ApiKeyTestResult:
+      type: object
+      properties:
+        provider:
+          type: string
+          enum: [openai, anthropic, gemini, openrouter]
+        ok: { type: boolean }
+        source:
+          type: string
+          enum: [stored, env]
+          description: Which key was tested (stored keys take precedence)
+        error:
+          type: ["string", "null"]
+          description: Provider error message when ok is false
+      required: [provider, ok, source, error]
     TablePage:
       type: object
       properties:

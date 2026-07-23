@@ -24,6 +24,7 @@ import {
   setStoredKey,
   deleteStoredKey,
   statusFor,
+  testProviderKey,
 } from "../lib/apiKeys";
 
 const router: IRouter = Router();
@@ -302,6 +303,31 @@ router.delete(
     await deleteStoredKey(raw);
     req.log.info({ provider: raw }, "Provider API key removed");
     res.status(200).json(statusFor(raw, null));
+  },
+);
+
+router.post(
+  "/settings/api-keys/:provider/test",
+  async (req, res): Promise<void> => {
+    const raw = Array.isArray(req.params.provider)
+      ? req.params.provider[0]
+      : req.params.provider;
+    if (!raw || !isProvider(raw)) {
+      res.status(400).json({ message: "Unknown provider" });
+      return;
+    }
+    const result = await testProviderKey(raw);
+    if (!result) {
+      res
+        .status(400)
+        .json({ message: "No key configured for this provider" });
+      return;
+    }
+    req.log.info(
+      { provider: raw, ok: result.ok, source: result.source },
+      "Provider API key tested",
+    );
+    res.status(200).json(result);
   },
 );
 
