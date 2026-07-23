@@ -6,7 +6,11 @@ import {
   industriesTable,
   type SurveyRunRow,
 } from "@workspace/db";
-import { startSurveyRun, isRunInProgress } from "../lib/survey";
+import {
+  startSurveyRun,
+  isRunInProgress,
+  describeKeyFailures,
+} from "../lib/survey";
 
 export function serializeRun(run: SurveyRunRow) {
   return {
@@ -20,6 +24,7 @@ export function serializeRun(run: SurveyRunRow) {
     totalQueries: run.totalQueries,
     succeededQueries: run.succeededQueries,
     failedQueries: run.failedQueries,
+    keyWarnings: run.keyWarnings ?? null,
   };
 }
 
@@ -64,16 +69,32 @@ router.post("/runs", async (req, res): Promise<void> => {
     }
   }
 
-  const run = await startSurveyRun("manual", industryId);
-  if (!run) {
+  const result = await startSurveyRun("manual", industryId);
+  if (result.kind === "in_progress") {
     res.status(409).json({ message: "A survey run is already in progress" });
     return;
   }
+  if (result.kind === "skipped") {
+    // Manual runs are never skipped (only auto scoped runs are), but keep
+    // the handling exhaustive.
+    res.status(409).json({ message: "Nothing to survey" });
+    return;
+  }
+  if (result.kind === "blocked") {
+    req.log.warn(
+      { runId: result.run.id, failures: result.failures },
+      "Manual survey run blocked by key pre-flight check",
+    );
+    res.status(422).json({
+      message: `Run refused: provider key check failed — ${describeKeyFailures(result.failures)}`,
+    });
+    return;
+  }
   req.log.info(
-    { runId: run.id, industryId: industryId ?? null },
+    { runId: result.run.id, industryId: industryId ?? null },
     "Manual survey run triggered",
   );
-  res.status(202).json(serializeRun(run));
+  res.status(202).json(serializeRun(result.run));
   return;
 });
 

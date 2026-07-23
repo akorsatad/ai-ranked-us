@@ -13,7 +13,13 @@ import {
   type StoredRankingEntry,
   type StoredBrandTrend,
   type StoredTrendPoint,
+  type StoredKeyWarning,
 } from "@workspace/db";
+import {
+  preflightProviderKeys,
+  getKeyPreflightMode,
+  isProvider,
+} from "./apiKeys";
 import { batchProcess } from "@workspace/integrations-openai-ai-server/batch";
 import { METRICS, type MetricDef } from "./metrics";
 import { callEngine } from "./engineClients";
@@ -75,17 +81,28 @@ export function requestAutoScopedRun(industryId: number): void {
     return;
   }
   void startSurveyRun("auto", industryId)
-    .then((run) => {
-      if (run) {
-        logger.info(
-          { runId: run.id, industryId },
-          "Automatic scoped survey run started",
-        );
-      } else if (runInProgress) {
-        // Lost the race to another run; re-queue instead of dropping.
-        requestAutoScopedRun(industryId);
+    .then((result) => {
+      switch (result.kind) {
+        case "started":
+          logger.info(
+            { runId: result.run.id, industryId },
+            "Automatic scoped survey run started",
+          );
+          break;
+        case "in_progress":
+          // Lost the race to another run; re-queue instead of dropping.
+          requestAutoScopedRun(industryId);
+          break;
+        case "blocked":
+          logger.error(
+            { runId: result.run.id, industryId, failures: result.failures },
+            "Automatic scoped survey run blocked by provider key pre-flight check",
+          );
+          break;
+        case "skipped":
+          // No surveyable queries — nothing to do.
+          break;
       }
-      // Otherwise the run was skipped (no surveyable queries) — nothing to do.
     })
     .catch((err) => {
       logger.error(
@@ -212,20 +229,36 @@ function parseResponse(
   return { entries, trend };
 }
 
+export type StartRunResult =
+  | { kind: "started"; run: SurveyRunRow }
+  | { kind: "in_progress" }
+  | { kind: "skipped" }
+  | { kind: "blocked"; run: SurveyRunRow; failures: StoredKeyWarning[] };
+
+export function describeKeyFailures(failures: StoredKeyWarning[]): string {
+  return failures
+    .map((f) =>
+      f.source === "none"
+        ? `${f.provider}: no API key configured`
+        : `${f.provider}: ${f.error}`,
+    )
+    .join("; ");
+}
+
 export async function startSurveyRun(
   trigger: "scheduled" | "manual" | "auto",
   industryId?: number,
-): Promise<SurveyRunRow | null> {
-  if (runInProgress) return null;
+): Promise<StartRunResult> {
+  if (runInProgress) return { kind: "in_progress" };
   runInProgress = true;
   try {
-    const run = await beginSurveyRun(trigger, industryId);
-    if (!run) {
-      // Nothing was started (e.g. zero surveyable queries) — release the lock.
+    const result = await beginSurveyRun(trigger, industryId);
+    if (result.kind !== "started") {
+      // Nothing was started (skipped or blocked) — release the lock.
       runInProgress = false;
       drainPendingAutoRuns();
     }
-    return run;
+    return result;
   } catch (err) {
     // Release the lock if setup fails before the background run takes over,
     // then let queued auto runs proceed.
@@ -238,10 +271,46 @@ export async function startSurveyRun(
 async function beginSurveyRun(
   trigger: "scheduled" | "manual" | "auto",
   industryId?: number,
-): Promise<SurveyRunRow | null> {
+): Promise<StartRunResult> {
   const engines = (await db.select().from(enginesTable)).filter(
     (e) => e.enabled,
   );
+
+  // Pre-flight: verify the key for every provider used by an enabled engine.
+  let keyWarnings: StoredKeyWarning[] = [];
+  try {
+    keyWarnings = await preflightProviderKeys(
+      engines.map((e) => e.provider).filter(isProvider),
+    );
+  } catch (err) {
+    // A crashed check must not prevent surveys from running.
+    logger.error({ err }, "Provider key pre-flight check crashed");
+  }
+
+  if (keyWarnings.length > 0) {
+    const mode = await getKeyPreflightMode();
+    logger.warn(
+      { trigger, mode, failures: keyWarnings },
+      "Provider key pre-flight check found failing keys",
+    );
+    if (mode === "block") {
+      const [blockedRun] = await db
+        .insert(surveyRunsTable)
+        .values({
+          status: "failed",
+          trigger,
+          industryId: industryId ?? null,
+          completedAt: new Date(),
+          totalQueries: 0,
+          keyWarnings,
+          error: `Run blocked by pre-flight key check — ${describeKeyFailures(keyWarnings)}`,
+        })
+        .returning();
+      if (!blockedRun) throw new Error("Failed to record blocked survey run");
+      return { kind: "blocked", run: blockedRun, failures: keyWarnings };
+    }
+  }
+
   const industries = (await db.select().from(industriesTable)).filter(
     (i) => i.enabled && (industryId == null || i.id === industryId),
   );
@@ -269,7 +338,7 @@ async function beginSurveyRun(
       { industryId },
       "Skipping automatic scoped run — no surveyable queries",
     );
-    return null;
+    return { kind: "skipped" };
   }
 
   const [run] = await db
@@ -279,6 +348,7 @@ async function beginSurveyRun(
       trigger,
       industryId: industryId ?? null,
       totalQueries: queries.length,
+      keyWarnings: keyWarnings.length > 0 ? keyWarnings : null,
     })
     .returning();
 
@@ -296,7 +366,7 @@ async function beginSurveyRun(
       drainPendingAutoRuns();
     });
 
-  return run;
+  return { kind: "started", run };
 }
 
 async function executeRun(

@@ -21,7 +21,13 @@ async function maybeRunDailySurvey(): Promise<void> {
   if (todaysRuns.length > 0) return;
 
   logger.info("Starting scheduled daily survey run");
-  await startSurveyRun("scheduled");
+  const result = await startSurveyRun("scheduled");
+  if (result.kind === "blocked") {
+    logger.error(
+      { runId: result.run.id, failures: result.failures },
+      "Scheduled survey run blocked by provider key pre-flight check",
+    );
+  }
 }
 
 export function startScheduler(): void {

@@ -5,11 +5,15 @@ import {
   useSetApiKey,
   useDeleteApiKey,
   useTestApiKey,
+  useGetKeyPreflightSettings,
+  getGetKeyPreflightSettingsQueryKey,
+  useUpdateKeyPreflightSettings,
   ProviderKeyStatus,
   ApiKeyTestResult,
+  KeyPreflightSettingsMode,
 } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
-import { KeyRound, Trash2, Save, FlaskConical, CheckCircle2, XCircle, Loader2 } from 'lucide-react';
+import { KeyRound, Trash2, Save, FlaskConical, CheckCircle2, XCircle, Loader2, ShieldAlert } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -35,12 +39,82 @@ export default function AdminApiKeys() {
           Per-provider keys used to call AI engines. Stored keys take precedence over environment keys.
         </p>
       </div>
+      <PreflightModeCard />
       {isLoading || !keys ? (
         <div className="space-y-4">{[1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-32 w-full" />)}</div>
       ) : (
         keys.map((k) => <ProviderCard key={k.provider} status={k} />)
       )}
     </div>
+  );
+}
+
+function PreflightModeCard() {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const { data, isLoading } = useGetKeyPreflightSettings();
+
+  const update = useUpdateKeyPreflightSettings({
+    mutation: {
+      onSuccess: (settings) => {
+        queryClient.invalidateQueries({ queryKey: getGetKeyPreflightSettingsQueryKey() });
+        toast({
+          title:
+            settings.mode === 'block'
+              ? 'Runs will be blocked when a key check fails'
+              : 'Runs will start with a warning when a key check fails',
+        });
+      },
+      onError: (e) =>
+        toast({ variant: 'destructive', title: 'Failed to update setting', description: e.message }),
+    },
+  });
+
+  const mode = data?.mode;
+  const setMode = (m: KeyPreflightSettingsMode) => {
+    if (m !== mode) update.mutate({ data: { mode: m } });
+  };
+
+  return (
+    <Card className="border-border">
+      <CardHeader className="pb-3">
+        <CardTitle className="flex items-center gap-2 text-lg">
+          <ShieldAlert className="w-4 h-4 text-primary" />
+          Pre-flight key check
+        </CardTitle>
+        <CardDescription className="font-mono text-xs">
+          Before every survey run, each provider used by an enabled engine is verified with a minimal test call.
+          Choose what happens if a key fails.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="flex items-center gap-2 flex-wrap">
+        {isLoading || !mode ? (
+          <Skeleton className="h-9 w-64" />
+        ) : (
+          <>
+            <Button
+              variant={mode === 'warn' ? 'default' : 'outline'}
+              onClick={() => setMode('warn')}
+              disabled={update.isPending}
+              className="gap-2 font-mono"
+              data-testid="button-preflight-warn"
+            >
+              Warn but start the run
+            </Button>
+            <Button
+              variant={mode === 'block' ? 'default' : 'outline'}
+              onClick={() => setMode('block')}
+              disabled={update.isPending}
+              className="gap-2 font-mono"
+              data-testid="button-preflight-block"
+            >
+              Refuse to start the run
+            </Button>
+            {update.isPending && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />}
+          </>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 

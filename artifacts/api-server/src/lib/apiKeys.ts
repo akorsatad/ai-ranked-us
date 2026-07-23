@@ -1,5 +1,11 @@
 import { eq } from "drizzle-orm";
-import { db, providerApiKeysTable, type ProviderApiKeyRow } from "@workspace/db";
+import {
+  db,
+  appSettingsTable,
+  providerApiKeysTable,
+  type ProviderApiKeyRow,
+  type StoredKeyWarning,
+} from "@workspace/db";
 
 export const PROVIDERS = ["openai", "anthropic", "gemini", "openrouter"] as const;
 export type Provider = (typeof PROVIDERS)[number];
@@ -185,6 +191,67 @@ export async function testProviderKey(
   } catch (err) {
     return { provider, ok: false, source, error: errorMessage(err) };
   }
+}
+
+// ---------- Pre-flight key check before survey runs ----------
+
+const KEY_PREFLIGHT_MODE_SETTING = "run_key_preflight_mode";
+
+export type KeyPreflightMode = "warn" | "block";
+
+export function isKeyPreflightMode(value: string): value is KeyPreflightMode {
+  return value === "warn" || value === "block";
+}
+
+/** How a failing provider key affects starting a run. Defaults to "warn". */
+export async function getKeyPreflightMode(): Promise<KeyPreflightMode> {
+  const [row] = await db
+    .select()
+    .from(appSettingsTable)
+    .where(eq(appSettingsTable.key, KEY_PREFLIGHT_MODE_SETTING));
+  return row && isKeyPreflightMode(row.value) ? row.value : "warn";
+}
+
+export async function setKeyPreflightMode(
+  mode: KeyPreflightMode,
+): Promise<void> {
+  await db
+    .insert(appSettingsTable)
+    .values({ key: KEY_PREFLIGHT_MODE_SETTING, value: mode, updatedAt: new Date() })
+    .onConflictDoUpdate({
+      target: appSettingsTable.key,
+      set: { value: mode, updatedAt: new Date() },
+    });
+}
+
+/**
+ * Verifies the active key for each given provider with the minimal live
+ * test call. Returns one warning per failing provider (bad key or no key
+ * configured at all); an empty array means every provider passed.
+ */
+export async function preflightProviderKeys(
+  providers: Provider[],
+): Promise<StoredKeyWarning[]> {
+  const unique = [...new Set(providers)];
+  const results = await Promise.all(
+    unique.map(async (provider): Promise<StoredKeyWarning | null> => {
+      const result = await testProviderKey(provider);
+      if (!result) {
+        return {
+          provider,
+          source: "none",
+          error: "No API key configured for this provider",
+        };
+      }
+      if (result.ok) return null;
+      return {
+        provider,
+        source: result.source,
+        error: (result.error ?? "Key test failed").slice(0, 500),
+      };
+    }),
+  );
+  return results.filter((r): r is StoredKeyWarning => r !== null);
 }
 
 export function statusFor(

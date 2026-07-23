@@ -45,6 +45,7 @@ import type {
   IndustryRankings,
   IndustryTrends,
   IndustryUpdate,
+  KeyPreflightSettings,
   ListAlertsParams,
   MarkAlertsReadInput,
   MoversReport,
@@ -1533,6 +1534,154 @@ export const useDeleteApiKey = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getDeleteApiKeyMutationOptions(options));
+    }
+
+export const getGetKeyPreflightSettingsUrl = () => {
+
+
+
+
+  return `/api/settings/key-preflight`
+}
+
+/**
+ * @summary How a failing provider key affects starting a survey run
+ */
+export const getKeyPreflightSettings = async ( options?: RequestInit): Promise<KeyPreflightSettings> => {
+
+  return customFetch<KeyPreflightSettings>(getGetKeyPreflightSettingsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetKeyPreflightSettingsQueryKey = () => {
+    return [
+    `/api/settings/key-preflight`
+    ] as const;
+    }
+
+
+export const getGetKeyPreflightSettingsQueryOptions = <TData = Awaited<ReturnType<typeof getKeyPreflightSettings>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getKeyPreflightSettings>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetKeyPreflightSettingsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getKeyPreflightSettings>>> = ({ signal }) => getKeyPreflightSettings({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getKeyPreflightSettings>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetKeyPreflightSettingsQueryResult = NonNullable<Awaited<ReturnType<typeof getKeyPreflightSettings>>>
+export type GetKeyPreflightSettingsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary How a failing provider key affects starting a survey run
+ */
+
+export function useGetKeyPreflightSettings<TData = Awaited<ReturnType<typeof getKeyPreflightSettings>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getKeyPreflightSettings>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetKeyPreflightSettingsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getUpdateKeyPreflightSettingsUrl = () => {
+
+
+
+
+  return `/api/settings/key-preflight`
+}
+
+/**
+ * @summary Choose whether failing keys warn or block survey runs
+ */
+export const updateKeyPreflightSettings = async (keyPreflightSettings: KeyPreflightSettings, options?: RequestInit): Promise<KeyPreflightSettings> => {
+
+  return customFetch<KeyPreflightSettings>(getUpdateKeyPreflightSettingsUrl(),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(keyPreflightSettings)
+  }
+);}
+
+
+
+
+
+export const getUpdateKeyPreflightSettingsMutationOptions = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateKeyPreflightSettings>>, TError,{data: BodyType<KeyPreflightSettings>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateKeyPreflightSettings>>, TError,{data: BodyType<KeyPreflightSettings>}, TContext> => {
+
+const mutationKey = ['updateKeyPreflightSettings'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateKeyPreflightSettings>>, {data: BodyType<KeyPreflightSettings>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  updateKeyPreflightSettings(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateKeyPreflightSettingsMutationResult = NonNullable<Awaited<ReturnType<typeof updateKeyPreflightSettings>>>
+    export type UpdateKeyPreflightSettingsMutationBody = BodyType<KeyPreflightSettings>
+    export type UpdateKeyPreflightSettingsMutationError = ErrorType<ApiMessage>
+
+    /**
+ * @summary Choose whether failing keys warn or block survey runs
+ */
+export const useUpdateKeyPreflightSettings = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateKeyPreflightSettings>>, TError,{data: BodyType<KeyPreflightSettings>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateKeyPreflightSettings>>,
+        TError,
+        {data: BodyType<KeyPreflightSettings>},
+        TContext
+      > => {
+      return useMutation(getUpdateKeyPreflightSettingsMutationOptions(options));
     }
 
 export const getGetAdminMeUrl = () => {

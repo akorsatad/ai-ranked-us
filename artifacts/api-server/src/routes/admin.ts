@@ -26,6 +26,9 @@ import {
   deleteStoredKey,
   statusFor,
   testProviderKey,
+  getKeyPreflightMode,
+  setKeyPreflightMode,
+  isKeyPreflightMode,
 } from "../lib/apiKeys";
 import { getAuth } from "@clerk/express";
 import { ensureAdmin, requireAdmin } from "../middlewares/requireAdmin";
@@ -423,6 +426,23 @@ router.post(
     res.status(200).json(result);
   },
 );
+// ---------- Pre-flight key check setting ----------
+
+router.get("/settings/key-preflight", async (_req, res): Promise<void> => {
+  res.status(200).json({ mode: await getKeyPreflightMode() });
+});
+
+router.put("/settings/key-preflight", async (req, res): Promise<void> => {
+  const mode = (req.body as { mode?: unknown } | undefined)?.mode;
+  if (typeof mode !== "string" || !isKeyPreflightMode(mode)) {
+    res.status(400).json({ message: "mode must be 'warn' or 'block'" });
+    return;
+  }
+  await setKeyPreflightMode(mode);
+  req.log.info({ mode }, "Key pre-flight mode updated");
+  res.status(200).json({ mode });
+});
+
 // ---------- Survey prompt template ----------
 
 router.get("/admin/prompt-template", async (_req, res): Promise<void> => {

@@ -10,7 +10,7 @@ import {
 } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
-import { Play, CheckCircle2, XCircle, Clock, AlertCircle, RefreshCw, ChevronDown, ChevronRight, Terminal } from 'lucide-react';
+import { Play, CheckCircle2, XCircle, Clock, AlertCircle, RefreshCw, ChevronDown, ChevronRight, Terminal, KeyRound } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
@@ -172,6 +172,23 @@ function RunRow({ run }: { run: SurveyRun }) {
           {run.error && (
             <div className="text-sm text-destructive mt-2 bg-destructive/10 px-3 py-2 rounded-md font-mono">
               {run.error}
+            </div>
+          )}
+          {run.keyWarnings && run.keyWarnings.length > 0 && (
+            <div
+              className="text-sm text-orange-600 mt-2 bg-orange-500/10 border border-orange-500/20 px-3 py-2 rounded-md font-mono space-y-1"
+              data-testid={`text-key-warnings-${run.id}`}
+            >
+              <div className="flex items-center gap-2 font-bold uppercase text-xs">
+                <KeyRound className="w-3.5 h-3.5" /> Provider key check failed before this run
+              </div>
+              {run.keyWarnings.map((w) => (
+                <div key={w.provider} className="break-all">
+                  <span className="uppercase font-bold">{w.provider}</span>
+                  {' — '}
+                  {w.source === 'none' ? 'no API key configured' : w.error}
+                </div>
+              ))}
             </div>
           )}
         </div>

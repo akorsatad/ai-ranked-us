@@ -208,6 +208,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiMessage"
+        "422":
+          description: Run refused — pre-flight provider key check failed and mode is block
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
         "409":
           description: A run is already in progress
           content:
@@ -470,6 +476,41 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ProviderKeyStatus"
+  /settings/key-preflight:
+    get:
+      operationId: getKeyPreflightSettings
+      tags: [admin]
+      summary: How a failing provider key affects starting a survey run
+      responses:
+        "200":
+          description: Current setting
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/KeyPreflightSettings"
+    put:
+      operationId: updateKeyPreflightSettings
+      tags: [admin]
+      summary: Choose whether failing keys warn or block survey runs
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/KeyPreflightSettings"
+      responses:
+        "200":
+          description: Updated setting
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/KeyPreflightSettings"
+        "400":
+          description: Invalid mode
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
   /admin/me:
     get:
       operationId: getAdminMe
@@ -1239,7 +1280,29 @@ components:
         totalQueries: { type: integer }
         succeededQueries: { type: integer }
         failedQueries: { type: integer }
-      required: [id, status, trigger, industryId, startedAt, completedAt, error, totalQueries, succeededQueries, failedQueries]
+        keyWarnings:
+          type: ["array", "null"]
+          description: Provider key failures found by the pre-flight check before this run
+          items:
+            $ref: "#/components/schemas/KeyWarning"
+      required: [id, status, trigger, industryId, startedAt, completedAt, error, totalQueries, succeededQueries, failedQueries, keyWarnings]
+    KeyWarning:
+      type: object
+      properties:
+        provider: { type: string }
+        source:
+          type: string
+          enum: [stored, env, none]
+        error: { type: string }
+      required: [provider, source, error]
+    KeyPreflightSettings:
+      type: object
+      properties:
+        mode:
+          type: string
+          enum: [warn, block]
+          description: warn = start the run but flag it; block = refuse to start the run
+      required: [mode]
     TriggerRunInput:
       type: object
       properties:

@@ -63,7 +63,12 @@ export const GetOverviewResponse = zod.object({
   "error": zod.string().nullable(),
   "totalQueries": zod.number(),
   "succeededQueries": zod.number(),
-  "failedQueries": zod.number()
+  "failedQueries": zod.number(),
+  "keyWarnings": zod.array(zod.object({
+  "provider": zod.string(),
+  "source": zod.enum(['stored', 'env', 'none']),
+  "error": zod.string()
+})).nullable().describe('Provider key failures found by the pre-flight check before this run')
 }),zod.null()]),
   "industriesCount": zod.number(),
   "brandsCount": zod.number(),
@@ -215,7 +220,12 @@ export const ListRunsResponseItem = zod.object({
   "error": zod.string().nullable(),
   "totalQueries": zod.number(),
   "succeededQueries": zod.number(),
-  "failedQueries": zod.number()
+  "failedQueries": zod.number(),
+  "keyWarnings": zod.array(zod.object({
+  "provider": zod.string(),
+  "source": zod.enum(['stored', 'env', 'none']),
+  "error": zod.string()
+})).nullable().describe('Provider key failures found by the pre-flight check before this run')
 })
 export const ListRunsResponse = zod.array(ListRunsResponseItem)
 
@@ -237,7 +247,12 @@ export const TriggerRunResponse = zod.object({
   "error": zod.string().nullable(),
   "totalQueries": zod.number(),
   "succeededQueries": zod.number(),
-  "failedQueries": zod.number()
+  "failedQueries": zod.number(),
+  "keyWarnings": zod.array(zod.object({
+  "provider": zod.string(),
+  "source": zod.enum(['stored', 'env', 'none']),
+  "error": zod.string()
+})).nullable().describe('Provider key failures found by the pre-flight check before this run')
 })
 
 
@@ -455,6 +470,26 @@ export const DeleteApiKeyResponse = zod.object({
   "maskedKey": zod.string().nullable().describe('Last 4 characters of the stored key, e.g. \"••••abcd\"'),
   "hasEnvKey": zod.boolean().describe('Whether an environment-variable key is available as fallback'),
   "updatedAt": zod.string().nullable()
+})
+
+
+/**
+ * @summary How a failing provider key affects starting a survey run
+ */
+export const GetKeyPreflightSettingsResponse = zod.object({
+  "mode": zod.enum(['warn', 'block']).describe('warn = start the run but flag it; block = refuse to start the run')
+})
+
+
+/**
+ * @summary Choose whether failing keys warn or block survey runs
+ */
+export const UpdateKeyPreflightSettingsBody = zod.object({
+  "mode": zod.enum(['warn', 'block']).describe('warn = start the run but flag it; block = refuse to start the run')
+})
+
+export const UpdateKeyPreflightSettingsResponse = zod.object({
+  "mode": zod.enum(['warn', 'block']).describe('warn = start the run but flag it; block = refuse to start the run')
 })
 
 

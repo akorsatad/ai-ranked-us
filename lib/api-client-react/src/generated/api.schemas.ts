@@ -459,6 +459,21 @@ export const SurveyRunTrigger = {
   auto: 'auto',
 } as const;
 
+export type KeyWarningSource = typeof KeyWarningSource[keyof typeof KeyWarningSource];
+
+
+export const KeyWarningSource = {
+  stored: 'stored',
+  env: 'env',
+  none: 'none',
+} as const;
+
+export interface KeyWarning {
+  provider: string;
+  source: KeyWarningSource;
+  error: string;
+}
+
 export interface SurveyRun {
   id: number;
   status: SurveyRunStatus;
@@ -476,6 +491,11 @@ export interface SurveyRun {
   totalQueries: number;
   succeededQueries: number;
   failedQueries: number;
+  /**
+     * Provider key failures found by the pre-flight check before this run
+     * @nullable
+     */
+  keyWarnings: KeyWarning[] | null;
 }
 
 export interface Overview {
@@ -486,6 +506,22 @@ export interface Overview {
   responsesCount: number;
   /** Top brand per industry per metric (averaged across engines) */
   leaders: IndustryLeader[];
+}
+
+/**
+ * warn = start the run but flag it; block = refuse to start the run
+ */
+export type KeyPreflightSettingsMode = typeof KeyPreflightSettingsMode[keyof typeof KeyPreflightSettingsMode];
+
+
+export const KeyPreflightSettingsMode = {
+  warn: 'warn',
+  block: 'block',
+} as const;
+
+export interface KeyPreflightSettings {
+  /** warn = start the run but flag it; block = refuse to start the run */
+  mode: KeyPreflightSettingsMode;
 }
 
 export interface TriggerRunInput {

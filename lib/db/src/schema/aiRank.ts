@@ -85,6 +85,13 @@ export const appSettingsTable = pgTable("app_settings", {
     .defaultNow(),
 });
 
+/** Result of a failed pre-flight provider key check, stored on the run. */
+export interface StoredKeyWarning {
+  provider: string;
+  source: "stored" | "env" | "none";
+  error: string;
+}
+
 export const surveyRunsTable = pgTable("survey_runs", {
   id: serial("id").primaryKey(),
   status: text("status").notNull().default("running"), // running | completed | failed | partial
@@ -98,6 +105,8 @@ export const surveyRunsTable = pgTable("survey_runs", {
   totalQueries: integer("total_queries").notNull().default(0),
   succeededQueries: integer("succeeded_queries").notNull().default(0),
   failedQueries: integer("failed_queries").notNull().default(0),
+  // Non-null when the pre-flight provider key check found failing keys.
+  keyWarnings: jsonb("key_warnings").$type<StoredKeyWarning[]>(),
 });
 
 export interface StoredRankingEntry {

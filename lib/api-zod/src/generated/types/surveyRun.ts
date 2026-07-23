@@ -5,6 +5,7 @@
  * AI Rank API — daily AI-engine brand sentiment surveys
  * OpenAPI spec version: 0.1.0
  */
+import type { KeyWarning } from './keyWarning';
 import type { SurveyRunStatus } from './surveyRunStatus';
 import type { SurveyRunTrigger } from './surveyRunTrigger';
 
@@ -25,4 +26,9 @@ export interface SurveyRun {
   totalQueries: number;
   succeededQueries: number;
   failedQueries: number;
+  /**
+     * Provider key failures found by the pre-flight check before this run
+     * @nullable
+     */
+  keyWarnings: KeyWarning[] | null;
 }

@@ -8,6 +8,7 @@ import {
 } from "@workspace/api-zod";
 import { getAlertSettings, setAlertSettings } from "../lib/alerts";
 import { sendTestAlertEmail } from "../lib/alertEmail";
+import { requireAdmin } from "../middlewares/requireAdmin";
 
 const router: IRouter = Router();
 
@@ -103,7 +104,7 @@ router.get("/alerts/settings", async (_req, res): Promise<void> => {
   return;
 });
 
-router.put("/alerts/settings", async (req, res): Promise<void> => {
+router.put("/alerts/settings", requireAdmin, async (req, res): Promise<void> => {
   const body = UpdateAlertSettingsBody.safeParse(req.body);
   if (!body.success) {
     res.status(400).json({ message: "Invalid input" });
@@ -126,7 +127,10 @@ router.put("/alerts/settings", async (req, res): Promise<void> => {
   return;
 });
 
-router.post("/alerts/settings/test-email", async (_req, res): Promise<void> => {
+router.post(
+  "/alerts/settings/test-email",
+  requireAdmin,
+  async (_req, res): Promise<void> => {
   const settings = await getAlertSettings();
   const recipient = settings.emailRecipient.trim();
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipient)) {
