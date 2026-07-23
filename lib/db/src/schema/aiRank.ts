@@ -134,6 +134,8 @@ export const surveyResponsesTable = pgTable("survey_responses", {
   metricKey: text("metric_key").notNull(),
   status: text("status").notNull().default("ok"), // ok | failed
   error: text("error"),
+  prompt: text("prompt"), // exact rendered prompt sent to the engine
+  rawResponse: text("raw_response"), // raw engine response text (also stored for parse failures)
   entries: jsonb("entries").$type<StoredRankingEntry[]>(),
   trend: jsonb("trend").$type<StoredBrandTrend[]>(),
   createdAt: timestamp("created_at", { withTimezone: true })

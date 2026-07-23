@@ -33,6 +33,12 @@ interface SurveyQuery {
   metric: MetricDef;
 }
 
+import {
+  getActivePromptTemplate,
+  renderPromptTemplate,
+  placeholderValuesFor,
+} from "./promptTemplate";
+
 function weekLabels(): string[] {
   const labels: string[] = [];
   const now = new Date();
@@ -45,25 +51,11 @@ function weekLabels(): string[] {
   return labels;
 }
 
-function buildPrompt(query: SurveyQuery): string {
-  const names = query.brands.map((b) => b.name);
-  const direction = query.metric.higherIsBetter
-    ? "higher score = better performance on this dimension"
-    : "higher score = MORE of this (i.e. worse for the brand)";
-  return [
-    `You are being surveyed, as of today, about how US consumers perceive major brands.`,
-    ``,
-    `Dimension surveyed: ${query.metric.label} — ${query.metric.description}.`,
-    ``,
-    `Rank these ${names.length} brands on this dimension for US consumers: ${names.join(", ")}.`,
-    ``,
-    `Also estimate a weekly trend line of each brand's score over the last 13 weeks (13 values, oldest week first, most recent week last), based on your available knowledge of how perception has been moving.`,
-    ``,
-    `Scoring: integer 0-100, ${direction}. Rank 1 = highest score.`,
-    ``,
-    `Respond with STRICT JSON only, no markdown fences, exactly this shape:`,
-    `{"rankings":[{"brand":"<name exactly as given>","rank":1,"score":87,"rationale":"<one short sentence>"}],"trend":[{"brand":"<name exactly as given>","weekly_scores":[13 integers oldest first]}]}`,
-  ].join("\n");
+function buildPrompt(query: SurveyQuery, template: string): string {
+  return renderPromptTemplate(
+    template,
+    placeholderValuesFor(query.metric, query.brands),
+  );
 }
 
 function parseJsonBlock(text: string): unknown {
@@ -213,12 +205,17 @@ async function executeRun(
   let succeeded = 0;
   let failed = 0;
 
+  // Resolve the template once so every query in the run uses the same text.
+  const { template } = await getActivePromptTemplate();
+
   await batchProcess(
     queries,
     async (query) => {
       // Every query is an entirely new, isolated request to the engine.
+      const prompt = buildPrompt(query, template);
+      let raw: string | null = null;
       try {
-        const raw = await callEngine(query.engine, buildPrompt(query));
+        raw = await callEngine(query.engine, prompt);
         const { entries, trend } = parseResponse(query, raw);
         await db.insert(surveyResponsesTable).values({
           runId: run.id,
@@ -228,6 +225,8 @@ async function executeRun(
           status: "ok",
           entries,
           trend,
+          prompt,
+          rawResponse: raw,
         });
         succeeded++;
       } catch (err) {
@@ -250,6 +249,8 @@ async function executeRun(
           metricKey: query.metric.key,
           status: "failed",
           error: message.slice(0, 1000),
+          prompt,
+          rawResponse: raw,
         });
       }
       return null;

@@ -49,6 +49,8 @@ import type {
   MarkAlertsReadInput,
   MoversReport,
   Overview,
+  PromptTemplateInfo,
+  PromptTemplateInput,
   ProviderKeyStatus,
   SurveyRun,
   TablePage,
@@ -2072,5 +2074,224 @@ export const useUpdateAlertSettings = <TError = ErrorType<ApiMessage>,
         TContext
       > => {
       return useMutation(getUpdateAlertSettingsMutationOptions(options));
+    }
+
+export const getGetPromptTemplateUrl = () => {
+
+
+
+
+  return `/api/admin/prompt-template`
+}
+
+/**
+ * @summary Current survey prompt template, placeholders, and example values
+ */
+export const getPromptTemplate = async ( options?: RequestInit): Promise<PromptTemplateInfo> => {
+
+  return customFetch<PromptTemplateInfo>(getGetPromptTemplateUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetPromptTemplateQueryKey = () => {
+    return [
+    `/api/admin/prompt-template`
+    ] as const;
+    }
+
+
+export const getGetPromptTemplateQueryOptions = <TData = Awaited<ReturnType<typeof getPromptTemplate>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPromptTemplate>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetPromptTemplateQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPromptTemplate>>> = ({ signal }) => getPromptTemplate({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPromptTemplate>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetPromptTemplateQueryResult = NonNullable<Awaited<ReturnType<typeof getPromptTemplate>>>
+export type GetPromptTemplateQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Current survey prompt template, placeholders, and example values
+ */
+
+export function useGetPromptTemplate<TData = Awaited<ReturnType<typeof getPromptTemplate>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPromptTemplate>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetPromptTemplateQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getUpdatePromptTemplateUrl = () => {
+
+
+
+
+  return `/api/admin/prompt-template`
+}
+
+/**
+ * @summary Update the survey prompt template used on the next run
+ */
+export const updatePromptTemplate = async (promptTemplateInput: PromptTemplateInput, options?: RequestInit): Promise<PromptTemplateInfo> => {
+
+  return customFetch<PromptTemplateInfo>(getUpdatePromptTemplateUrl(),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(promptTemplateInput)
+  }
+);}
+
+
+
+
+
+export const getUpdatePromptTemplateMutationOptions = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updatePromptTemplate>>, TError,{data: BodyType<PromptTemplateInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updatePromptTemplate>>, TError,{data: BodyType<PromptTemplateInput>}, TContext> => {
+
+const mutationKey = ['updatePromptTemplate'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updatePromptTemplate>>, {data: BodyType<PromptTemplateInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  updatePromptTemplate(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdatePromptTemplateMutationResult = NonNullable<Awaited<ReturnType<typeof updatePromptTemplate>>>
+    export type UpdatePromptTemplateMutationBody = BodyType<PromptTemplateInput>
+    export type UpdatePromptTemplateMutationError = ErrorType<ApiMessage>
+
+    /**
+ * @summary Update the survey prompt template used on the next run
+ */
+export const useUpdatePromptTemplate = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updatePromptTemplate>>, TError,{data: BodyType<PromptTemplateInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updatePromptTemplate>>,
+        TError,
+        {data: BodyType<PromptTemplateInput>},
+        TContext
+      > => {
+      return useMutation(getUpdatePromptTemplateMutationOptions(options));
+    }
+
+export const getResetPromptTemplateUrl = () => {
+
+
+
+
+  return `/api/admin/prompt-template`
+}
+
+/**
+ * @summary Reset the survey prompt template to the built-in default
+ */
+export const resetPromptTemplate = async ( options?: RequestInit): Promise<PromptTemplateInfo> => {
+
+  return customFetch<PromptTemplateInfo>(getResetPromptTemplateUrl(),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getResetPromptTemplateMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof resetPromptTemplate>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof resetPromptTemplate>>, TError,void, TContext> => {
+
+const mutationKey = ['resetPromptTemplate'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof resetPromptTemplate>>, void> = () => {
+
+
+          return  resetPromptTemplate(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ResetPromptTemplateMutationResult = NonNullable<Awaited<ReturnType<typeof resetPromptTemplate>>>
+
+    export type ResetPromptTemplateMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Reset the survey prompt template to the built-in default
+ */
+export const useResetPromptTemplate = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof resetPromptTemplate>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof resetPromptTemplate>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getResetPromptTemplateMutationOptions(options));
     }
 

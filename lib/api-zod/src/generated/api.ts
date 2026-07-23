@@ -589,3 +589,58 @@ export const UpdateAlertSettingsResponse = zod.object({
 })
 
 
+/**
+ * @summary Current survey prompt template, placeholders, and example values
+ */
+export const GetPromptTemplateResponse = zod.object({
+  "template": zod.string().describe('The active template text (custom or default)'),
+  "isCustom": zod.boolean().describe('True when a custom template is stored in the database'),
+  "defaultTemplate": zod.string().describe('The built-in default template text'),
+  "placeholders": zod.array(zod.object({
+  "name": zod.string().describe('Placeholder token without braces, e.g. metric_label'),
+  "description": zod.string(),
+  "required": zod.boolean().describe('Whether the template must contain this placeholder')
+})),
+  "exampleValues": zod.record(zod.string(), zod.string()).describe('Example value for each placeholder, for client-side preview rendering')
+})
+
+
+/**
+ * @summary Update the survey prompt template used on the next run
+ */
+
+
+
+export const UpdatePromptTemplateBody = zod.object({
+  "template": zod.string().min(1)
+})
+
+export const UpdatePromptTemplateResponse = zod.object({
+  "template": zod.string().describe('The active template text (custom or default)'),
+  "isCustom": zod.boolean().describe('True when a custom template is stored in the database'),
+  "defaultTemplate": zod.string().describe('The built-in default template text'),
+  "placeholders": zod.array(zod.object({
+  "name": zod.string().describe('Placeholder token without braces, e.g. metric_label'),
+  "description": zod.string(),
+  "required": zod.boolean().describe('Whether the template must contain this placeholder')
+})),
+  "exampleValues": zod.record(zod.string(), zod.string()).describe('Example value for each placeholder, for client-side preview rendering')
+})
+
+
+/**
+ * @summary Reset the survey prompt template to the built-in default
+ */
+export const ResetPromptTemplateResponse = zod.object({
+  "template": zod.string().describe('The active template text (custom or default)'),
+  "isCustom": zod.boolean().describe('True when a custom template is stored in the database'),
+  "defaultTemplate": zod.string().describe('The built-in default template text'),
+  "placeholders": zod.array(zod.object({
+  "name": zod.string().describe('Placeholder token without braces, e.g. metric_label'),
+  "description": zod.string(),
+  "required": zod.boolean().describe('Whether the template must contain this placeholder')
+})),
+  "exampleValues": zod.record(zod.string(), zod.string()).describe('Example value for each placeholder, for client-side preview rendering')
+})
+
+

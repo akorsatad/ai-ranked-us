@@ -259,6 +259,36 @@ export interface ApiKeyTestResult {
   error: string | null;
 }
 
+export interface PromptPlaceholder {
+  /** Placeholder token without braces, e.g. metric_label */
+  name: string;
+  description: string;
+  /** Whether the template must contain this placeholder */
+  required: boolean;
+}
+
+/**
+ * Example value for each placeholder, for client-side preview rendering
+ */
+export type PromptTemplateInfoExampleValues = {[key: string]: string};
+
+export interface PromptTemplateInfo {
+  /** The active template text (custom or default) */
+  template: string;
+  /** True when a custom template is stored in the database */
+  isCustom: boolean;
+  /** The built-in default template text */
+  defaultTemplate: string;
+  placeholders: PromptPlaceholder[];
+  /** Example value for each placeholder, for client-side preview rendering */
+  exampleValues: PromptTemplateInfoExampleValues;
+}
+
+export interface PromptTemplateInput {
+  /** @minLength 1 */
+  template: string;
+}
+
 export type TablePageRowsItem = { [key: string]: unknown };
 
 export interface TablePage {

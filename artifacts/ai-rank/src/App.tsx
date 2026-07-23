@@ -19,6 +19,7 @@ import AdminCatalog from './pages/admin/catalog';
 import AdminEngines from './pages/admin/engines';
 import AdminApiKeys from './pages/admin/api-keys';
 import AdminData from './pages/admin/data';
+import AdminQueries from './pages/admin/queries';
 import { Terms, Privacy } from './pages/legal';
 import Alerts from './pages/alerts';
 
@@ -136,6 +137,7 @@ function AdminRoutes() {
           <Route path="/admin/catalog" component={AdminCatalog} />
           <Route path="/admin/engines" component={AdminEngines} />
           <Route path="/admin/api-keys" component={AdminApiKeys} />
+          <Route path="/admin/queries" component={AdminQueries} />
           <Route path="/admin/data" component={AdminData} />
           <Route component={NotFound} />
         </Switch>

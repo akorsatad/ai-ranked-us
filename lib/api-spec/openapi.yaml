@@ -654,6 +654,52 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiMessage"
+  /admin/prompt-template:
+    get:
+      operationId: getPromptTemplate
+      tags: [admin]
+      summary: Current survey prompt template, placeholders, and example values
+      responses:
+        "200":
+          description: Prompt template info
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PromptTemplateInfo"
+    put:
+      operationId: updatePromptTemplate
+      tags: [admin]
+      summary: Update the survey prompt template used on the next run
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PromptTemplateInput"
+      responses:
+        "200":
+          description: Updated template info
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PromptTemplateInfo"
+        "400":
+          description: Invalid template (missing required placeholders)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+    delete:
+      operationId: resetPromptTemplate
+      tags: [admin]
+      summary: Reset the survey prompt template to the built-in default
+      responses:
+        "200":
+          description: Template info after reset
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PromptTemplateInfo"
 components:
   schemas:
     HealthStatus:
@@ -890,6 +936,46 @@ components:
           type: ["string", "null"]
           description: Provider error message when ok is false
       required: [provider, ok, source, error]
+    PromptPlaceholder:
+      type: object
+      properties:
+        name:
+          type: string
+          description: Placeholder token without braces, e.g. metric_label
+        description: { type: string }
+        required:
+          type: boolean
+          description: Whether the template must contain this placeholder
+      required: [name, description, required]
+    PromptTemplateInfo:
+      type: object
+      properties:
+        template:
+          type: string
+          description: The active template text (custom or default)
+        isCustom:
+          type: boolean
+          description: True when a custom template is stored in the database
+        defaultTemplate:
+          type: string
+          description: The built-in default template text
+        placeholders:
+          type: array
+          items:
+            $ref: "#/components/schemas/PromptPlaceholder"
+        exampleValues:
+          type: object
+          additionalProperties:
+            type: string
+          description: Example value for each placeholder, for client-side preview rendering
+      required: [template, isCustom, defaultTemplate, placeholders, exampleValues]
+    PromptTemplateInput:
+      type: object
+      properties:
+        template:
+          type: string
+          minLength: 1
+      required: [template]
     TablePage:
       type: object
       properties:

@@ -17,6 +17,7 @@ import {
   UpdateEngineBody,
   SetApiKeyBody,
   BrowseTableQueryParams,
+  UpdatePromptTemplateBody,
 } from "@workspace/api-zod";
 import {
   isProvider,
@@ -28,6 +29,12 @@ import {
 } from "../lib/apiKeys";
 import { getAuth } from "@clerk/express";
 import { ensureAdmin, requireAdmin } from "../middlewares/requireAdmin";
+import {
+  promptTemplateInfo,
+  setStoredPromptTemplate,
+  clearStoredPromptTemplate,
+  missingRequiredPlaceholders,
+} from "../lib/promptTemplate";
 
 const router: IRouter = Router();
 
@@ -365,6 +372,40 @@ router.post(
     res.status(200).json(result);
   },
 );
+// ---------- Survey prompt template ----------
+
+router.get("/admin/prompt-template", async (_req, res): Promise<void> => {
+  res.status(200).json(await promptTemplateInfo());
+  return;
+});
+
+router.put("/admin/prompt-template", async (req, res): Promise<void> => {
+  const body = UpdatePromptTemplateBody.safeParse(req.body);
+  if (!body.success || !body.data.template.trim()) {
+    res.status(400).json({ message: "Template text is required" });
+    return;
+  }
+  const missing = missingRequiredPlaceholders(body.data.template);
+  if (missing.length > 0) {
+    res.status(400).json({
+      message: `Template is missing required placeholders: ${missing
+        .map((m) => `{{${m}}}`)
+        .join(", ")}`,
+    });
+    return;
+  }
+  await setStoredPromptTemplate(body.data.template);
+  req.log.info("Survey prompt template updated");
+  res.status(200).json(await promptTemplateInfo());
+  return;
+});
+
+router.delete("/admin/prompt-template", async (req, res): Promise<void> => {
+  await clearStoredPromptTemplate();
+  req.log.info("Survey prompt template reset to default");
+  res.status(200).json(await promptTemplateInfo());
+  return;
+});
 
 // ---------- Data browser ----------
 
@@ -540,6 +581,8 @@ router.get("/admin/tables/:table", async (req, res): Promise<void> => {
           metricKey: surveyResponsesTable.metricKey,
           status: surveyResponsesTable.status,
           error: surveyResponsesTable.error,
+          prompt: surveyResponsesTable.prompt,
+          rawResponse: surveyResponsesTable.rawResponse,
           entries: surveyResponsesTable.entries,
           trend: surveyResponsesTable.trend,
           createdAt: surveyResponsesTable.createdAt,
@@ -565,6 +608,8 @@ router.get("/admin/tables/:table", async (req, res): Promise<void> => {
         "metricKey",
         "status",
         "error",
+        "prompt",
+        "rawResponse",
         "entries",
         "trend",
         "createdAt",
