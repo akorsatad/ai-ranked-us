@@ -66,12 +66,27 @@ router.get(
         ...entry,
         previousRank: previousRankByBrand.get(entry.brandId) ?? null,
       })),
-      byEngine: responses.map(({ engine, response }) => ({
-        engineKey: engine.key,
-        engineName: engine.name,
-        entries: rankEntries(response.entries ?? [], metric.higherIsBetter),
-        surveyedAt: response.createdAt.toISOString(),
-      })),
+      byEngine: responses.map(({ engine, response, previousResponse }) => {
+        // Per-engine previous-run ranks (this engine's own prior response,
+        // not the averaged snapshot).
+        const enginePrevRankByBrand = new Map(
+          rankEntries(
+            previousResponse?.entries ?? [],
+            metric.higherIsBetter,
+          ).map((e) => [e.brandId, e.rank]),
+        );
+        return {
+          engineKey: engine.key,
+          engineName: engine.name,
+          entries: rankEntries(response.entries ?? [], metric.higherIsBetter).map(
+            (entry) => ({
+              ...entry,
+              previousRank: enginePrevRankByBrand.get(entry.brandId) ?? null,
+            }),
+          ),
+          surveyedAt: response.createdAt.toISOString(),
+        };
+      }),
     });
     return;
   },

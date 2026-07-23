@@ -12,15 +12,27 @@ import {
 
 /**
  * Latest successful response per engine for an (industry, metric) pair.
+ * Also returns that engine's previous successful response (from the prior
+ * run), or null when the engine has only one successful response.
  */
 export async function latestResponsesByEngine(
   industryId: number,
   metricKey: string,
-): Promise<{ engine: EngineRow; response: SurveyResponseRow }[]> {
+): Promise<
+  {
+    engine: EngineRow;
+    response: SurveyResponseRow;
+    previousResponse: SurveyResponseRow | null;
+  }[]
+> {
   const engines = await db.select().from(enginesTable);
-  const results: { engine: EngineRow; response: SurveyResponseRow }[] = [];
+  const results: {
+    engine: EngineRow;
+    response: SurveyResponseRow;
+    previousResponse: SurveyResponseRow | null;
+  }[] = [];
   for (const engine of engines) {
-    const [response] = await db
+    const responses = await db
       .select()
       .from(surveyResponsesTable)
       .where(
@@ -32,8 +44,11 @@ export async function latestResponsesByEngine(
         ),
       )
       .orderBy(desc(surveyResponsesTable.createdAt))
-      .limit(1);
-    if (response) results.push({ engine, response });
+      .limit(2);
+    const [response, previousResponse] = responses;
+    if (response) {
+      results.push({ engine, response, previousResponse: previousResponse ?? null });
+    }
   }
   return results;
 }

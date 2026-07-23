@@ -407,6 +407,7 @@ export default function Industry() {
                             <div className="flex items-center gap-3">
                               <span className="font-mono text-muted-foreground w-4">{entry.rank}</span>
                               <span className="font-medium">{entry.brandName}</span>
+                              <RankChange rank={entry.rank} previousRank={entry.previousRank} />
                             </div>
                             <span className="font-mono font-bold">{entry.score.toFixed(1)}</span>
                           </div>
