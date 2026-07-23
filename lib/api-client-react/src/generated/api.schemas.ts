@@ -326,6 +326,11 @@ export interface RankingEntry {
      * @nullable
      */
   rationale?: string | null;
+  /**
+     * Brand's rank in the previous survey run (null when no prior run or brand absent)
+     * @nullable
+     */
+  previousRank?: number | null;
 }
 
 export interface EngineRanking {

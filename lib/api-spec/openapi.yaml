@@ -1034,6 +1034,9 @@ components:
         rationale:
           type: ["string", "null"]
           description: Short engine-provided justification
+        previousRank:
+          type: ["integer", "null"]
+          description: Brand's rank in the previous survey run (null when no prior run or brand absent)
       required: [brandId, brandName, rank, score]
     EngineRanking:
       type: object

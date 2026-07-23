@@ -44,6 +44,17 @@ router.get(
     }
 
     const responses = await latestResponsesByEngine(industry.id, metric.key);
+    const snapshots = await runSnapshots(
+      industry.id,
+      metric.key,
+      metric.higherIsBetter,
+    );
+    // Previous run = second-most-recent snapshot; null when only one run exists.
+    const previousSnapshot =
+      snapshots.length >= 2 ? snapshots[snapshots.length - 2] : null;
+    const previousRankByBrand = new Map(
+      (previousSnapshot?.entries ?? []).map((e) => [e.brandId, e.rank]),
+    );
     res.status(200).json({
       industryId: industry.id,
       industryName: industry.name,
@@ -51,7 +62,10 @@ router.get(
       average: averageEntries(
         responses.map((r) => r.response),
         metric.higherIsBetter,
-      ),
+      ).map((entry) => ({
+        ...entry,
+        previousRank: previousRankByBrand.get(entry.brandId) ?? null,
+      })),
       byEngine: responses.map(({ engine, response }) => ({
         engineKey: engine.key,
         engineName: engine.name,

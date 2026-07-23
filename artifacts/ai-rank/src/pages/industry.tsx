@@ -20,7 +20,10 @@ import {
   Bot, 
   Info,
   ChevronRight,
-  ArrowLeft
+  ArrowLeft,
+  ArrowUp,
+  ArrowDown,
+  Minus
 } from 'lucide-react';
 import { Link } from 'wouter';
 import { Button } from '@/components/ui/button';
@@ -38,6 +41,30 @@ const CHART_COLORS = [
   'hsl(var(--chart-5))',
   'hsl(var(--primary))',
 ];
+
+function RankChange({ rank, previousRank }: { rank: number; previousRank?: number | null }) {
+  if (previousRank == null) return null;
+  const delta = previousRank - rank; // positive = moved up
+  if (delta > 0) {
+    return (
+      <span data-testid="rank-change-up" className="inline-flex items-center gap-0.5 text-xs font-mono font-bold text-emerald-500">
+        <ArrowUp className="w-3 h-3" />{delta}
+      </span>
+    );
+  }
+  if (delta < 0) {
+    return (
+      <span data-testid="rank-change-down" className="inline-flex items-center gap-0.5 text-xs font-mono font-bold text-red-500">
+        <ArrowDown className="w-3 h-3" />{Math.abs(delta)}
+      </span>
+    );
+  }
+  return (
+    <span data-testid="rank-change-flat" className="inline-flex items-center text-xs font-mono text-muted-foreground">
+      <Minus className="w-3 h-3" />
+    </span>
+  );
+}
 
 export default function Industry() {
   const [, params] = useRoute('/industry/:id');
@@ -425,6 +452,7 @@ export default function Industry() {
                             {entry.rank}
                           </div>
                           <span className="font-bold text-lg">{entry.brandName}</span>
+                          <RankChange rank={entry.rank} previousRank={entry.previousRank} />
                         </div>
                         <div className="font-mono text-xl font-bold text-primary">
                           {entry.score.toFixed(1)}

@@ -101,7 +101,8 @@ export const GetIndustryRankingsResponse = zod.object({
   "brandName": zod.string(),
   "rank": zod.number(),
   "score": zod.number().describe('0-100 score, higher is better on that metric'),
-  "rationale": zod.string().nullish().describe('Short engine-provided justification')
+  "rationale": zod.string().nullish().describe('Short engine-provided justification'),
+  "previousRank": zod.number().nullish().describe('Brand\'s rank in the previous survey run (null when no prior run or brand absent)')
 })).describe('Averaged across all engines'),
   "byEngine": zod.array(zod.object({
   "engineKey": zod.string(),
@@ -111,7 +112,8 @@ export const GetIndustryRankingsResponse = zod.object({
   "brandName": zod.string(),
   "rank": zod.number(),
   "score": zod.number().describe('0-100 score, higher is better on that metric'),
-  "rationale": zod.string().nullish().describe('Short engine-provided justification')
+  "rationale": zod.string().nullish().describe('Short engine-provided justification'),
+  "previousRank": zod.number().nullish().describe('Brand\'s rank in the previous survey run (null when no prior run or brand absent)')
 })),
   "surveyedAt": zod.string().nullish().describe('ISO timestamp of the response used')
 }))
