@@ -7,8 +7,9 @@ import {
   surveyResponsesTable,
   surveyRunsTable,
   type SurveyRunRow,
+  type StoredRankingEntry,
 } from "@workspace/db";
-import { METRICS } from "./metrics";
+import { METRICS, type MetricDef } from "./metrics";
 import { averageEntries } from "./aggregate";
 import { logger } from "./logger";
 import { sendAlertDigestEmail, type AlertEmailItem } from "./alertEmail";
@@ -76,6 +77,79 @@ export async function setAlertSettings(
       });
   }
   return getAlertSettings();
+}
+
+export interface DetectedAlert {
+  brandId: number;
+  brandName: string;
+  metricKey: string;
+  metricLabel: string;
+  kind: "score_drop" | "rank_drop";
+  previousValue: number;
+  currentValue: number;
+  delta: number;
+  threshold: number;
+}
+
+/**
+ * Pure delta logic: compare averaged current vs previous entries for one
+ * (industry, metric) pair and return deterioration alerts.
+ * - score_drop: the metric moved against the brand by >= scoreDropThreshold
+ *   points (a decrease for higherIsBetter metrics, an increase for inverted
+ *   metrics such as negative sentiment)
+ * - rank_drop: the brand fell >= rankDropThreshold positions
+ * Brands without a previous entry are skipped.
+ */
+export function computeAlertsForPair(
+  current: StoredRankingEntry[],
+  previous: StoredRankingEntry[],
+  metric: Pick<MetricDef, "key" | "label" | "higherIsBetter">,
+  settings: AlertSettings,
+): DetectedAlert[] {
+  const prevByBrand = new Map(previous.map((e) => [e.brandId, e]));
+  const alerts: DetectedAlert[] = [];
+
+  for (const entry of current) {
+    const prev = prevByBrand.get(entry.brandId);
+    if (!prev) continue;
+
+    // Score deterioration: for higherIsBetter metrics that's a decrease;
+    // for inverted metrics (e.g. negative sentiment) an increase is bad.
+    const scoreDeterioration = metric.higherIsBetter
+      ? prev.score - entry.score
+      : entry.score - prev.score;
+    if (scoreDeterioration >= settings.scoreDropThreshold) {
+      alerts.push({
+        brandId: entry.brandId,
+        brandName: entry.brandName,
+        metricKey: metric.key,
+        metricLabel: metric.label,
+        kind: "score_drop",
+        previousValue: Math.round(prev.score * 10),
+        currentValue: Math.round(entry.score * 10),
+        delta: Math.round(scoreDeterioration * 10),
+        threshold: Math.round(settings.scoreDropThreshold * 10),
+      });
+    }
+
+    // Rank deterioration: rank number growing means the brand fell.
+    const rankDeterioration = entry.rank - prev.rank;
+    if (rankDeterioration >= settings.rankDropThreshold) {
+      alerts.push({
+        brandId: entry.brandId,
+        brandName: entry.brandName,
+        metricKey: metric.key,
+        metricLabel: metric.label,
+        kind: "rank_drop",
+        previousValue: prev.rank,
+        currentValue: entry.rank,
+        delta: rankDeterioration,
+        threshold: settings.rankDropThreshold,
+      });
+    }
+  }
+
+  return alerts;
 }
 
 /**
@@ -147,72 +221,36 @@ export async function detectAlertsForRun(run: SurveyRunRow): Promise<number> {
 
       const currentAvg = averageEntries(current, metric.higherIsBetter);
       const previousAvg = averageEntries(previous, metric.higherIsBetter);
-      const prevByBrand = new Map(previousAvg.map((e) => [e.brandId, e]));
 
-      for (const entry of currentAvg) {
-        const prev = prevByBrand.get(entry.brandId);
-        if (!prev) continue;
-
-        // Score deterioration: for higherIsBetter metrics that's a decrease;
-        // for inverted metrics (e.g. negative sentiment) an increase is bad.
-        const scoreDeterioration = metric.higherIsBetter
-          ? prev.score - entry.score
-          : entry.score - prev.score;
-        if (scoreDeterioration >= settings.scoreDropThreshold) {
-          await db.insert(brandAlertsTable).values({
-            runId: run.id,
-            brandId: entry.brandId,
-            brandName: entry.brandName,
-            industryId,
-            industryName: industry.name,
-            metricKey: metric.key,
-            metricLabel: metric.label,
-            kind: "score_drop",
-            previousValue: Math.round(prev.score * 10),
-            currentValue: Math.round(entry.score * 10),
-            delta: Math.round(scoreDeterioration * 10),
-            threshold: Math.round(settings.scoreDropThreshold * 10),
-          });
-          created++;
-          emailItems.push({
-            brandName: entry.brandName,
-            industryName: industry.name,
-            metricLabel: metric.label,
-            kind: "score_drop",
-            previousValue: prev.score,
-            currentValue: entry.score,
-            delta: scoreDeterioration,
-          });
-        }
-
-        // Rank deterioration: rank number growing means the brand fell.
-        const rankDeterioration = entry.rank - prev.rank;
-        if (rankDeterioration >= settings.rankDropThreshold) {
-          await db.insert(brandAlertsTable).values({
-            runId: run.id,
-            brandId: entry.brandId,
-            brandName: entry.brandName,
-            industryId,
-            industryName: industry.name,
-            metricKey: metric.key,
-            metricLabel: metric.label,
-            kind: "rank_drop",
-            previousValue: prev.rank,
-            currentValue: entry.rank,
-            delta: rankDeterioration,
-            threshold: settings.rankDropThreshold,
-          });
-          created++;
-          emailItems.push({
-            brandName: entry.brandName,
-            industryName: industry.name,
-            metricLabel: metric.label,
-            kind: "rank_drop",
-            previousValue: prev.rank,
-            currentValue: entry.rank,
-            delta: rankDeterioration,
-          });
-        }
+      const alerts = computeAlertsForPair(
+        currentAvg,
+        previousAvg,
+        metric,
+        settings,
+      );
+      for (const alert of alerts) {
+        await db.insert(brandAlertsTable).values({
+          runId: run.id,
+          industryId,
+          industryName: industry.name,
+          ...alert,
+        });
+        created++;
+        emailItems.push({
+          brandName: alert.brandName,
+          industryName: industry.name,
+          metricLabel: alert.metricLabel,
+          kind: alert.kind,
+          previousValue:
+            alert.kind === "score_drop"
+              ? alert.previousValue / 10
+              : alert.previousValue,
+          currentValue:
+            alert.kind === "score_drop"
+              ? alert.currentValue / 10
+              : alert.currentValue,
+          delta: alert.kind === "score_drop" ? alert.delta / 10 : alert.delta,
+        });
       }
     }
   }
