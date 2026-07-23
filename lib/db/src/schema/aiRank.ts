@@ -27,6 +27,18 @@ export const brandsTable = pgTable("brands", {
   enabled: boolean("enabled").notNull().default(true),
 });
 
+export const providerApiKeysTable = pgTable("provider_api_keys", {
+  id: serial("id").primaryKey(),
+  provider: text("provider").notNull().unique(), // openai | anthropic | gemini | openrouter
+  apiKey: text("api_key").notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow()
+    .$onUpdate(() => new Date()),
+});
+
+export type ProviderApiKeyRow = typeof providerApiKeysTable.$inferSelect;
+
 export const enginesTable = pgTable("engines", {
   id: serial("id").primaryKey(),
   key: text("key").notNull().unique(),

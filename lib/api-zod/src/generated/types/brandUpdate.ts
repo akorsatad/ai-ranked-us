@@ -7,6 +7,8 @@
  */
 
 export interface BrandUpdate {
+  /** @minLength 1 */
   name?: string;
+  industryId?: number;
   enabled?: boolean;
 }

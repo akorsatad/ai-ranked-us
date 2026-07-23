@@ -6,10 +6,10 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export type ApiKeyStatusProvider = typeof ApiKeyStatusProvider[keyof typeof ApiKeyStatusProvider];
+export type EngineUpdateProvider = typeof EngineUpdateProvider[keyof typeof EngineUpdateProvider];
 
 
-export const ApiKeyStatusProvider = {
+export const EngineUpdateProvider = {
   openai: 'openai',
   anthropic: 'anthropic',
   gemini: 'gemini',

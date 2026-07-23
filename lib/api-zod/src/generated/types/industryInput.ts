@@ -7,6 +7,9 @@
  */
 
 export interface IndustryInput {
+  /** @minLength 1 */
   name: string;
+  /** @minLength 1 */
+  slug?: string;
   country?: string;
 }

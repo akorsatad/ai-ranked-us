@@ -16,10 +16,10 @@ tags:
     description: Brand rankings and trends
   - name: runs
     description: Survey runs
-  - name: admin
-    description: Admin management operations
   - name: alerts
     description: Sharp-drop alerts computed after each survey run
+  - name: admin
+    description: Admin operations — manage catalog, keys, and browse data
 paths:
   /healthz:
     get:
@@ -154,6 +154,320 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiMessage"
+  /industries:
+    post:
+      operationId: createIndustry
+      tags: [admin]
+      summary: Create an industry
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/IndustryInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Industry"
+        "400":
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "409":
+          description: Slug already exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+  /industries/{industryId}:
+    patch:
+      operationId: updateIndustry
+      tags: [admin]
+      summary: Update or enable/disable an industry
+      parameters:
+        - name: industryId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/IndustryUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Industry"
+        "404":
+          description: Industry not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+  /brands:
+    post:
+      operationId: createBrand
+      tags: [admin]
+      summary: Create a brand in an industry
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BrandInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Brand"
+        "400":
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "404":
+          description: Industry not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+  /brands/{brandId}:
+    patch:
+      operationId: updateBrand
+      tags: [admin]
+      summary: Update or enable/disable a brand
+      parameters:
+        - name: brandId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BrandUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Brand"
+        "404":
+          description: Brand not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+  /engines:
+    get:
+      operationId: listEngines
+      tags: [admin]
+      summary: List all engines including disabled ones
+      responses:
+        "200":
+          description: Engines
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AdminEngine"
+    post:
+      operationId: createEngine
+      tags: [admin]
+      summary: Add a new engine
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EngineInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEngine"
+        "400":
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "409":
+          description: Engine key already exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+  /engines/{engineId}:
+    patch:
+      operationId: updateEngine
+      tags: [admin]
+      summary: Update or enable/disable an engine
+      parameters:
+        - name: engineId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EngineUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEngine"
+        "404":
+          description: Engine not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+  /settings/api-keys:
+    get:
+      operationId: listApiKeys
+      tags: [admin]
+      summary: List per-provider API key status (masked)
+      responses:
+        "200":
+          description: Key statuses
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ProviderKeyStatus"
+  /settings/api-keys/{provider}:
+    put:
+      operationId: setApiKey
+      tags: [admin]
+      summary: Set or update a provider API key
+      parameters:
+        - name: provider
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [openai, anthropic, gemini, openrouter]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ApiKeyInput"
+      responses:
+        "200":
+          description: Stored
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProviderKeyStatus"
+        "400":
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+    delete:
+      operationId: deleteApiKey
+      tags: [admin]
+      summary: Remove a stored provider API key (fall back to environment)
+      parameters:
+        - name: provider
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [openai, anthropic, gemini, openrouter]
+      responses:
+        "200":
+          description: Removed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProviderKeyStatus"
+  /admin/tables/{table}:
+    get:
+      operationId: browseTable
+      tags: [admin]
+      summary: Read-only paginated rows from a core table
+      parameters:
+        - name: table
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [industries, brands, engines, survey_runs, survey_responses]
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 1
+        - name: pageSize
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 25
+        - name: search
+          in: query
+          required: false
+          description: Case-insensitive text match on name-like columns
+          schema:
+            type: string
+        - name: industryId
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: runId
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Page of rows
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TablePage"
+        "400":
+          description: Unknown table
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
   /alerts:
     get:
       operationId: listAlerts
@@ -232,285 +546,6 @@ paths:
                 $ref: "#/components/schemas/AlertSettings"
         "400":
           description: Invalid input
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ApiMessage"
-  /admin/catalog:
-    get:
-      operationId: getAdminCatalog
-      tags: [admin]
-      summary: Full admin catalog including disabled items and engine details
-      responses:
-        "200":
-          description: Admin catalog
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/AdminCatalog"
-  /admin/industries:
-    post:
-      operationId: createIndustry
-      tags: [admin]
-      summary: Create an industry
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/IndustryInput"
-      responses:
-        "201":
-          description: Created
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Industry"
-        "400":
-          description: Invalid input
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ApiMessage"
-  /admin/industries/{industryId}:
-    patch:
-      operationId: updateIndustry
-      tags: [admin]
-      summary: Update or enable/disable an industry
-      parameters:
-        - name: industryId
-          in: path
-          required: true
-          schema:
-            type: integer
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/IndustryUpdate"
-      responses:
-        "200":
-          description: Updated
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Industry"
-        "404":
-          description: Not found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ApiMessage"
-  /admin/brands:
-    post:
-      operationId: createBrand
-      tags: [admin]
-      summary: Create a brand in an industry
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/BrandInput"
-      responses:
-        "201":
-          description: Created
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Brand"
-        "400":
-          description: Invalid input
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ApiMessage"
-  /admin/brands/{brandId}:
-    patch:
-      operationId: updateBrand
-      tags: [admin]
-      summary: Update or enable/disable a brand
-      parameters:
-        - name: brandId
-          in: path
-          required: true
-          schema:
-            type: integer
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/BrandUpdate"
-      responses:
-        "200":
-          description: Updated
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Brand"
-        "404":
-          description: Not found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ApiMessage"
-  /admin/engines:
-    post:
-      operationId: createEngine
-      tags: [admin]
-      summary: Add an AI engine
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/EngineInput"
-      responses:
-        "201":
-          description: Created
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/AdminEngine"
-        "400":
-          description: Invalid input
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ApiMessage"
-  /admin/engines/{engineId}:
-    patch:
-      operationId: updateEngine
-      tags: [admin]
-      summary: Update or enable/disable an engine
-      parameters:
-        - name: engineId
-          in: path
-          required: true
-          schema:
-            type: integer
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/EngineUpdate"
-      responses:
-        "200":
-          description: Updated
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/AdminEngine"
-        "404":
-          description: Not found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ApiMessage"
-  /admin/api-keys:
-    get:
-      operationId: listApiKeys
-      tags: [admin]
-      summary: Per-provider API key status (masked)
-      responses:
-        "200":
-          description: Key statuses
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/ApiKeyStatus"
-  /admin/api-keys/{provider}:
-    put:
-      operationId: setApiKey
-      tags: [admin]
-      summary: Set or clear a provider API key (empty string clears)
-      parameters:
-        - name: provider
-          in: path
-          required: true
-          schema:
-            type: string
-            enum: [openai, anthropic, gemini, openrouter]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/ApiKeyInput"
-      responses:
-        "200":
-          description: Updated status
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ApiKeyStatus"
-        "400":
-          description: Invalid provider
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ApiMessage"
-  /admin/data/{table}:
-    get:
-      operationId: browseTable
-      tags: [admin]
-      summary: Read-only paginated rows from a core table
-      parameters:
-        - name: table
-          in: path
-          required: true
-          schema:
-            type: string
-            enum: [industries, brands, engines, survey_runs, survey_responses]
-        - name: page
-          in: query
-          required: false
-          schema:
-            type: integer
-        - name: pageSize
-          in: query
-          required: false
-          schema:
-            type: integer
-        - name: industryId
-          in: query
-          required: false
-          schema:
-            type: integer
-        - name: engineId
-          in: query
-          required: false
-          schema:
-            type: integer
-        - name: runId
-          in: query
-          required: false
-          schema:
-            type: integer
-        - name: metric
-          in: query
-          required: false
-          schema:
-            type: string
-        - name: status
-          in: query
-          required: false
-          schema:
-            type: string
-      responses:
-        "200":
-          description: Page of rows
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/DataPage"
-        "400":
-          description: Unknown table
           content:
             application/json:
               schema:
@@ -620,6 +655,20 @@ components:
         country: { type: string }
         enabled: { type: boolean }
       required: [id, name, slug, country, enabled]
+    IndustryInput:
+      type: object
+      properties:
+        name: { type: string, minLength: 1 }
+        slug: { type: string, minLength: 1 }
+        country: { type: string }
+      required: [name]
+    IndustryUpdate:
+      type: object
+      properties:
+        name: { type: string, minLength: 1 }
+        slug: { type: string, minLength: 1 }
+        country: { type: string }
+        enabled: { type: boolean }
     Brand:
       type: object
       properties:
@@ -628,28 +677,26 @@ components:
         name: { type: string }
         enabled: { type: boolean }
       required: [id, industryId, name, enabled]
-    IndustryInput:
-      type: object
-      properties:
-        name: { type: string }
-        country: { type: string }
-      required: [name]
-    IndustryUpdate:
-      type: object
-      properties:
-        name: { type: string }
-        enabled: { type: boolean }
     BrandInput:
       type: object
       properties:
         industryId: { type: integer }
-        name: { type: string }
+        name: { type: string, minLength: 1 }
       required: [industryId, name]
     BrandUpdate:
       type: object
       properties:
-        name: { type: string }
+        name: { type: string, minLength: 1 }
+        industryId: { type: integer }
         enabled: { type: boolean }
+    Engine:
+      type: object
+      properties:
+        id: { type: integer }
+        key: { type: string }
+        name: { type: string }
+        vendor: { type: string }
+      required: [id, key, name, vendor]
     AdminEngine:
       type: object
       properties:
@@ -666,78 +713,62 @@ components:
     EngineInput:
       type: object
       properties:
-        key: { type: string }
-        name: { type: string }
+        key: { type: string, minLength: 1 }
+        name: { type: string, minLength: 1 }
         vendor: { type: string }
         provider:
           type: string
           enum: [openai, anthropic, gemini, openrouter]
-        model: { type: string }
-      required: [key, name, vendor, provider, model]
+        model: { type: string, minLength: 1 }
+      required: [key, name, provider, model]
     EngineUpdate:
       type: object
       properties:
-        name: { type: string }
+        name: { type: string, minLength: 1 }
         vendor: { type: string }
-        model: { type: string }
+        provider:
+          type: string
+          enum: [openai, anthropic, gemini, openrouter]
+        model: { type: string, minLength: 1 }
         enabled: { type: boolean }
-    AdminCatalog:
-      type: object
-      properties:
-        industries:
-          type: array
-          items:
-            $ref: "#/components/schemas/Industry"
-        brands:
-          type: array
-          items:
-            $ref: "#/components/schemas/Brand"
-        engines:
-          type: array
-          items:
-            $ref: "#/components/schemas/AdminEngine"
-      required: [industries, brands, engines]
-    ApiKeyStatus:
+    ProviderKeyStatus:
       type: object
       properties:
         provider:
           type: string
           enum: [openai, anthropic, gemini, openrouter]
+        hasStoredKey: { type: boolean }
         maskedKey:
           type: ["string", "null"]
-          description: Last 4 characters of the stored key, or null when none stored
-        source:
-          type: string
-          enum: [stored, env, none]
-          description: Which key the engine calls will use
-      required: [provider, maskedKey, source]
+          description: Last 4 characters of the stored key, e.g. "••••abcd"
+        hasEnvKey:
+          type: boolean
+          description: Whether an environment-variable key is available as fallback
+        updatedAt: { type: ["string", "null"] }
+      required: [provider, hasStoredKey, maskedKey, hasEnvKey, updatedAt]
     ApiKeyInput:
       type: object
       properties:
-        apiKey:
-          type: string
-          description: The API key; empty string clears the stored key
-      required: [apiKey]
-    DataPage:
+        key: { type: string, minLength: 8 }
+      required: [key]
+    TablePage:
       type: object
       properties:
+        table: { type: string }
+        page: { type: integer }
+        pageSize: { type: integer }
+        total: { type: integer }
+        columns:
+          type: array
+          items:
+            type: string
         rows:
           type: array
+          description: Row objects keyed by column name; JSON columns are nested values
           items:
             type: object
             additionalProperties: true
-        total: { type: integer }
-        page: { type: integer }
-        pageSize: { type: integer }
-      required: [rows, total, page, pageSize]
-    Engine:
-      type: object
-      properties:
-        id: { type: integer }
-        key: { type: string }
-        name: { type: string }
-        vendor: { type: string }
-      required: [id, key, name, vendor]
+      required: [table, page, pageSize, total, columns, rows]
     Metric:
       type: object
       properties:

@@ -8,5 +8,6 @@
 
 export interface BrandInput {
   industryId: number;
+  /** @minLength 1 */
   name: string;
 }

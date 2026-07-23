@@ -7,6 +7,10 @@
  */
 
 export interface IndustryUpdate {
+  /** @minLength 1 */
   name?: string;
+  /** @minLength 1 */
+  slug?: string;
+  country?: string;
   enabled?: boolean;
 }

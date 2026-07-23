@@ -7,6 +7,6 @@
  */
 
 export interface ApiKeyInput {
-  /** The API key; empty string clears the stored key */
-  apiKey: string;
+  /** @minLength 8 */
+  key: string;
 }

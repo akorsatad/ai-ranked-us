@@ -1,24 +1,28 @@
 import type { EngineRow } from "@workspace/db";
-import { getStoredApiKey, type Provider } from "./settings";
+import { getStoredKey, isProvider } from "./apiKeys";
 
 /**
  * Calls a single AI engine with a single, fully isolated one-shot prompt.
  * No conversation state or shared context is ever reused between calls.
  *
- * Key resolution: a key stored via the admin API Keys page takes precedence
- * and is used against the provider's public API endpoint; otherwise the
- * Replit AI Integrations client (env-provisioned) is used. SDK modules are
- * imported lazily so the server can boot even when an AI integration has not
- * been provisioned yet; such calls fail loudly at survey time instead.
+ * Key resolution: an admin-configured key stored in the database takes
+ * precedence over the environment-variable (Replit AI integration) key.
+ * Stored keys talk directly to the provider's own API endpoint; env keys
+ * go through the pre-configured integration clients.
+ *
+ * Clients are imported lazily so the server can boot even when an AI
+ * integration has not been provisioned yet; such calls fail loudly at
+ * survey time instead.
  */
 export async function callEngine(
   engine: EngineRow,
   prompt: string,
 ): Promise<string> {
-  const provider = engine.provider as Provider;
-  const storedKey = await getStoredApiKey(provider);
+  const storedKey = isProvider(engine.provider)
+    ? await getStoredKey(engine.provider)
+    : null;
 
-  switch (provider) {
+  switch (engine.provider) {
     case "openai": {
       let client;
       if (storedKey) {

@@ -8,9 +8,12 @@
 import type { EngineInputProvider } from './engineInputProvider';
 
 export interface EngineInput {
+  /** @minLength 1 */
   key: string;
+  /** @minLength 1 */
   name: string;
-  vendor: string;
+  vendor?: string;
   provider: EngineInputProvider;
+  /** @minLength 1 */
   model: string;
 }

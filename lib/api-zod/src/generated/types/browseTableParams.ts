@@ -9,9 +9,11 @@
 export type BrowseTableParams = {
 page?: number;
 pageSize?: number;
+/**
+ * Case-insensitive text match on name-like columns
+ */
+search?: string;
 industryId?: number;
-engineId?: number;
 runId?: number;
-metric?: string;
 status?: string;
 };

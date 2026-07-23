@@ -1,1 +1,2 @@
 - [Bundled server needs SDK deps locally](bundled-server-deps.md) — npm packages used via workspace libs must also be direct api-server deps, or the esbuild bundle fails to resolve them at runtime.
+- [Orval params name collisions](orval-param-collisions.md) — ops with both path+query params can collide in api-zod barrel; fix via explicit re-export in lib/api-zod/src/index.ts (existing pattern there).

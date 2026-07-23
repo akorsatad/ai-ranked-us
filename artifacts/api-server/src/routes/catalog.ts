@@ -5,11 +5,17 @@ import { METRICS } from "../lib/metrics";
 const router: IRouter = Router();
 
 router.get("/catalog", async (_req, res): Promise<void> => {
-  const [industries, brands, engines] = await Promise.all([
+  const [allIndustries, allBrands, allEngines] = await Promise.all([
     db.select().from(industriesTable),
     db.select().from(brandsTable),
     db.select().from(enginesTable),
   ]);
+  const industries = allIndustries.filter((i) => i.enabled);
+  const enabledIndustryIds = new Set(industries.map((i) => i.id));
+  const brands = allBrands.filter(
+    (b) => b.enabled && enabledIndustryIds.has(b.industryId),
+  );
+  const engines = allEngines.filter((e) => e.enabled);
   res.status(200).json({
     industries: industries.filter((i) => i.enabled),
     brands: brands.filter((b) => b.enabled),

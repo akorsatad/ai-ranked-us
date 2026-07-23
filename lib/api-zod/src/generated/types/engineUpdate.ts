@@ -5,10 +5,14 @@
  * AI Rank API — daily AI-engine brand sentiment surveys
  * OpenAPI spec version: 0.1.0
  */
+import type { EngineUpdateProvider } from './engineUpdateProvider';
 
 export interface EngineUpdate {
+  /** @minLength 1 */
   name?: string;
   vendor?: string;
+  provider?: EngineUpdateProvider;
+  /** @minLength 1 */
   model?: string;
   enabled?: boolean;
 }

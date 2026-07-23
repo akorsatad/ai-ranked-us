@@ -80,6 +80,23 @@ export interface Industry {
   enabled: boolean;
 }
 
+export interface IndustryInput {
+  /** @minLength 1 */
+  name: string;
+  /** @minLength 1 */
+  slug?: string;
+  country?: string;
+}
+
+export interface IndustryUpdate {
+  /** @minLength 1 */
+  name?: string;
+  /** @minLength 1 */
+  slug?: string;
+  country?: string;
+  enabled?: boolean;
+}
+
 export interface Brand {
   id: number;
   industryId: number;
@@ -87,24 +104,24 @@ export interface Brand {
   enabled: boolean;
 }
 
-export interface IndustryInput {
-  name: string;
-  country?: string;
-}
-
-export interface IndustryUpdate {
-  name?: string;
-  enabled?: boolean;
-}
-
 export interface BrandInput {
   industryId: number;
+  /** @minLength 1 */
   name: string;
 }
 
 export interface BrandUpdate {
+  /** @minLength 1 */
   name?: string;
+  industryId?: number;
   enabled?: boolean;
+}
+
+export interface Engine {
+  id: number;
+  key: string;
+  name: string;
+  vendor: string;
 }
 
 export type AdminEngineProvider = typeof AdminEngineProvider[keyof typeof AdminEngineProvider];
@@ -138,78 +155,75 @@ export const EngineInputProvider = {
 } as const;
 
 export interface EngineInput {
+  /** @minLength 1 */
   key: string;
+  /** @minLength 1 */
   name: string;
-  vendor: string;
+  vendor?: string;
   provider: EngineInputProvider;
+  /** @minLength 1 */
   model: string;
 }
 
-export interface EngineUpdate {
-  name?: string;
-  vendor?: string;
-  model?: string;
-  enabled?: boolean;
-}
-
-export interface AdminCatalog {
-  industries: Industry[];
-  brands: Brand[];
-  engines: AdminEngine[];
-}
-
-export type ApiKeyStatusProvider = typeof ApiKeyStatusProvider[keyof typeof ApiKeyStatusProvider];
+export type EngineUpdateProvider = typeof EngineUpdateProvider[keyof typeof EngineUpdateProvider];
 
 
-export const ApiKeyStatusProvider = {
+export const EngineUpdateProvider = {
   openai: 'openai',
   anthropic: 'anthropic',
   gemini: 'gemini',
   openrouter: 'openrouter',
 } as const;
 
-/**
- * Which key the engine calls will use
- */
-export type ApiKeyStatusSource = typeof ApiKeyStatusSource[keyof typeof ApiKeyStatusSource];
+export interface EngineUpdate {
+  /** @minLength 1 */
+  name?: string;
+  vendor?: string;
+  provider?: EngineUpdateProvider;
+  /** @minLength 1 */
+  model?: string;
+  enabled?: boolean;
+}
+
+export type ProviderKeyStatusProvider = typeof ProviderKeyStatusProvider[keyof typeof ProviderKeyStatusProvider];
 
 
-export const ApiKeyStatusSource = {
-  stored: 'stored',
-  env: 'env',
-  none: 'none',
+export const ProviderKeyStatusProvider = {
+  openai: 'openai',
+  anthropic: 'anthropic',
+  gemini: 'gemini',
+  openrouter: 'openrouter',
 } as const;
 
-export interface ApiKeyStatus {
-  provider: ApiKeyStatusProvider;
+export interface ProviderKeyStatus {
+  provider: ProviderKeyStatusProvider;
+  hasStoredKey: boolean;
   /**
-     * Last 4 characters of the stored key, or null when none stored
+     * Last 4 characters of the stored key, e.g. "••••abcd"
      * @nullable
      */
   maskedKey: string | null;
-  /** Which key the engine calls will use */
-  source: ApiKeyStatusSource;
+  /** Whether an environment-variable key is available as fallback */
+  hasEnvKey: boolean;
+  /** @nullable */
+  updatedAt: string | null;
 }
 
 export interface ApiKeyInput {
-  /** The API key; empty string clears the stored key */
-  apiKey: string;
+  /** @minLength 8 */
+  key: string;
 }
 
-export type DataPageRowsItem = { [key: string]: unknown };
+export type TablePageRowsItem = { [key: string]: unknown };
 
-export interface DataPage {
-  rows: DataPageRowsItem[];
-  total: number;
+export interface TablePage {
+  table: string;
   page: number;
   pageSize: number;
-}
-
-export interface Engine {
-  id: number;
-  key: string;
-  name: string;
-  vendor: string;
+  total: number;
+  columns: string[];
+  /** Row objects keyed by column name; JSON columns are nested values */
+  rows: TablePageRowsItem[];
 }
 
 export interface Metric {
@@ -351,18 +365,20 @@ metric: string;
 engine?: string;
 };
 
-export type ListAlertsParams = {
-unreadOnly?: boolean;
-limit?: number;
-};
-
 export type BrowseTableParams = {
 page?: number;
 pageSize?: number;
+/**
+ * Case-insensitive text match on name-like columns
+ */
+search?: string;
 industryId?: number;
-engineId?: number;
 runId?: number;
-metric?: string;
 status?: string;
+};
+
+export type ListAlertsParams = {
+unreadOnly?: boolean;
+limit?: number;
 };
 
