@@ -2,7 +2,7 @@ import app from "./app";
 import { logger } from "./lib/logger";
 import { ensureSeeded } from "./lib/seed";
 import { startScheduler } from "./lib/scheduler";
-import { failInterruptedRuns } from "./lib/survey";
+import { failInterruptedRuns, recoverPendingAutoRuns } from "./lib/survey";
 
 const rawPort = process.env["PORT"];
 
@@ -28,7 +28,10 @@ app.listen(port, (err) => {
 
   ensureSeeded()
     .then(() => failInterruptedRuns())
-    .then(() => startScheduler())
+    .then(() => {
+      startScheduler();
+      return recoverPendingAutoRuns();
+    })
     .catch((startupErr) => {
       logger.error({ err: startupErr }, "Startup tasks failed");
     });

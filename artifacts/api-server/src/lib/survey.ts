@@ -118,6 +118,41 @@ function drainPendingAutoRuns(): void {
   requestAutoScopedRun(industryId);
 }
 
+/**
+ * Startup recovery for queued automatic scoped runs lost to a restart.
+ * The in-memory queue (pendingAutoRunIndustryIds) does not survive a server
+ * restart, so on boot we detect enabled industries that have enabled brands
+ * but no survey responses at all — exactly the state a new industry is left
+ * in when its queued auto run never got to start — and request an auto run
+ * for each. Idempotent: industries that already have any responses are
+ * untouched.
+ */
+export async function recoverPendingAutoRuns(): Promise<void> {
+  const industries = (await db.select().from(industriesTable)).filter(
+    (i) => i.enabled,
+  );
+  const brands = (await db.select().from(brandsTable)).filter(
+    (b) => b.enabled,
+  );
+  const respondedIndustryIds = new Set(
+    (
+      await db
+        .selectDistinct({ industryId: surveyResponsesTable.industryId })
+        .from(surveyResponsesTable)
+    ).map((r) => r.industryId),
+  );
+
+  for (const industry of industries) {
+    if (respondedIndustryIds.has(industry.id)) continue;
+    if (!brands.some((b) => b.industryId === industry.id)) continue;
+    logger.info(
+      { industryId: industry.id, slug: industry.slug },
+      "Recovering automatic scoped survey run lost to a restart",
+    );
+    requestAutoScopedRun(industry.id);
+  }
+}
+
 interface SurveyQuery {
   engine: EngineRow;
   industry: IndustryRow;
