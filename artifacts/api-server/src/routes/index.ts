@@ -7,6 +7,7 @@ import moversRouter from "./movers";
 import runsRouter from "./runs";
 import adminRouter from "./admin";
 import alertsRouter from "./alerts";
+import ogRouter from "./og";
 
 const router: IRouter = Router();
 
@@ -18,5 +19,6 @@ router.use(moversRouter);
 router.use(runsRouter);
 router.use(adminRouter);
 router.use(alertsRouter);
+router.use(ogRouter);
 
 export default router;

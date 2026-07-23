@@ -3,4 +3,5 @@
 - [Admin auth bootstrap](admin-auth-bootstrap.md) — first signed-in Clerk user claims sole admin via admin_users table; others get 403.
 - [Dev DB schema drift](dev-db-schema-drift.md) — "column does not exist" at runtime usually means run drizzle push in lib/db, not a code bug.
 - [AI Rank design direction](design-direction.md) — datainc.ai reference is LIGHT (off-white + emerald, Inter/IBM Plex Mono); light default, token-driven theming only.
+- [Per-page OG share previews](og-share-previews.md) — static SPA can't inject meta; api-server claims the page path and serves index.html with injected OG tags + dynamic resvg PNG.
 - [Orval params name collisions](orval-param-collisions.md) — ops with both path+query params can collide in api-zod barrel; fix via explicit re-export in lib/api-zod/src/index.ts (existing pattern there).

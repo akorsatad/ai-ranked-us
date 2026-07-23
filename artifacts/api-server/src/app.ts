@@ -9,6 +9,7 @@ import {
   getClerkProxyHost,
 } from "./middlewares/clerkProxyMiddleware";
 import router from "./routes";
+import sharePageRouter from "./sharePage";
 import { logger } from "./lib/logger";
 
 const app: Express = express();
@@ -51,5 +52,6 @@ app.use(
 );
 
 app.use("/api", router);
+app.use(sharePageRouter);
 
 export default app;
