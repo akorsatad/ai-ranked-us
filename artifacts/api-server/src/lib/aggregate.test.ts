@@ -1,6 +1,28 @@
 import { describe, it, expect } from "vitest";
-import { averageTrends } from "./aggregate";
-import type { SurveyResponseRow, StoredBrandTrend } from "@workspace/db";
+import { averageTrends, computeMovers, type RunSnapshot } from "./aggregate";
+import type {
+  SurveyResponseRow,
+  StoredBrandTrend,
+  StoredRankingEntry,
+} from "@workspace/db";
+
+function rankingEntry(
+  brandId: number,
+  rank: number,
+  score: number,
+): StoredRankingEntry {
+  return {
+    brandId,
+    brandName: `Brand ${brandId}`,
+    rank,
+    score,
+    rationale: null,
+  };
+}
+
+function snapshot(runId: number, entries: StoredRankingEntry[]): RunSnapshot {
+  return { runId, date: `2026-07-0${runId}T00:00:00.000Z`, entries };
+}
 
 function trendResponse(trend: StoredBrandTrend[]): SurveyResponseRow {
   return { trend } as unknown as SurveyResponseRow;
@@ -20,6 +42,104 @@ function brandTrend(
     })),
   };
 }
+
+describe("computeMovers — rank delta sign convention", () => {
+  it("positive rankDelta when a brand improves (moves toward rank 1)", () => {
+    const previous = snapshot(1, [
+      rankingEntry(1, 1, 90),
+      rankingEntry(2, 2, 80),
+    ]);
+    const current = snapshot(2, [
+      rankingEntry(2, 1, 95),
+      rankingEntry(1, 2, 85),
+    ]);
+    const movers = computeMovers(previous, current);
+    const b2 = movers.find((m) => m.brandId === 2)!;
+    expect(b2.previousRank).toBe(2);
+    expect(b2.currentRank).toBe(1);
+    expect(b2.rankDelta).toBe(1); // moved UP
+  });
+
+  it("negative rankDelta when a brand drops in rank", () => {
+    const previous = snapshot(1, [
+      rankingEntry(1, 1, 90),
+      rankingEntry(2, 2, 80),
+      rankingEntry(3, 3, 70),
+    ]);
+    const current = snapshot(2, [
+      rankingEntry(2, 1, 95),
+      rankingEntry(3, 2, 85),
+      rankingEntry(1, 3, 60),
+    ]);
+    const movers = computeMovers(previous, current);
+    const b1 = movers.find((m) => m.brandId === 1)!;
+    expect(b1.rankDelta).toBe(-2); // dropped from 1 to 3
+  });
+
+  it("zero rankDelta when rank is unchanged", () => {
+    const previous = snapshot(1, [rankingEntry(1, 1, 90)]);
+    const current = snapshot(2, [rankingEntry(1, 1, 91)]);
+    const movers = computeMovers(previous, current);
+    expect(movers[0]!.rankDelta).toBe(0);
+  });
+});
+
+describe("computeMovers — score delta rounding", () => {
+  it("rounds scoreDelta to one decimal place", () => {
+    const previous = snapshot(1, [rankingEntry(1, 1, 80.15)]);
+    const current = snapshot(2, [rankingEntry(1, 1, 80.4)]);
+    const movers = computeMovers(previous, current);
+    expect(movers[0]!.scoreDelta).toBe(0.3);
+  });
+
+  it("rounds negative deltas correctly and avoids float noise", () => {
+    const previous = snapshot(1, [rankingEntry(1, 1, 0.3)]);
+    const current = snapshot(2, [rankingEntry(1, 1, 0.1)]);
+    const movers = computeMovers(previous, current);
+    expect(movers[0]!.scoreDelta).toBe(-0.2);
+  });
+
+  it("preserves previous and current scores unrounded", () => {
+    const previous = snapshot(1, [rankingEntry(1, 1, 80.15)]);
+    const current = snapshot(2, [rankingEntry(1, 1, 82.35)]);
+    const movers = computeMovers(previous, current);
+    expect(movers[0]!.previousScore).toBe(80.15);
+    expect(movers[0]!.currentScore).toBe(82.35);
+  });
+});
+
+describe("computeMovers — brands missing from previous snapshot", () => {
+  it("skips brands not present in the previous snapshot", () => {
+    const previous = snapshot(1, [rankingEntry(1, 1, 90)]);
+    const current = snapshot(2, [
+      rankingEntry(1, 1, 92),
+      rankingEntry(99, 2, 50), // new brand
+    ]);
+    const movers = computeMovers(previous, current);
+    expect(movers).toHaveLength(1);
+    expect(movers[0]!.brandId).toBe(1);
+  });
+
+  it("ignores brands that disappeared from the current snapshot", () => {
+    const previous = snapshot(1, [
+      rankingEntry(1, 1, 90),
+      rankingEntry(2, 2, 80),
+    ]);
+    const current = snapshot(2, [rankingEntry(1, 1, 91)]);
+    const movers = computeMovers(previous, current);
+    expect(movers.map((m) => m.brandId)).toEqual([1]);
+  });
+
+  it("returns empty when snapshots share no brands", () => {
+    const previous = snapshot(1, [rankingEntry(1, 1, 90)]);
+    const current = snapshot(2, [rankingEntry(2, 1, 80)]);
+    expect(computeMovers(previous, current)).toEqual([]);
+  });
+
+  it("returns empty for empty snapshots", () => {
+    expect(computeMovers(snapshot(1, []), snapshot(2, []))).toEqual([]);
+  });
+});
 
 describe("averageTrends — multi-engine averaging", () => {
   it("averages the same week across engines and rounds to one decimal", () => {
