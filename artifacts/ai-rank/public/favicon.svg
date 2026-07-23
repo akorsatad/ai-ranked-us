@@ -1,3 +1,9 @@
 <svg width="180" height="180" viewBox="0 0 180 180" fill="none" xmlns="http://www.w3.org/2000/svg">
-<rect width="180" height="180" rx="36" fill="#FF3C00"/>
+  <rect width="180" height="180" rx="36" fill="#2455EA"/>
+  <g fill="#FFFFFF">
+    <rect x="38" y="118" width="30" height="28" rx="6"/>
+    <rect x="75" y="88" width="30" height="58" rx="6"/>
+    <rect x="112" y="52" width="30" height="94" rx="6"/>
+  </g>
+  <text x="90" y="46" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="40" font-weight="800" fill="#FFFFFF">AI</text>
 </svg>
