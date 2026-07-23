@@ -6,6 +6,9 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface HealthStatus {
-  status: string;
+export interface TrendPoint {
+  /** 0 = 12 weeks ago ... 12 = current week */
+  weekIndex: number;
+  weekLabel: string;
+  score: number;
 }

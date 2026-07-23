@@ -3,13 +3,19 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: AI Rank API — daily AI-engine brand sentiment surveys
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: catalog
+    description: Industries, brands, engines, metrics
+  - name: rankings
+    description: Brand rankings and trends
+  - name: runs
+    description: Survey runs
 paths:
   /healthz:
     get:
@@ -24,6 +30,126 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /catalog:
+    get:
+      operationId: getCatalog
+      tags: [catalog]
+      summary: Get the full catalog of industries, brands, engines, and metrics
+      responses:
+        "200":
+          description: Catalog
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Catalog"
+  /overview:
+    get:
+      operationId: getOverview
+      tags: [rankings]
+      summary: Dashboard overview — per-industry leaders and last run status
+      responses:
+        "200":
+          description: Overview
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Overview"
+  /industries/{industryId}/rankings:
+    get:
+      operationId: getIndustryRankings
+      tags: [rankings]
+      summary: Latest rankings for an industry, per engine and averaged
+      parameters:
+        - name: industryId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: metric
+          in: query
+          required: true
+          description: Metric key (e.g. positive_sentiment)
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Rankings for the industry and metric
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IndustryRankings"
+        "404":
+          description: Industry not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+  /industries/{industryId}/trends:
+    get:
+      operationId: getIndustryTrends
+      tags: [rankings]
+      summary: 13-week trend lines for all brands in an industry for a metric
+      parameters:
+        - name: industryId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: metric
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: engine
+          in: query
+          required: false
+          description: Engine key to filter by; omitted = averaged across engines
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Trend lines
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IndustryTrends"
+        "404":
+          description: Industry not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+  /runs:
+    get:
+      operationId: listRuns
+      tags: [runs]
+      summary: Survey run history, newest first
+      responses:
+        "200":
+          description: Runs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SurveyRun"
+    post:
+      operationId: triggerRun
+      tags: [runs]
+      summary: Trigger a survey run now
+      responses:
+        "202":
+          description: Run started
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SurveyRun"
+        "409":
+          description: A run is already in progress
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
 components:
   schemas:
     HealthStatus:
@@ -33,4 +159,180 @@ components:
           type: string
       required:
         - status
-
+    ApiMessage:
+      type: object
+      properties:
+        error:
+          type: string
+      required: [error]
+    Industry:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        slug: { type: string }
+        country: { type: string }
+      required: [id, name, slug, country]
+    Brand:
+      type: object
+      properties:
+        id: { type: integer }
+        industryId: { type: integer }
+        name: { type: string }
+      required: [id, industryId, name]
+    Engine:
+      type: object
+      properties:
+        id: { type: integer }
+        key: { type: string }
+        name: { type: string }
+        vendor: { type: string }
+      required: [id, key, name, vendor]
+    Metric:
+      type: object
+      properties:
+        key: { type: string }
+        label: { type: string }
+        description: { type: string }
+        higherIsBetter: { type: boolean }
+      required: [key, label, description, higherIsBetter]
+    Catalog:
+      type: object
+      properties:
+        industries:
+          type: array
+          items:
+            $ref: "#/components/schemas/Industry"
+        brands:
+          type: array
+          items:
+            $ref: "#/components/schemas/Brand"
+        engines:
+          type: array
+          items:
+            $ref: "#/components/schemas/Engine"
+        metrics:
+          type: array
+          items:
+            $ref: "#/components/schemas/Metric"
+      required: [industries, brands, engines, metrics]
+    RankingEntry:
+      type: object
+      properties:
+        brandId: { type: integer }
+        brandName: { type: string }
+        rank: { type: integer }
+        score:
+          type: number
+          description: 0-100 score, higher is better on that metric
+        rationale:
+          type: ["string", "null"]
+          description: Short engine-provided justification
+      required: [brandId, brandName, rank, score]
+    EngineRanking:
+      type: object
+      properties:
+        engineKey: { type: string }
+        engineName: { type: string }
+        entries:
+          type: array
+          items:
+            $ref: "#/components/schemas/RankingEntry"
+        surveyedAt:
+          type: ["string", "null"]
+          description: ISO timestamp of the response used
+      required: [engineKey, engineName, entries]
+    IndustryRankings:
+      type: object
+      properties:
+        industryId: { type: integer }
+        industryName: { type: string }
+        metric: { type: string }
+        average:
+          type: array
+          description: Averaged across all engines
+          items:
+            $ref: "#/components/schemas/RankingEntry"
+        byEngine:
+          type: array
+          items:
+            $ref: "#/components/schemas/EngineRanking"
+      required: [industryId, industryName, metric, average, byEngine]
+    TrendPoint:
+      type: object
+      properties:
+        weekIndex:
+          type: integer
+          description: 0 = 12 weeks ago ... 12 = current week
+        weekLabel: { type: string }
+        score: { type: number }
+      required: [weekIndex, weekLabel, score]
+    BrandTrend:
+      type: object
+      properties:
+        brandId: { type: integer }
+        brandName: { type: string }
+        points:
+          type: array
+          items:
+            $ref: "#/components/schemas/TrendPoint"
+      required: [brandId, brandName, points]
+    IndustryTrends:
+      type: object
+      properties:
+        industryId: { type: integer }
+        industryName: { type: string }
+        metric: { type: string }
+        engine:
+          type: ["string", "null"]
+          description: Engine key, or null when averaged across engines
+        brands:
+          type: array
+          items:
+            $ref: "#/components/schemas/BrandTrend"
+      required: [industryId, industryName, metric, engine, brands]
+    IndustryLeader:
+      type: object
+      properties:
+        industryId: { type: integer }
+        industryName: { type: string }
+        metric: { type: string }
+        metricLabel: { type: string }
+        brandId: { type: integer }
+        brandName: { type: string }
+        score: { type: number }
+      required: [industryId, industryName, metric, metricLabel, brandId, brandName, score]
+    Overview:
+      type: object
+      properties:
+        lastRun:
+          oneOf:
+            - $ref: "#/components/schemas/SurveyRun"
+            - type: "null"
+        industriesCount: { type: integer }
+        brandsCount: { type: integer }
+        enginesCount: { type: integer }
+        responsesCount: { type: integer }
+        leaders:
+          type: array
+          description: Top brand per industry per metric (averaged across engines)
+          items:
+            $ref: "#/components/schemas/IndustryLeader"
+      required: [lastRun, industriesCount, brandsCount, enginesCount, responsesCount, leaders]
+    SurveyRun:
+      type: object
+      properties:
+        id: { type: integer }
+        status:
+          type: string
+          enum: [running, completed, failed, partial]
+        trigger:
+          type: string
+          enum: [scheduled, manual]
+        startedAt: { type: string }
+        completedAt: { type: ["string", "null"] }
+        error: { type: ["string", "null"] }
+        totalQueries: { type: integer }
+        succeededQueries: { type: integer }
+        failedQueries: { type: integer }
+      required: [id, status, trigger, startedAt, completedAt, error, totalQueries, succeededQueries, failedQueries]

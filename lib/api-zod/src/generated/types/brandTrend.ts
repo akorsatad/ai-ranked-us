@@ -5,7 +5,10 @@
  * AI Rank API — daily AI-engine brand sentiment surveys
  * OpenAPI spec version: 0.1.0
  */
+import type { TrendPoint } from './trendPoint';
 
-export interface HealthStatus {
-  status: string;
+export interface BrandTrend {
+  brandId: number;
+  brandName: string;
+  points: TrendPoint[];
 }

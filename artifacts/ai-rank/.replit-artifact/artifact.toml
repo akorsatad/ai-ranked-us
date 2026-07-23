@@ -1,0 +1,27 @@
+kind = "web"
+previewPath = "/"
+title = "AI Rank"
+version = "1.0.0"
+id = "artifacts/ai-rank"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 21163
+
+[services.development]
+run = "pnpm --filter @workspace/ai-rank run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/ai-rank", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/ai-rank/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "21163"
+BASE_PATH = "/"
