@@ -26,8 +26,24 @@ import {
   statusFor,
   testProviderKey,
 } from "../lib/apiKeys";
+import { getAuth } from "@clerk/express";
+import { ensureAdmin, requireAdmin } from "../middlewares/requireAdmin";
 
 const router: IRouter = Router();
+
+// Everything on this router requires an authenticated admin,
+// except /admin/me which reports the caller's admin status.
+router.get("/admin/me", async (req, res): Promise<void> => {
+  const auth = getAuth(req);
+  const userId = auth?.userId;
+  if (!userId) {
+    res.status(401).json({ message: "Authentication required" });
+    return;
+  }
+  res.status(200).json(await ensureAdmin(userId));
+});
+
+router.use(requireAdmin);
 
 /** True when the error is a Postgres unique-constraint violation (23505). */
 function isUniqueViolation(err: unknown): boolean {

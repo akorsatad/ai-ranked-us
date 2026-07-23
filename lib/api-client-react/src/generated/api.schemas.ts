@@ -9,6 +9,11 @@ export interface HealthStatus {
   status: string;
 }
 
+export interface AdminMe {
+  isAdmin: boolean;
+  email?: string | null;
+}
+
 export interface ApiMessage {
   message: string;
 }

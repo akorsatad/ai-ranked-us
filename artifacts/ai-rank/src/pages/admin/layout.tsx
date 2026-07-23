@@ -1,6 +1,9 @@
 import React from 'react';
 import { Link, useLocation } from 'wouter';
-import { History, Building2, Cpu, KeyRound, Database } from 'lucide-react';
+import { useClerk, useUser } from '@clerk/react';
+import { History, Building2, Cpu, KeyRound, Database, LogOut } from 'lucide-react';
+
+const basePath = import.meta.env.BASE_URL.replace(/\/$/, '');
 
 const NAV = [
   { href: '/admin/runs', label: 'Runs', icon: History },
@@ -12,6 +15,8 @@ const NAV = [
 
 export function AdminLayout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
+  const { signOut } = useClerk();
+  const { user } = useUser();
   return (
     <div className="flex flex-col md:flex-row min-h-[calc(100vh-4rem)]">
       <aside className="w-full md:w-60 shrink-0 border-b md:border-b-0 md:border-r border-border bg-card/50">
@@ -40,6 +45,21 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
               );
             })}
           </nav>
+          <div className="mt-4 pt-3 border-t border-border px-2 hidden md:block">
+            {user?.primaryEmailAddress && (
+              <p className="text-xs text-muted-foreground font-mono truncate mb-2">
+                {user.primaryEmailAddress.emailAddress}
+              </p>
+            )}
+            <button
+              type="button"
+              onClick={() => signOut({ redirectUrl: basePath || '/' })}
+              className="flex items-center gap-2 px-1 py-1 rounded-md text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <LogOut className="w-4 h-4" />
+              Sign out
+            </button>
+          </div>
         </div>
       </aside>
       <div className="flex-1 min-w-0">{children}</div>

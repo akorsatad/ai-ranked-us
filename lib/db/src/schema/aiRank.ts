@@ -44,6 +44,17 @@ export const brandsTable = pgTable(
   ],
 );
 
+export const adminUsersTable = pgTable("admin_users", {
+  id: serial("id").primaryKey(),
+  clerkUserId: text("clerk_user_id").notNull().unique(),
+  email: text("email"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+export type AdminUserRow = typeof adminUsersTable.$inferSelect;
+
 export const providerApiKeysTable = pgTable("provider_api_keys", {
   id: serial("id").primaryKey(),
   provider: text("provider").notNull().unique(), // openai | anthropic | gemini | openrouter

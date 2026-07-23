@@ -470,6 +470,25 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ProviderKeyStatus"
+  /admin/me:
+    get:
+      operationId: getAdminMe
+      tags: [admin]
+      summary: Current admin session status
+      description: Returns whether the signed-in user is the admin. The first authenticated user to call this claims admin access.
+      responses:
+        "200":
+          description: Admin status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminMe"
+        "401":
+          description: Not signed in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
   /settings/api-keys/{provider}/test:
     post:
       operationId: testApiKey
@@ -644,6 +663,15 @@ components:
           type: string
       required:
         - status
+    AdminMe:
+      type: object
+      required: [isAdmin]
+      properties:
+        isAdmin:
+          type: boolean
+        email:
+          type: string
+          nullable: true
     ApiMessage:
       type: object
       properties:

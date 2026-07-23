@@ -457,6 +457,16 @@ export const DeleteApiKeyResponse = zod.object({
 
 
 /**
+ * Returns whether the signed-in user is the admin. The first authenticated user to call this claims admin access.
+ * @summary Current admin session status
+ */
+export const GetAdminMeResponse = zod.object({
+  "isAdmin": zod.boolean(),
+  "email": zod.string().nullish()
+})
+
+
+/**
  * @summary Verify the active key for a provider with a minimal live call
  */
 export const TestApiKeyParams = zod.object({
