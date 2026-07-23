@@ -31,4 +31,16 @@ export interface SurveyRun {
      * @nullable
      */
   keyWarnings: KeyWarning[] | null;
+  /**
+     * Null for runs that predate usage tracking
+     * @nullable
+     */
+  totalInputTokens: number | null;
+  /** @nullable */
+  totalOutputTokens: number | null;
+  /**
+     * Estimated total cost in USD, null for historical runs
+     * @nullable
+     */
+  totalCostUsd: number | null;
 }

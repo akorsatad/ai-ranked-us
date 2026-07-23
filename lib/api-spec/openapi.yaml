@@ -736,6 +736,60 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiMessage"
+  /admin/costs:
+    get:
+      operationId: getCostSummary
+      tags: [admin]
+      summary: Aggregated spend and token usage by provider, model, and run
+      parameters:
+        - name: days
+          in: query
+          required: false
+          description: Restrict to responses created in the last N days (omit for all time)
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Cost summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CostSummary"
+  /admin/model-results:
+    get:
+      operationId: getModelResults
+      tags: [admin]
+      summary: Per-engine/model survey results for an industry and metric
+      parameters:
+        - name: industryId
+          in: query
+          required: true
+          schema:
+            type: integer
+        - name: metric
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Model-level results alongside the aggregated ranking
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ModelResults"
+        "400":
+          description: Invalid parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "404":
+          description: Industry not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
   /admin/tables/{table}:
     get:
       operationId: browseTable
@@ -1519,7 +1573,15 @@ components:
           description: Provider key failures found by the pre-flight check before this run
           items:
             $ref: "#/components/schemas/KeyWarning"
-      required: [id, status, trigger, industryId, startedAt, completedAt, error, totalQueries, succeededQueries, failedQueries, keyWarnings]
+        totalInputTokens:
+          type: ["integer", "null"]
+          description: Null for runs that predate usage tracking
+        totalOutputTokens:
+          type: ["integer", "null"]
+        totalCostUsd:
+          type: ["number", "null"]
+          description: Estimated total cost in USD, null for historical runs
+      required: [id, status, trigger, industryId, startedAt, completedAt, error, totalQueries, succeededQueries, failedQueries, keyWarnings, totalInputTokens, totalOutputTokens, totalCostUsd]
     KeyWarning:
       type: object
       properties:
@@ -1543,3 +1605,94 @@ components:
         industryId:
           type: integer
           description: Scope the run to a single industry; omit for a full run
+    CostBucket:
+      type: object
+      description: Aggregated usage and estimated cost for one grouping bucket
+      properties:
+        key: { type: string, description: "Provider name, model name, or run id depending on grouping" }
+        label: { type: string }
+        responses: { type: integer, description: "Number of successful responses in this bucket" }
+        responsesWithUsage: { type: integer, description: "Responses that have token usage recorded" }
+        inputTokens: { type: integer }
+        outputTokens: { type: integer }
+        costUsd: { type: number, description: "Estimated cost in USD across responses with usage" }
+        unknownCostResponses: { type: integer, description: "Responses with usage but no pricing table entry" }
+      required: [key, label, responses, responsesWithUsage, inputTokens, outputTokens, costUsd, unknownCostResponses]
+    RunCost:
+      type: object
+      properties:
+        runId: { type: integer }
+        startedAt: { type: string }
+        status: { type: string }
+        responses: { type: integer }
+        responsesWithUsage: { type: integer }
+        inputTokens: { type: integer }
+        outputTokens: { type: integer }
+        costUsd: { type: number }
+      required: [runId, startedAt, status, responses, responsesWithUsage, inputTokens, outputTokens, costUsd]
+    CostSummary:
+      type: object
+      properties:
+        days:
+          type: ["integer", "null"]
+          description: Time window in days that was applied, null = all time
+        totals:
+          $ref: "#/components/schemas/CostBucket"
+        byProvider:
+          type: array
+          items:
+            $ref: "#/components/schemas/CostBucket"
+        byModel:
+          type: array
+          items:
+            $ref: "#/components/schemas/CostBucket"
+        byRun:
+          type: array
+          items:
+            $ref: "#/components/schemas/RunCost"
+      required: [days, totals, byProvider, byModel, byRun]
+    ModelRankingEntry:
+      type: object
+      properties:
+        brandId: { type: integer }
+        brandName: { type: string }
+        rank: { type: integer }
+        score: { type: number }
+        rationale: { type: ["string", "null"] }
+      required: [brandId, brandName, rank, score, rationale]
+    ModelResult:
+      type: object
+      description: One engine/model's latest survey result for an industry+metric
+      properties:
+        engineId: { type: integer }
+        engineKey: { type: string }
+        engineName: { type: string }
+        provider: { type: string }
+        model: { type: string }
+        resolvedModel: { type: ["string", "null"] }
+        surveyedAt: { type: string }
+        runId: { type: integer }
+        inputTokens: { type: ["integer", "null"] }
+        outputTokens: { type: ["integer", "null"] }
+        costUsd: { type: ["number", "null"] }
+        entries:
+          type: array
+          items:
+            $ref: "#/components/schemas/ModelRankingEntry"
+      required: [engineId, engineKey, engineName, provider, model, resolvedModel, surveyedAt, runId, inputTokens, outputTokens, costUsd, entries]
+    ModelResults:
+      type: object
+      properties:
+        industryId: { type: integer }
+        industryName: { type: string }
+        metric: { type: string }
+        metricLabel: { type: string }
+        aggregated:
+          type: array
+          items:
+            $ref: "#/components/schemas/ModelRankingEntry"
+        byModel:
+          type: array
+          items:
+            $ref: "#/components/schemas/ModelResult"
+      required: [industryId, industryName, metric, metricLabel, aggregated, byModel]

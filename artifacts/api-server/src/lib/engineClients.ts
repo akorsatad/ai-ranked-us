@@ -1,6 +1,14 @@
 import type { EngineRow } from "@workspace/db";
 import { getStoredKey, isProvider } from "./apiKeys";
 
+export interface EngineCallResult {
+  text: string;
+  /** Model name reported by the provider (falls back to the requested model). */
+  resolvedModel: string;
+  inputTokens: number | null;
+  outputTokens: number | null;
+}
+
 /**
  * Calls a single AI engine with a single, fully isolated one-shot prompt.
  * No conversation state or shared context is ever reused between calls.
@@ -17,7 +25,7 @@ import { getStoredKey, isProvider } from "./apiKeys";
 export async function callEngine(
   engine: EngineRow,
   prompt: string,
-): Promise<string> {
+): Promise<EngineCallResult> {
   const storedKey = isProvider(engine.provider)
     ? await getStoredKey(engine.provider)
     : null;
@@ -38,7 +46,12 @@ export async function callEngine(
         messages: [{ role: "user", content: prompt }],
         response_format: { type: "json_object" },
       });
-      return response.choices[0]?.message?.content ?? "";
+      return {
+        text: response.choices[0]?.message?.content ?? "",
+        resolvedModel: response.model || engine.model,
+        inputTokens: response.usage?.prompt_tokens ?? null,
+        outputTokens: response.usage?.completion_tokens ?? null,
+      };
     }
     case "anthropic": {
       let client;
@@ -55,7 +68,12 @@ export async function callEngine(
         messages: [{ role: "user", content: prompt }],
       });
       const block = message.content[0];
-      return block && block.type === "text" ? block.text : "";
+      return {
+        text: block && block.type === "text" ? block.text : "",
+        resolvedModel: message.model || engine.model,
+        inputTokens: message.usage?.input_tokens ?? null,
+        outputTokens: message.usage?.output_tokens ?? null,
+      };
     }
     case "gemini": {
       let client;
@@ -70,7 +88,17 @@ export async function callEngine(
         contents: [{ role: "user", parts: [{ text: prompt }] }],
         config: { maxOutputTokens: 8192, responseMimeType: "application/json" },
       });
-      return response.text ?? "";
+      const usage = response.usageMetadata;
+      const outputTokens =
+        usage?.candidatesTokenCount != null || usage?.thoughtsTokenCount != null
+          ? (usage?.candidatesTokenCount ?? 0) + (usage?.thoughtsTokenCount ?? 0)
+          : null;
+      return {
+        text: response.text ?? "",
+        resolvedModel: response.modelVersion || engine.model,
+        inputTokens: usage?.promptTokenCount ?? null,
+        outputTokens,
+      };
     }
     case "openrouter": {
       let client;
@@ -89,7 +117,12 @@ export async function callEngine(
         max_tokens: 8192,
         messages: [{ role: "user", content: prompt }],
       });
-      return response.choices[0]?.message?.content ?? "";
+      return {
+        text: response.choices[0]?.message?.content ?? "",
+        resolvedModel: response.model || engine.model,
+        inputTokens: response.usage?.prompt_tokens ?? null,
+        outputTokens: response.usage?.completion_tokens ?? null,
+      };
     }
     default:
       throw new Error(`Unknown engine provider: ${engine.provider}`);

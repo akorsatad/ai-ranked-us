@@ -530,6 +530,18 @@ export interface SurveyRun {
      * @nullable
      */
   keyWarnings: KeyWarning[] | null;
+  /**
+     * Null for runs that predate usage tracking
+     * @nullable
+     */
+  totalInputTokens: number | null;
+  /** @nullable */
+  totalOutputTokens: number | null;
+  /**
+     * Estimated total cost in USD, null for historical runs
+     * @nullable
+     */
+  totalCostUsd: number | null;
 }
 
 export interface Overview {
@@ -561,6 +573,88 @@ export interface KeyPreflightSettings {
 export interface TriggerRunInput {
   /** Scope the run to a single industry; omit for a full run */
   industryId?: number;
+}
+
+/**
+ * Aggregated usage and estimated cost for one grouping bucket
+ */
+export interface CostBucket {
+  /** Provider name, model name, or run id depending on grouping */
+  key: string;
+  label: string;
+  /** Number of successful responses in this bucket */
+  responses: number;
+  /** Responses that have token usage recorded */
+  responsesWithUsage: number;
+  inputTokens: number;
+  outputTokens: number;
+  /** Estimated cost in USD across responses with usage */
+  costUsd: number;
+  /** Responses with usage but no pricing table entry */
+  unknownCostResponses: number;
+}
+
+export interface RunCost {
+  runId: number;
+  startedAt: string;
+  status: string;
+  responses: number;
+  responsesWithUsage: number;
+  inputTokens: number;
+  outputTokens: number;
+  costUsd: number;
+}
+
+export interface CostSummary {
+  /**
+     * Time window in days that was applied, null = all time
+     * @nullable
+     */
+  days: number | null;
+  totals: CostBucket;
+  byProvider: CostBucket[];
+  byModel: CostBucket[];
+  byRun: RunCost[];
+}
+
+export interface ModelRankingEntry {
+  brandId: number;
+  brandName: string;
+  rank: number;
+  score: number;
+  /** @nullable */
+  rationale: string | null;
+}
+
+/**
+ * One engine/model's latest survey result for an industry+metric
+ */
+export interface ModelResult {
+  engineId: number;
+  engineKey: string;
+  engineName: string;
+  provider: string;
+  model: string;
+  /** @nullable */
+  resolvedModel: string | null;
+  surveyedAt: string;
+  runId: number;
+  /** @nullable */
+  inputTokens: number | null;
+  /** @nullable */
+  outputTokens: number | null;
+  /** @nullable */
+  costUsd: number | null;
+  entries: ModelRankingEntry[];
+}
+
+export interface ModelResults {
+  industryId: number;
+  industryName: string;
+  metric: string;
+  metricLabel: string;
+  aggregated: ModelRankingEntry[];
+  byModel: ModelResult[];
 }
 
 export type GetIndustryRankingsParams = {
@@ -603,6 +697,18 @@ metric: string;
  * Engine key to filter by; omitted = averaged across engines
  */
 engine?: string;
+};
+
+export type GetCostSummaryParams = {
+/**
+ * Restrict to responses created in the last N days (omit for all time)
+ */
+days?: number;
+};
+
+export type GetModelResultsParams = {
+industryId: number;
+metric: string;
 };
 
 export type BrowseTableParams = {

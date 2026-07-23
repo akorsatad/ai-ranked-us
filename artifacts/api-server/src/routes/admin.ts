@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { and, desc, eq, ilike, or, sql, type SQL } from "drizzle-orm";
+import { and, desc, eq, gte, ilike, or, sql, type SQL } from "drizzle-orm";
 import {
   db,
   industriesTable,
@@ -39,6 +39,12 @@ import {
   missingRequiredPlaceholders,
 } from "../lib/promptTemplate";
 import { requestAutoScopedRun } from "../lib/survey";
+import { getMetric } from "../lib/metrics";
+import {
+  latestResponsesByEngine,
+  averageEntries,
+  rankEntries,
+} from "../lib/aggregate";
 
 const router: IRouter = Router();
 
@@ -695,5 +701,183 @@ router.get("/admin/tables/:table", async (req, res): Promise<void> => {
 
   res.status(200).json({ table, page, pageSize, total, columns, rows });
 });
+
+interface CostBucketAcc {
+  key: string;
+  label: string;
+  responses: number;
+  responsesWithUsage: number;
+  inputTokens: number;
+  outputTokens: number;
+  costUsd: number;
+  unknownCostResponses: number;
+}
+
+function newBucket(key: string, label: string): CostBucketAcc {
+  return {
+    key,
+    label,
+    responses: 0,
+    responsesWithUsage: 0,
+    inputTokens: 0,
+    outputTokens: 0,
+    costUsd: 0,
+    unknownCostResponses: 0,
+  };
+}
+
+function addToBucket(
+  bucket: CostBucketAcc,
+  r: {
+    inputTokens: number | null;
+    outputTokens: number | null;
+    costUsd: number | null;
+  },
+): void {
+  bucket.responses += 1;
+  if (r.inputTokens != null || r.outputTokens != null) {
+    bucket.responsesWithUsage += 1;
+    bucket.inputTokens += r.inputTokens ?? 0;
+    bucket.outputTokens += r.outputTokens ?? 0;
+    if (r.costUsd != null) {
+      bucket.costUsd += r.costUsd;
+    } else {
+      bucket.unknownCostResponses += 1;
+    }
+  }
+}
+
+function roundBucket(bucket: CostBucketAcc): CostBucketAcc {
+  return { ...bucket, costUsd: Math.round(bucket.costUsd * 1_000_000) / 1_000_000 };
+}
+
+router.get("/admin/costs", async (req, res): Promise<void> => {
+  const daysRaw = req.query["days"];
+  const days =
+    daysRaw !== undefined && Number.isFinite(Number(daysRaw)) && Number(daysRaw) > 0
+      ? Number(daysRaw)
+      : null;
+
+  const filters: SQL[] = [eq(surveyResponsesTable.status, "ok")];
+  if (days !== null) {
+    const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+    filters.push(gte(surveyResponsesTable.createdAt, since));
+  }
+
+  const [responses, engines, runs] = await Promise.all([
+    db
+      .select()
+      .from(surveyResponsesTable)
+      .where(and(...filters)),
+    db.select().from(enginesTable),
+    db.select().from(surveyRunsTable),
+  ]);
+  const engineById = new Map(engines.map((e) => [e.id, e]));
+  const runById = new Map(runs.map((r) => [r.id, r]));
+
+  const totals = newBucket("total", "Total");
+  const byProvider = new Map<string, CostBucketAcc>();
+  const byModel = new Map<string, CostBucketAcc>();
+  const byRun = new Map<number, CostBucketAcc>();
+
+  for (const r of responses) {
+    const engine = engineById.get(r.engineId);
+    const provider = engine?.provider ?? "unknown";
+    const model = r.resolvedModel ?? engine?.model ?? "unknown";
+
+    addToBucket(totals, r);
+
+    let p = byProvider.get(provider);
+    if (!p) byProvider.set(provider, (p = newBucket(provider, provider)));
+    addToBucket(p, r);
+
+    const modelKey = `${provider}/${model}`;
+    let m = byModel.get(modelKey);
+    if (!m) byModel.set(modelKey, (m = newBucket(modelKey, model)));
+    addToBucket(m, r);
+
+    let run = byRun.get(r.runId);
+    if (!run) byRun.set(r.runId, (run = newBucket(String(r.runId), `Run ${r.runId}`)));
+    addToBucket(run, r);
+  }
+
+  res.status(200).json({
+    days,
+    totals: roundBucket(totals),
+    byProvider: [...byProvider.values()]
+      .map(roundBucket)
+      .sort((a, b) => b.costUsd - a.costUsd),
+    byModel: [...byModel.values()]
+      .map(roundBucket)
+      .sort((a, b) => b.costUsd - a.costUsd),
+    byRun: [...byRun.entries()]
+      .sort((a, b) => b[0] - a[0])
+      .map(([runId, bucket]) => {
+        const run = runById.get(runId);
+        const rounded = roundBucket(bucket);
+        return {
+          runId,
+          startedAt: run ? run.startedAt.toISOString() : "",
+          status: run?.status ?? "unknown",
+          responses: rounded.responses,
+          responsesWithUsage: rounded.responsesWithUsage,
+          inputTokens: rounded.inputTokens,
+          outputTokens: rounded.outputTokens,
+          costUsd: rounded.costUsd,
+        };
+      }),
+  });
+  return;
+});
+
+router.get("/admin/model-results", async (req, res): Promise<void> => {
+  const industryId = Number(req.query["industryId"]);
+  const metricKey = String(req.query["metric"] ?? "");
+  if (!Number.isInteger(industryId) || !metricKey) {
+    res.status(400).json({ message: "industryId and metric are required" });
+    return;
+  }
+  const metric = getMetric(metricKey);
+  if (!metric) {
+    res.status(400).json({ message: `Unknown metric: ${metricKey}` });
+    return;
+  }
+  const [industry] = await db
+    .select()
+    .from(industriesTable)
+    .where(eq(industriesTable.id, industryId));
+  if (!industry) {
+    res.status(404).json({ message: "Industry not found" });
+    return;
+  }
+
+  const responses = await latestResponsesByEngine(industry.id, metric.key);
+  res.status(200).json({
+    industryId: industry.id,
+    industryName: industry.name,
+    metric: metric.key,
+    metricLabel: metric.label,
+    aggregated: averageEntries(
+      responses.map((r) => r.response),
+      metric.higherIsBetter,
+    ),
+    byModel: responses.map(({ engine, response }) => ({
+      engineId: engine.id,
+      engineKey: engine.key,
+      engineName: engine.name,
+      provider: engine.provider,
+      model: engine.model,
+      resolvedModel: response.resolvedModel,
+      surveyedAt: response.createdAt.toISOString(),
+      runId: response.runId,
+      inputTokens: response.inputTokens,
+      outputTokens: response.outputTokens,
+      costUsd: response.costUsd,
+      entries: rankEntries(response.entries ?? [], metric.higherIsBetter),
+    })),
+  });
+  return;
+});
+
 
 export default router;

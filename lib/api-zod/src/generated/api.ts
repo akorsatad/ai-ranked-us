@@ -68,7 +68,10 @@ export const GetOverviewResponse = zod.object({
   "provider": zod.string(),
   "source": zod.enum(['stored', 'env', 'none']),
   "error": zod.string()
-})).nullable().describe('Provider key failures found by the pre-flight check before this run')
+})).nullable().describe('Provider key failures found by the pre-flight check before this run'),
+  "totalInputTokens": zod.number().nullable().describe('Null for runs that predate usage tracking'),
+  "totalOutputTokens": zod.number().nullable(),
+  "totalCostUsd": zod.number().nullable().describe('Estimated total cost in USD, null for historical runs')
 }),zod.null()]),
   "industriesCount": zod.number(),
   "brandsCount": zod.number(),
@@ -281,7 +284,10 @@ export const ListRunsResponseItem = zod.object({
   "provider": zod.string(),
   "source": zod.enum(['stored', 'env', 'none']),
   "error": zod.string()
-})).nullable().describe('Provider key failures found by the pre-flight check before this run')
+})).nullable().describe('Provider key failures found by the pre-flight check before this run'),
+  "totalInputTokens": zod.number().nullable().describe('Null for runs that predate usage tracking'),
+  "totalOutputTokens": zod.number().nullable(),
+  "totalCostUsd": zod.number().nullable().describe('Estimated total cost in USD, null for historical runs')
 })
 export const ListRunsResponse = zod.array(ListRunsResponseItem)
 
@@ -303,7 +309,15 @@ export const TriggerRunResponse = zod.object({
   "error": zod.string().nullable(),
   "totalQueries": zod.number(),
   "succeededQueries": zod.number(),
-  "failedQueries": zod.number()
+  "failedQueries": zod.number(),
+  "keyWarnings": zod.array(zod.object({
+  "provider": zod.string(),
+  "source": zod.enum(['stored', 'env', 'none']),
+  "error": zod.string()
+})).nullable().describe('Provider key failures found by the pre-flight check before this run'),
+  "totalInputTokens": zod.number().nullable().describe('Null for runs that predate usage tracking'),
+  "totalOutputTokens": zod.number().nullable(),
+  "totalCostUsd": zod.number().nullable().describe('Estimated total cost in USD, null for historical runs')
 })
 
 
@@ -324,7 +338,15 @@ export const PauseRunResponse = zod.object({
   "error": zod.string().nullable(),
   "totalQueries": zod.number(),
   "succeededQueries": zod.number(),
-  "failedQueries": zod.number()
+  "failedQueries": zod.number(),
+  "keyWarnings": zod.array(zod.object({
+  "provider": zod.string(),
+  "source": zod.enum(['stored', 'env', 'none']),
+  "error": zod.string()
+})).nullable().describe('Provider key failures found by the pre-flight check before this run'),
+  "totalInputTokens": zod.number().nullable().describe('Null for runs that predate usage tracking'),
+  "totalOutputTokens": zod.number().nullable(),
+  "totalCostUsd": zod.number().nullable().describe('Estimated total cost in USD, null for historical runs')
 })
 
 
@@ -345,7 +367,15 @@ export const ResumeRunResponse = zod.object({
   "error": zod.string().nullable(),
   "totalQueries": zod.number(),
   "succeededQueries": zod.number(),
-  "failedQueries": zod.number()
+  "failedQueries": zod.number(),
+  "keyWarnings": zod.array(zod.object({
+  "provider": zod.string(),
+  "source": zod.enum(['stored', 'env', 'none']),
+  "error": zod.string()
+})).nullable().describe('Provider key failures found by the pre-flight check before this run'),
+  "totalInputTokens": zod.number().nullable().describe('Null for runs that predate usage tracking'),
+  "totalOutputTokens": zod.number().nullable(),
+  "totalCostUsd": zod.number().nullable().describe('Estimated total cost in USD, null for historical runs')
 })
 
 
@@ -371,7 +401,10 @@ export const CancelRunResponse = zod.object({
   "provider": zod.string(),
   "source": zod.enum(['stored', 'env', 'none']),
   "error": zod.string()
-})).nullable().describe('Provider key failures found by the pre-flight check before this run')
+})).nullable().describe('Provider key failures found by the pre-flight check before this run'),
+  "totalInputTokens": zod.number().nullable().describe('Null for runs that predate usage tracking'),
+  "totalOutputTokens": zod.number().nullable(),
+  "totalCostUsd": zod.number().nullable().describe('Estimated total cost in USD, null for historical runs')
 })
 
 
@@ -634,6 +667,101 @@ export const TestApiKeyResponse = zod.object({
   "ok": zod.boolean(),
   "source": zod.enum(['stored', 'env']).describe('Which key was tested (stored keys take precedence)'),
   "error": zod.string().nullable().describe('Provider error message when ok is false')
+})
+
+
+/**
+ * @summary Aggregated spend and token usage by provider, model, and run
+ */
+export const GetCostSummaryQueryParams = zod.object({
+  "days": zod.coerce.number().optional().describe('Restrict to responses created in the last N days (omit for all time)')
+})
+
+export const GetCostSummaryResponse = zod.object({
+  "days": zod.number().nullable().describe('Time window in days that was applied, null = all time'),
+  "totals": zod.object({
+  "key": zod.string().describe('Provider name, model name, or run id depending on grouping'),
+  "label": zod.string(),
+  "responses": zod.number().describe('Number of successful responses in this bucket'),
+  "responsesWithUsage": zod.number().describe('Responses that have token usage recorded'),
+  "inputTokens": zod.number(),
+  "outputTokens": zod.number(),
+  "costUsd": zod.number().describe('Estimated cost in USD across responses with usage'),
+  "unknownCostResponses": zod.number().describe('Responses with usage but no pricing table entry')
+}).describe('Aggregated usage and estimated cost for one grouping bucket'),
+  "byProvider": zod.array(zod.object({
+  "key": zod.string().describe('Provider name, model name, or run id depending on grouping'),
+  "label": zod.string(),
+  "responses": zod.number().describe('Number of successful responses in this bucket'),
+  "responsesWithUsage": zod.number().describe('Responses that have token usage recorded'),
+  "inputTokens": zod.number(),
+  "outputTokens": zod.number(),
+  "costUsd": zod.number().describe('Estimated cost in USD across responses with usage'),
+  "unknownCostResponses": zod.number().describe('Responses with usage but no pricing table entry')
+}).describe('Aggregated usage and estimated cost for one grouping bucket')),
+  "byModel": zod.array(zod.object({
+  "key": zod.string().describe('Provider name, model name, or run id depending on grouping'),
+  "label": zod.string(),
+  "responses": zod.number().describe('Number of successful responses in this bucket'),
+  "responsesWithUsage": zod.number().describe('Responses that have token usage recorded'),
+  "inputTokens": zod.number(),
+  "outputTokens": zod.number(),
+  "costUsd": zod.number().describe('Estimated cost in USD across responses with usage'),
+  "unknownCostResponses": zod.number().describe('Responses with usage but no pricing table entry')
+}).describe('Aggregated usage and estimated cost for one grouping bucket')),
+  "byRun": zod.array(zod.object({
+  "runId": zod.number(),
+  "startedAt": zod.string(),
+  "status": zod.string(),
+  "responses": zod.number(),
+  "responsesWithUsage": zod.number(),
+  "inputTokens": zod.number(),
+  "outputTokens": zod.number(),
+  "costUsd": zod.number()
+}))
+})
+
+
+/**
+ * @summary Per-engine/model survey results for an industry and metric
+ */
+export const GetModelResultsQueryParams = zod.object({
+  "industryId": zod.coerce.number(),
+  "metric": zod.coerce.string()
+})
+
+export const GetModelResultsResponse = zod.object({
+  "industryId": zod.number(),
+  "industryName": zod.string(),
+  "metric": zod.string(),
+  "metricLabel": zod.string(),
+  "aggregated": zod.array(zod.object({
+  "brandId": zod.number(),
+  "brandName": zod.string(),
+  "rank": zod.number(),
+  "score": zod.number(),
+  "rationale": zod.string().nullable()
+})),
+  "byModel": zod.array(zod.object({
+  "engineId": zod.number(),
+  "engineKey": zod.string(),
+  "engineName": zod.string(),
+  "provider": zod.string(),
+  "model": zod.string(),
+  "resolvedModel": zod.string().nullable(),
+  "surveyedAt": zod.string(),
+  "runId": zod.number(),
+  "inputTokens": zod.number().nullable(),
+  "outputTokens": zod.number().nullable(),
+  "costUsd": zod.number().nullable(),
+  "entries": zod.array(zod.object({
+  "brandId": zod.number(),
+  "brandName": zod.string(),
+  "rank": zod.number(),
+  "score": zod.number(),
+  "rationale": zod.string().nullable()
+}))
+}).describe('One engine\/model\'s latest survey result for an industry+metric'))
 })
 
 

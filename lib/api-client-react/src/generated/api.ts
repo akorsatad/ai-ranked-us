@@ -33,11 +33,14 @@ import type {
   BrandUpdate,
   BrowseTableParams,
   Catalog,
+  CostSummary,
   EngineInput,
   EngineUpdate,
+  GetCostSummaryParams,
   GetIndustryHistoryParams,
   GetIndustryRankingsParams,
   GetIndustryTrendsParams,
+  GetModelResultsParams,
   GetTrendSnapshotParams,
   HealthStatus,
   Industry,
@@ -50,6 +53,7 @@ import type {
   ListAlertsParams,
   ListTrendSnapshotsParams,
   MarkAlertsReadInput,
+  ModelResults,
   MoversReport,
   Overview,
   PromptTemplateInfo,
@@ -2232,6 +2236,174 @@ export const useTestApiKey = <TError = ErrorType<ApiMessage>,
       > => {
       return useMutation(getTestApiKeyMutationOptions(options));
     }
+
+export const getGetCostSummaryUrl = (params?: GetCostSummaryParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/admin/costs?${stringifiedParams}` : `/api/admin/costs`
+}
+
+/**
+ * @summary Aggregated spend and token usage by provider, model, and run
+ */
+export const getCostSummary = async (params?: GetCostSummaryParams, options?: RequestInit): Promise<CostSummary> => {
+
+  return customFetch<CostSummary>(getGetCostSummaryUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetCostSummaryQueryKey = (params?: GetCostSummaryParams,) => {
+    return [
+    `/api/admin/costs`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetCostSummaryQueryOptions = <TData = Awaited<ReturnType<typeof getCostSummary>>, TError = ErrorType<unknown>>(params?: GetCostSummaryParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCostSummary>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetCostSummaryQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getCostSummary>>> = ({ signal }) => getCostSummary(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getCostSummary>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetCostSummaryQueryResult = NonNullable<Awaited<ReturnType<typeof getCostSummary>>>
+export type GetCostSummaryQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Aggregated spend and token usage by provider, model, and run
+ */
+
+export function useGetCostSummary<TData = Awaited<ReturnType<typeof getCostSummary>>, TError = ErrorType<unknown>>(
+ params?: GetCostSummaryParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCostSummary>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetCostSummaryQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetModelResultsUrl = (params: GetModelResultsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/admin/model-results?${stringifiedParams}` : `/api/admin/model-results`
+}
+
+/**
+ * @summary Per-engine/model survey results for an industry and metric
+ */
+export const getModelResults = async (params: GetModelResultsParams, options?: RequestInit): Promise<ModelResults> => {
+
+  return customFetch<ModelResults>(getGetModelResultsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetModelResultsQueryKey = (params?: GetModelResultsParams,) => {
+    return [
+    `/api/admin/model-results`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetModelResultsQueryOptions = <TData = Awaited<ReturnType<typeof getModelResults>>, TError = ErrorType<ApiMessage>>(params: GetModelResultsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getModelResults>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetModelResultsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getModelResults>>> = ({ signal }) => getModelResults(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getModelResults>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetModelResultsQueryResult = NonNullable<Awaited<ReturnType<typeof getModelResults>>>
+export type GetModelResultsQueryError = ErrorType<ApiMessage>
+
+
+/**
+ * @summary Per-engine/model survey results for an industry and metric
+ */
+
+export function useGetModelResults<TData = Awaited<ReturnType<typeof getModelResults>>, TError = ErrorType<ApiMessage>>(
+ params: GetModelResultsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getModelResults>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetModelResultsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getBrowseTableUrl = (table: 'industries' | 'brands' | 'engines' | 'survey_runs' | 'survey_responses',
     params?: BrowseTableParams,) => {

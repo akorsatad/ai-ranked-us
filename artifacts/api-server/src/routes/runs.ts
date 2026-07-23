@@ -55,6 +55,9 @@ export function serializeRun(run: SurveyRunRow) {
     succeededQueries: run.succeededQueries,
     failedQueries: run.failedQueries,
     keyWarnings: run.keyWarnings ?? null,
+    totalInputTokens: run.totalInputTokens,
+    totalOutputTokens: run.totalOutputTokens,
+    totalCostUsd: run.totalCostUsd,
   };
 }
 

@@ -1,7 +1,7 @@
 import React from 'react';
 import { Link, useLocation } from 'wouter';
 import { useClerk, useUser } from '@clerk/react';
-import { History, Building2, Cpu, KeyRound, Database, FileText, LogOut } from 'lucide-react';
+import { History, Building2, Cpu, KeyRound, Database, FileText, LogOut, DollarSign, Microscope } from 'lucide-react';
 
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, '');
 
@@ -9,6 +9,8 @@ const NAV = [
   { href: '/admin/runs', label: 'Runs', icon: History },
   { href: '/admin/catalog', label: 'Brands & Industries', icon: Building2 },
   { href: '/admin/engines', label: 'Engines', icon: Cpu },
+  { href: '/admin/costs', label: 'Costs', icon: DollarSign },
+  { href: '/admin/model-results', label: 'Model Results', icon: Microscope },
   { href: '/admin/api-keys', label: 'API Keys', icon: KeyRound },
   { href: '/admin/queries', label: 'Queries', icon: FileText },
   { href: '/admin/data', label: 'Data Browser', icon: Database },

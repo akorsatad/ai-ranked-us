@@ -7,6 +7,7 @@ import {
   jsonb,
   boolean,
   uniqueIndex,
+  doublePrecision,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
@@ -107,6 +108,9 @@ export const surveyRunsTable = pgTable("survey_runs", {
   failedQueries: integer("failed_queries").notNull().default(0),
   // Non-null when the pre-flight provider key check found failing keys.
   keyWarnings: jsonb("key_warnings").$type<StoredKeyWarning[]>(),
+  totalInputTokens: integer("total_input_tokens"),
+  totalOutputTokens: integer("total_output_tokens"),
+  totalCostUsd: doublePrecision("total_cost_usd"),
 });
 
 export interface StoredRankingEntry {
@@ -147,6 +151,11 @@ export const surveyResponsesTable = pgTable("survey_responses", {
   rawResponse: text("raw_response"), // raw engine response text (also stored for parse failures)
   entries: jsonb("entries").$type<StoredRankingEntry[]>(),
   trend: jsonb("trend").$type<StoredBrandTrend[]>(),
+  // Usage capture (null for historical responses that predate usage tracking)
+  resolvedModel: text("resolved_model"),
+  inputTokens: integer("input_tokens"),
+  outputTokens: integer("output_tokens"),
+  costUsd: doublePrecision("cost_usd"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

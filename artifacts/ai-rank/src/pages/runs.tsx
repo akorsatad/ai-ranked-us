@@ -198,6 +198,13 @@ function RunRow({ run }: { run: SurveyRun }) {
             <Badge variant="outline" className="font-mono text-xs uppercase bg-secondary/30">
               {run.trigger}
             </Badge>
+            {run.status !== 'running' && (
+              <Badge variant="outline" className="font-mono text-xs" data-testid={`badge-cost-${run.id}`}>
+                {run.totalCostUsd != null
+                  ? `~$${run.totalCostUsd < 0.01 && run.totalCostUsd > 0 ? run.totalCostUsd.toFixed(4) : run.totalCostUsd.toFixed(2)}`
+                  : 'cost n/a'}
+              </Badge>
+            )}
           </div>
           <div className="text-sm text-muted-foreground flex items-center gap-2 font-mono">
             <span>Started: {format(new Date(run.startedAt), 'MMM d, yyyy HH:mm:ss')}</span>

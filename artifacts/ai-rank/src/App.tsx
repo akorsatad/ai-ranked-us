@@ -18,6 +18,8 @@ import { SignInPage, SignUpPage } from './pages/auth';
 import AdminCatalog from './pages/admin/catalog';
 import AdminEngines from './pages/admin/engines';
 import AdminApiKeys from './pages/admin/api-keys';
+import AdminCosts from './pages/admin/costs';
+import AdminModelResults from './pages/admin/model-results';
 import AdminData from './pages/admin/data';
 import AdminQueries from './pages/admin/queries';
 import { Terms, Privacy } from './pages/legal';
@@ -127,7 +129,7 @@ function ClerkQueryClientCacheInvalidator() {
 
 function AdminRoutes() {
   return (
-    <AdminGuard>
+<AdminGuard>
       <AdminLayout>
         <Switch>
           <Route path="/admin">
@@ -136,6 +138,8 @@ function AdminRoutes() {
           <Route path="/admin/runs" component={Runs} />
           <Route path="/admin/catalog" component={AdminCatalog} />
           <Route path="/admin/engines" component={AdminEngines} />
+          <Route path="/admin/costs" component={AdminCosts} />
+          <Route path="/admin/model-results" component={AdminModelResults} />
           <Route path="/admin/api-keys" component={AdminApiKeys} />
           <Route path="/admin/queries" component={AdminQueries} />
           <Route path="/admin/data" component={AdminData} />

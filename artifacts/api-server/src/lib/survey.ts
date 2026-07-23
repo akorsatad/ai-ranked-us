@@ -25,6 +25,7 @@ import { METRICS, type MetricDef } from "./metrics";
 import { callEngine } from "./engineClients";
 import { detectAlertsForRun } from "./alerts";
 import { recordSeriesForResponse } from "./series";
+import { estimateCostUsd } from "./pricing";
 import { logger } from "./logger";
 
 let runInProgress = false;
@@ -543,6 +544,9 @@ async function executeRun(
     }
     return null;
   };
+  let totalInputTokens = 0;
+  let totalOutputTokens = 0;
+  let totalCostUsd = 0;
 
   // Resolve the template once so every query in the run uses the same text.
   const { template } = await getActivePromptTemplate();
@@ -559,8 +563,20 @@ async function executeRun(
       const prompt = buildPrompt(query, template);
       let raw: string | null = null;
       try {
-        raw = await callEngine(query.engine, prompt);
-        const { entries, trend } = parseResponse(query, raw);
+        const result = await callEngine(query.engine, prompt);
+        raw = result.text;
+        const { entries, trend } = parseResponse(query, result.text);
+        const costUsd =
+          result.inputTokens != null && result.outputTokens != null
+            ? estimateCostUsd(
+                result.resolvedModel,
+                result.inputTokens,
+                result.outputTokens,
+              )
+            : null;
+        totalInputTokens += result.inputTokens ?? 0;
+        totalOutputTokens += result.outputTokens ?? 0;
+        totalCostUsd += costUsd ?? 0;
         const [inserted] = await db
           .insert(surveyResponsesTable)
           .values({
@@ -573,6 +589,10 @@ async function executeRun(
             trend,
             prompt,
             rawResponse: raw,
+            resolvedModel: result.resolvedModel,
+            inputTokens: result.inputTokens,
+            outputTokens: result.outputTokens,
+            costUsd,
           })
           .returning();
         if (inserted) {
@@ -629,6 +649,9 @@ async function executeRun(
       completedAt,
       succeededQueries: succeeded,
       failedQueries: failed,
+      totalInputTokens,
+      totalOutputTokens,
+      totalCostUsd: Math.round(totalCostUsd * 1_000_000) / 1_000_000,
       error:
         signal == null && succeeded === 0 && failed > 0
           ? "All engine queries failed. Check that AI integrations are provisioned."

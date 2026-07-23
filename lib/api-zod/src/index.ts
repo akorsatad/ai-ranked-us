@@ -10,3 +10,5 @@ export {
   GetTrendSnapshotParams,
   BrowseTableParams,
 } from "./generated/api";
+export * from './generated/api';
+export * from './generated/types';
