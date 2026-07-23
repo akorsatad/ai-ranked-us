@@ -13,6 +13,65 @@ export interface ApiMessage {
   message: string;
 }
 
+export type BrandAlertKind = typeof BrandAlertKind[keyof typeof BrandAlertKind];
+
+
+export const BrandAlertKind = {
+  score_drop: 'score_drop',
+  rank_drop: 'rank_drop',
+} as const;
+
+export interface BrandAlert {
+  id: number;
+  runId: number;
+  brandId: number;
+  brandName: string;
+  industryId: number;
+  industryName: string;
+  metric: string;
+  metricLabel: string;
+  kind: BrandAlertKind;
+  previousValue: number;
+  currentValue: number;
+  delta: number;
+  threshold: number;
+  read: boolean;
+  createdAt: string;
+}
+
+export interface AlertFeed {
+  alerts: BrandAlert[];
+  unreadCount: number;
+}
+
+export interface UnreadCount {
+  unreadCount: number;
+}
+
+export interface MarkAlertsReadInput {
+  ids?: number[];
+}
+
+export interface AlertSettings {
+  /** Score points (0-100) a brand must deteriorate by to alert */
+  scoreDropThreshold: number;
+  /** Ranking positions a brand must fall by to alert */
+  rankDropThreshold: number;
+}
+
+export interface AlertSettingsInput {
+  /**
+     * @minimum 1
+     * @maximum 100
+     */
+  scoreDropThreshold: number;
+  /**
+     * @minimum 1
+     * @maximum 50
+     */
+  rankDropThreshold: number;
+}
+
 export interface Industry {
   id: number;
   name: string;
@@ -290,6 +349,11 @@ metric: string;
  * Engine key to filter by; omitted = averaged across engines
  */
 engine?: string;
+};
+
+export type ListAlertsParams = {
+unreadOnly?: boolean;
+limit?: number;
 };
 
 export type BrowseTableParams = {

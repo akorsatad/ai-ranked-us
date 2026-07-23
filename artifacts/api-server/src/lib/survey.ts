@@ -17,6 +17,7 @@ import {
 import { batchProcess } from "@workspace/integrations-openai-ai-server/batch";
 import { METRICS, type MetricDef } from "./metrics";
 import { callEngine } from "./engineClients";
+import { detectAlertsForRun } from "./alerts";
 import { logger } from "./logger";
 
 let runInProgress = false;
@@ -270,4 +271,12 @@ async function executeRun(
     })
     .where(eq(surveyRunsTable.id, run.id));
   logger.info({ runId: run.id, status, succeeded, failed }, "Survey run done");
+
+  if (succeeded > 0) {
+    try {
+      await detectAlertsForRun(run);
+    } catch (err) {
+      logger.error({ err, runId: run.id }, "Alert detection failed");
+    }
+  }
 }

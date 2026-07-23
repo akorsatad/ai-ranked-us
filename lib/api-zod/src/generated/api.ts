@@ -180,6 +180,77 @@ export const TriggerRunResponse = zod.object({
 
 
 /**
+ * @summary Alert feed, newest first, plus unread count
+ */
+export const ListAlertsQueryParams = zod.object({
+  "unreadOnly": zod.coerce.boolean().optional(),
+  "limit": zod.coerce.number().optional()
+})
+
+export const ListAlertsResponse = zod.object({
+  "alerts": zod.array(zod.object({
+  "id": zod.number(),
+  "runId": zod.number(),
+  "brandId": zod.number(),
+  "brandName": zod.string(),
+  "industryId": zod.number(),
+  "industryName": zod.string(),
+  "metric": zod.string(),
+  "metricLabel": zod.string(),
+  "kind": zod.enum(['score_drop', 'rank_drop']),
+  "previousValue": zod.number(),
+  "currentValue": zod.number(),
+  "delta": zod.number(),
+  "threshold": zod.number(),
+  "read": zod.boolean(),
+  "createdAt": zod.string()
+})),
+  "unreadCount": zod.number()
+})
+
+
+/**
+ * @summary Mark alerts read (specific ids, or all unread when ids omitted)
+ */
+export const MarkAlertsReadBody = zod.object({
+  "ids": zod.array(zod.number()).optional()
+})
+
+export const MarkAlertsReadResponse = zod.object({
+  "unreadCount": zod.number()
+})
+
+
+/**
+ * @summary Current alert thresholds
+ */
+export const GetAlertSettingsResponse = zod.object({
+  "scoreDropThreshold": zod.number().describe('Score points (0-100) a brand must deteriorate by to alert'),
+  "rankDropThreshold": zod.number().describe('Ranking positions a brand must fall by to alert')
+})
+
+
+/**
+ * @summary Update alert thresholds
+ */
+export const updateAlertSettingsBodyScoreDropThresholdMax = 100;
+
+export const updateAlertSettingsBodyRankDropThresholdMax = 50;
+
+
+
+export const UpdateAlertSettingsBody = zod.object({
+  "scoreDropThreshold": zod.number().min(1).max(updateAlertSettingsBodyScoreDropThresholdMax),
+  "rankDropThreshold": zod.number().min(1).max(updateAlertSettingsBodyRankDropThresholdMax)
+})
+
+export const UpdateAlertSettingsResponse = zod.object({
+  "scoreDropThreshold": zod.number().describe('Score points (0-100) a brand must deteriorate by to alert'),
+  "rankDropThreshold": zod.number().describe('Ranking positions a brand must fall by to alert')
+})
+
+
+/**
  * @summary Full admin catalog including disabled items and engine details
  */
 export const GetAdminCatalogResponse = zod.object({

@@ -22,6 +22,9 @@ import type {
 import type {
   AdminCatalog,
   AdminEngine,
+  AlertFeed,
+  AlertSettings,
+  AlertSettingsInput,
   ApiKeyInput,
   ApiKeyStatus,
   ApiMessage,
@@ -41,8 +44,11 @@ import type {
   IndustryRankings,
   IndustryTrends,
   IndustryUpdate,
+  ListAlertsParams,
+  MarkAlertsReadInput,
   Overview,
-  SurveyRun
+  SurveyRun,
+  UnreadCount
 } from './api.schemas';
 
 import { customFetch } from '../custom-fetch';
@@ -628,6 +634,309 @@ export const useTriggerRun = <TError = ErrorType<ApiMessage>,
         TContext
       > => {
       return useMutation(getTriggerRunMutationOptions(options));
+    }
+
+export const getListAlertsUrl = (params?: ListAlertsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/alerts?${stringifiedParams}` : `/api/alerts`
+}
+
+/**
+ * @summary Alert feed, newest first, plus unread count
+ */
+export const listAlerts = async (params?: ListAlertsParams, options?: RequestInit): Promise<AlertFeed> => {
+
+  return customFetch<AlertFeed>(getListAlertsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListAlertsQueryKey = (params?: ListAlertsParams,) => {
+    return [
+    `/api/alerts`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListAlertsQueryOptions = <TData = Awaited<ReturnType<typeof listAlerts>>, TError = ErrorType<unknown>>(params?: ListAlertsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAlerts>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListAlertsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listAlerts>>> = ({ signal }) => listAlerts(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listAlerts>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListAlertsQueryResult = NonNullable<Awaited<ReturnType<typeof listAlerts>>>
+export type ListAlertsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Alert feed, newest first, plus unread count
+ */
+
+export function useListAlerts<TData = Awaited<ReturnType<typeof listAlerts>>, TError = ErrorType<unknown>>(
+ params?: ListAlertsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAlerts>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListAlertsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getMarkAlertsReadUrl = () => {
+
+
+
+
+  return `/api/alerts/mark-read`
+}
+
+/**
+ * @summary Mark alerts read (specific ids, or all unread when ids omitted)
+ */
+export const markAlertsRead = async (markAlertsReadInput: MarkAlertsReadInput, options?: RequestInit): Promise<UnreadCount> => {
+
+  return customFetch<UnreadCount>(getMarkAlertsReadUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(markAlertsReadInput)
+  }
+);}
+
+
+
+
+
+export const getMarkAlertsReadMutationOptions = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof markAlertsRead>>, TError,{data: BodyType<MarkAlertsReadInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof markAlertsRead>>, TError,{data: BodyType<MarkAlertsReadInput>}, TContext> => {
+
+const mutationKey = ['markAlertsRead'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof markAlertsRead>>, {data: BodyType<MarkAlertsReadInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  markAlertsRead(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type MarkAlertsReadMutationResult = NonNullable<Awaited<ReturnType<typeof markAlertsRead>>>
+    export type MarkAlertsReadMutationBody = BodyType<MarkAlertsReadInput>
+    export type MarkAlertsReadMutationError = ErrorType<ApiMessage>
+
+    /**
+ * @summary Mark alerts read (specific ids, or all unread when ids omitted)
+ */
+export const useMarkAlertsRead = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof markAlertsRead>>, TError,{data: BodyType<MarkAlertsReadInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof markAlertsRead>>,
+        TError,
+        {data: BodyType<MarkAlertsReadInput>},
+        TContext
+      > => {
+      return useMutation(getMarkAlertsReadMutationOptions(options));
+    }
+
+export const getGetAlertSettingsUrl = () => {
+
+
+
+
+  return `/api/alerts/settings`
+}
+
+/**
+ * @summary Current alert thresholds
+ */
+export const getAlertSettings = async ( options?: RequestInit): Promise<AlertSettings> => {
+
+  return customFetch<AlertSettings>(getGetAlertSettingsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetAlertSettingsQueryKey = () => {
+    return [
+    `/api/alerts/settings`
+    ] as const;
+    }
+
+
+export const getGetAlertSettingsQueryOptions = <TData = Awaited<ReturnType<typeof getAlertSettings>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAlertSettings>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetAlertSettingsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getAlertSettings>>> = ({ signal }) => getAlertSettings({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getAlertSettings>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetAlertSettingsQueryResult = NonNullable<Awaited<ReturnType<typeof getAlertSettings>>>
+export type GetAlertSettingsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Current alert thresholds
+ */
+
+export function useGetAlertSettings<TData = Awaited<ReturnType<typeof getAlertSettings>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAlertSettings>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetAlertSettingsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getUpdateAlertSettingsUrl = () => {
+
+
+
+
+  return `/api/alerts/settings`
+}
+
+/**
+ * @summary Update alert thresholds
+ */
+export const updateAlertSettings = async (alertSettingsInput: AlertSettingsInput, options?: RequestInit): Promise<AlertSettings> => {
+
+  return customFetch<AlertSettings>(getUpdateAlertSettingsUrl(),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(alertSettingsInput)
+  }
+);}
+
+
+
+
+
+export const getUpdateAlertSettingsMutationOptions = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateAlertSettings>>, TError,{data: BodyType<AlertSettingsInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateAlertSettings>>, TError,{data: BodyType<AlertSettingsInput>}, TContext> => {
+
+const mutationKey = ['updateAlertSettings'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateAlertSettings>>, {data: BodyType<AlertSettingsInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  updateAlertSettings(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateAlertSettingsMutationResult = NonNullable<Awaited<ReturnType<typeof updateAlertSettings>>>
+    export type UpdateAlertSettingsMutationBody = BodyType<AlertSettingsInput>
+    export type UpdateAlertSettingsMutationError = ErrorType<ApiMessage>
+
+    /**
+ * @summary Update alert thresholds
+ */
+export const useUpdateAlertSettings = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateAlertSettings>>, TError,{data: BodyType<AlertSettingsInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateAlertSettings>>,
+        TError,
+        {data: BodyType<AlertSettingsInput>},
+        TContext
+      > => {
+      return useMutation(getUpdateAlertSettingsMutationOptions(options));
     }
 
 export const getGetAdminCatalogUrl = () => {

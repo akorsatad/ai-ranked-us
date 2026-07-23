@@ -1,7 +1,12 @@
 import React from 'react';
 import { Link, useLocation } from 'wouter';
-import { Activity, LayoutDashboard, History, Zap, ServerCrash, Settings } from 'lucide-react';
-import { useHealthCheck, getHealthCheckQueryKey } from '@workspace/api-client-react';
+import { Activity, LayoutDashboard, History, Zap, ServerCrash, Settings, Bell } from 'lucide-react';
+import {
+  useHealthCheck,
+  getHealthCheckQueryKey,
+  useListAlerts,
+  getListAlertsQueryKey,
+} from '@workspace/api-client-react';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -16,9 +21,21 @@ export function Layout({ children }: LayoutProps) {
     }
   });
 
+  const { data: alertData } = useListAlerts(
+    { unreadOnly: true, limit: 1 },
+    {
+      query: {
+        queryKey: getListAlertsQueryKey({ unreadOnly: true, limit: 1 }),
+        refetchInterval: 60000,
+      },
+    },
+  );
+  const unreadAlerts = alertData?.unreadCount ?? 0;
+
   const navItems = [
     { href: '/', label: 'Overview', icon: LayoutDashboard },
     { href: '/runs', label: 'Runs History', icon: History },
+    { href: '/alerts', label: 'Alerts', icon: Bell, badge: unreadAlerts },
     { href: '/admin', label: 'Admin', icon: Settings },
   ];
 
@@ -53,6 +70,14 @@ export function Layout({ children }: LayoutProps) {
                   >
                     <Icon className="w-4 h-4" />
                     {item.label}
+                    {'badge' in item && (item.badge ?? 0) > 0 && (
+                      <span
+                        className="ml-1 inline-flex items-center justify-center min-w-5 h-5 px-1.5 rounded-full bg-destructive text-destructive-foreground text-[11px] font-bold"
+                        data-testid="badge-unread-alerts"
+                      >
+                        {item.badge}
+                      </span>
+                    )}
                   </Link>
                 );
               })}

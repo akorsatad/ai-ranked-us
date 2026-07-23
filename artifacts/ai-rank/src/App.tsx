@@ -14,6 +14,7 @@ import AdminEngines from './pages/admin/engines';
 import AdminApiKeys from './pages/admin/api-keys';
 import AdminData from './pages/admin/data';
 import { Terms, Privacy } from './pages/legal';
+import Alerts from './pages/alerts';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -39,6 +40,7 @@ function Router() {
         <Route path="/admin/data" component={AdminData} />
         <Route path="/terms" component={Terms} />
         <Route path="/privacy" component={Privacy} />
+        <Route path="/alerts" component={Alerts} />
         <Route component={NotFound} />
       </Switch>
     </Layout>

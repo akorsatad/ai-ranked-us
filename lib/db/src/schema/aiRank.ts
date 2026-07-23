@@ -100,6 +100,32 @@ export const surveyResponsesTable = pgTable("survey_responses", {
     .defaultNow(),
 });
 
+export const brandAlertsTable = pgTable("brand_alerts", {
+  id: serial("id").primaryKey(),
+  runId: integer("run_id")
+    .notNull()
+    .references(() => surveyRunsTable.id),
+  brandId: integer("brand_id")
+    .notNull()
+    .references(() => brandsTable.id),
+  brandName: text("brand_name").notNull(),
+  industryId: integer("industry_id")
+    .notNull()
+    .references(() => industriesTable.id),
+  industryName: text("industry_name").notNull(),
+  metricKey: text("metric_key").notNull(),
+  metricLabel: text("metric_label").notNull(),
+  kind: text("kind").notNull(), // score_drop | rank_drop
+  previousValue: integer("previous_value").notNull(), // score x10 for score alerts, rank for rank alerts
+  currentValue: integer("current_value").notNull(),
+  delta: integer("delta").notNull(), // magnitude of the drop (score x10 or rank positions)
+  threshold: integer("threshold").notNull(), // threshold in effect when triggered (score x10 or positions)
+  read: boolean("read").notNull().default(false),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
 export const insertIndustrySchema = createInsertSchema(industriesTable).omit({
   id: true,
 });
@@ -109,3 +135,4 @@ export type BrandRow = typeof brandsTable.$inferSelect;
 export type EngineRow = typeof enginesTable.$inferSelect;
 export type SurveyRunRow = typeof surveyRunsTable.$inferSelect;
 export type SurveyResponseRow = typeof surveyResponsesTable.$inferSelect;
+export type BrandAlertRow = typeof brandAlertsTable.$inferSelect;

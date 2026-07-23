@@ -18,6 +18,8 @@ tags:
     description: Survey runs
   - name: admin
     description: Admin management operations
+  - name: alerts
+    description: Sharp-drop alerts computed after each survey run
 paths:
   /healthz:
     get:
@@ -148,6 +150,88 @@ paths:
                 $ref: "#/components/schemas/SurveyRun"
         "409":
           description: A run is already in progress
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+  /alerts:
+    get:
+      operationId: listAlerts
+      tags: [alerts]
+      summary: Alert feed, newest first, plus unread count
+      parameters:
+        - name: unreadOnly
+          in: query
+          required: false
+          schema:
+            type: boolean
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Alerts
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AlertFeed"
+  /alerts/mark-read:
+    post:
+      operationId: markAlertsRead
+      tags: [alerts]
+      summary: Mark alerts read (specific ids, or all unread when ids omitted)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MarkAlertsReadInput"
+      responses:
+        "200":
+          description: Updated unread count
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UnreadCount"
+        "400":
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+  /alerts/settings:
+    get:
+      operationId: getAlertSettings
+      tags: [alerts]
+      summary: Current alert thresholds
+      responses:
+        "200":
+          description: Settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AlertSettings"
+    put:
+      operationId: updateAlertSettings
+      tags: [alerts]
+      summary: Update alert thresholds
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AlertSettingsInput"
+      responses:
+        "200":
+          description: Updated settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AlertSettings"
+        "400":
+          description: Invalid input
           content:
             application/json:
               schema:
@@ -446,6 +530,87 @@ components:
         message:
           type: string
       required: [message]
+    BrandAlert:
+      type: object
+      properties:
+        id: { type: integer }
+        runId: { type: integer }
+        brandId: { type: integer }
+        brandName: { type: string }
+        industryId: { type: integer }
+        industryName: { type: string }
+        metric: { type: string }
+        metricLabel: { type: string }
+        kind:
+          type: string
+          enum: [score_drop, rank_drop]
+        previousValue: { type: number }
+        currentValue: { type: number }
+        delta: { type: number }
+        threshold: { type: number }
+        read: { type: boolean }
+        createdAt: { type: string }
+      required:
+        [
+          id,
+          runId,
+          brandId,
+          brandName,
+          industryId,
+          industryName,
+          metric,
+          metricLabel,
+          kind,
+          previousValue,
+          currentValue,
+          delta,
+          threshold,
+          read,
+          createdAt,
+        ]
+    AlertFeed:
+      type: object
+      properties:
+        alerts:
+          type: array
+          items:
+            $ref: "#/components/schemas/BrandAlert"
+        unreadCount: { type: integer }
+      required: [alerts, unreadCount]
+    UnreadCount:
+      type: object
+      properties:
+        unreadCount: { type: integer }
+      required: [unreadCount]
+    MarkAlertsReadInput:
+      type: object
+      properties:
+        ids:
+          type: array
+          items:
+            type: integer
+    AlertSettings:
+      type: object
+      properties:
+        scoreDropThreshold:
+          type: number
+          description: Score points (0-100) a brand must deteriorate by to alert
+        rankDropThreshold:
+          type: number
+          description: Ranking positions a brand must fall by to alert
+      required: [scoreDropThreshold, rankDropThreshold]
+    AlertSettingsInput:
+      type: object
+      properties:
+        scoreDropThreshold:
+          type: number
+          minimum: 1
+          maximum: 100
+        rankDropThreshold:
+          type: number
+          minimum: 1
+          maximum: 50
+      required: [scoreDropThreshold, rankDropThreshold]
     Industry:
       type: object
       properties:
