@@ -57,6 +57,7 @@ export const GetOverviewResponse = zod.object({
   "id": zod.number(),
   "status": zod.enum(['running', 'completed', 'failed', 'partial']),
   "trigger": zod.enum(['scheduled', 'manual']),
+  "industryId": zod.number().nullable().describe('When set, the run was scoped to this industry only'),
   "startedAt": zod.string(),
   "completedAt": zod.string().nullable(),
   "error": zod.string().nullable(),
@@ -153,6 +154,7 @@ export const ListRunsResponseItem = zod.object({
   "id": zod.number(),
   "status": zod.enum(['running', 'completed', 'failed', 'partial']),
   "trigger": zod.enum(['scheduled', 'manual']),
+  "industryId": zod.number().nullable().describe('When set, the run was scoped to this industry only'),
   "startedAt": zod.string(),
   "completedAt": zod.string().nullable(),
   "error": zod.string().nullable(),
@@ -164,12 +166,17 @@ export const ListRunsResponse = zod.array(ListRunsResponseItem)
 
 
 /**
- * @summary Trigger a survey run now
+ * @summary Trigger a survey run now (optionally scoped to one industry)
  */
+export const TriggerRunBody = zod.object({
+  "industryId": zod.number().optional().describe('Scope the run to a single industry; omit for a full run')
+})
+
 export const TriggerRunResponse = zod.object({
   "id": zod.number(),
   "status": zod.enum(['running', 'completed', 'failed', 'partial']),
   "trigger": zod.enum(['scheduled', 'manual']),
+  "industryId": zod.number().nullable().describe('When set, the run was scoped to this industry only'),
   "startedAt": zod.string(),
   "completedAt": zod.string().nullable(),
   "error": zod.string().nullable(),

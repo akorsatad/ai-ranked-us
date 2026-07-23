@@ -147,6 +147,7 @@ function parseResponse(
 
 export async function startSurveyRun(
   trigger: "scheduled" | "manual",
+  industryId?: number,
 ): Promise<SurveyRunRow | null> {
   if (runInProgress) return null;
   runInProgress = true;
@@ -155,7 +156,7 @@ export async function startSurveyRun(
     (e) => e.enabled,
   );
   const industries = (await db.select().from(industriesTable)).filter(
-    (i) => i.enabled,
+    (i) => i.enabled && (industryId == null || i.id === industryId),
   );
   const brands = (await db.select().from(brandsTable)).filter(
     (b) => b.enabled,
@@ -179,6 +180,7 @@ export async function startSurveyRun(
     .values({
       status: "running",
       trigger,
+      industryId: industryId ?? null,
       totalQueries: queries.length,
     })
     .returning();

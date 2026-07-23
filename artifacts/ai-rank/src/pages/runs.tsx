@@ -46,7 +46,7 @@ export default function Runs() {
   });
 
   const handleTrigger = () => {
-    triggerRun.mutate();
+    triggerRun.mutate({});
   };
 
   return (

@@ -47,6 +47,7 @@ import type {
   ProviderKeyStatus,
   SurveyRun,
   TablePage,
+  TriggerRunInput,
   UnreadCount
 } from './api.schemas';
 
@@ -573,16 +574,16 @@ export const getTriggerRunUrl = () => {
 }
 
 /**
- * @summary Trigger a survey run now
+ * @summary Trigger a survey run now (optionally scoped to one industry)
  */
-export const triggerRun = async ( options?: RequestInit): Promise<SurveyRun> => {
+export const triggerRun = async (triggerRunInput?: TriggerRunInput, options?: RequestInit): Promise<SurveyRun> => {
 
   return customFetch<SurveyRun>(getTriggerRunUrl(),
   {
     ...options,
-    method: 'POST'
-
-
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(triggerRunInput)
   }
 );}
 
@@ -591,8 +592,8 @@ export const triggerRun = async ( options?: RequestInit): Promise<SurveyRun> => 
 
 
 export const getTriggerRunMutationOptions = <TError = ErrorType<ApiMessage>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof triggerRun>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof triggerRun>>, TError,void, TContext> => {
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof triggerRun>>, TError,{data?: BodyType<TriggerRunInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof triggerRun>>, TError,{data?: BodyType<TriggerRunInput>}, TContext> => {
 
 const mutationKey = ['triggerRun'];
 const {mutation: mutationOptions, request: requestOptions} = options ?
@@ -604,10 +605,10 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof triggerRun>>, void> = () => {
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof triggerRun>>, {data?: BodyType<TriggerRunInput>}> = (props) => {
+          const {data} = props ?? {};
 
-
-          return  triggerRun(requestOptions)
+          return  triggerRun(data,requestOptions)
         }
 
 
@@ -618,18 +619,18 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
   return  { mutationFn, ...mutationOptions }}
 
     export type TriggerRunMutationResult = NonNullable<Awaited<ReturnType<typeof triggerRun>>>
-
+    export type TriggerRunMutationBody = BodyType<TriggerRunInput> | undefined
     export type TriggerRunMutationError = ErrorType<ApiMessage>
 
     /**
- * @summary Trigger a survey run now
+ * @summary Trigger a survey run now (optionally scoped to one industry)
  */
 export const useTriggerRun = <TError = ErrorType<ApiMessage>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof triggerRun>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof triggerRun>>, TError,{data?: BodyType<TriggerRunInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof triggerRun>>,
         TError,
-        void,
+        {data?: BodyType<TriggerRunInput>},
         TContext
       > => {
       return useMutation(getTriggerRunMutationOptions(options));

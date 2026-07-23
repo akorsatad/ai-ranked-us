@@ -140,7 +140,13 @@ paths:
     post:
       operationId: triggerRun
       tags: [runs]
-      summary: Trigger a survey run now
+      summary: Trigger a survey run now (optionally scoped to one industry)
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TriggerRunInput"
       responses:
         "202":
           description: Run started
@@ -148,6 +154,18 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/SurveyRun"
+        "400":
+          description: Invalid or disabled industry
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "404":
+          description: Industry not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
         "409":
           description: A run is already in progress
           content:
@@ -910,10 +928,19 @@ components:
         trigger:
           type: string
           enum: [scheduled, manual]
+        industryId:
+          type: ["integer", "null"]
+          description: When set, the run was scoped to this industry only
         startedAt: { type: string }
         completedAt: { type: ["string", "null"] }
         error: { type: ["string", "null"] }
         totalQueries: { type: integer }
         succeededQueries: { type: integer }
         failedQueries: { type: integer }
-      required: [id, status, trigger, startedAt, completedAt, error, totalQueries, succeededQueries, failedQueries]
+      required: [id, status, trigger, industryId, startedAt, completedAt, error, totalQueries, succeededQueries, failedQueries]
+    TriggerRunInput:
+      type: object
+      properties:
+        industryId:
+          type: integer
+          description: Scope the run to a single industry; omit for a full run

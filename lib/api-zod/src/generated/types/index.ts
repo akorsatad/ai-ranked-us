@@ -49,4 +49,5 @@ export * from './surveyRunTrigger';
 export * from './tablePage';
 export * from './tablePageRowsItem';
 export * from './trendPoint';
+export * from './triggerRunInput';
 export * from './unreadCount';

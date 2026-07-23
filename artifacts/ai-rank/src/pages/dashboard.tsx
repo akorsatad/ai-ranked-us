@@ -78,7 +78,7 @@ export default function Dashboard() {
   });
 
   const handleTrigger = () => {
-    triggerRun.mutate();
+    triggerRun.mutate({});
   };
 
   const hasData = overview && overview.responsesCount > 0;

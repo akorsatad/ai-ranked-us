@@ -12,6 +12,11 @@ export interface SurveyRun {
   id: number;
   status: SurveyRunStatus;
   trigger: SurveyRunTrigger;
+  /**
+     * When set, the run was scoped to this industry only
+     * @nullable
+     */
+  industryId: number | null;
   startedAt: string;
   /** @nullable */
   completedAt: string | null;

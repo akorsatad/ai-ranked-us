@@ -330,6 +330,11 @@ export interface SurveyRun {
   id: number;
   status: SurveyRunStatus;
   trigger: SurveyRunTrigger;
+  /**
+     * When set, the run was scoped to this industry only
+     * @nullable
+     */
+  industryId: number | null;
   startedAt: string;
   /** @nullable */
   completedAt: string | null;
@@ -348,6 +353,11 @@ export interface Overview {
   responsesCount: number;
   /** Top brand per industry per metric (averaged across engines) */
   leaders: IndustryLeader[];
+}
+
+export interface TriggerRunInput {
+  /** Scope the run to a single industry; omit for a full run */
+  industryId?: number;
 }
 
 export type GetIndustryRankingsParams = {

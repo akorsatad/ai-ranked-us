@@ -61,6 +61,7 @@ export const surveyRunsTable = pgTable("survey_runs", {
   id: serial("id").primaryKey(),
   status: text("status").notNull().default("running"), // running | completed | failed | partial
   trigger: text("trigger").notNull().default("manual"), // scheduled | manual
+  industryId: integer("industry_id").references(() => industriesTable.id), // null = full run, set = scoped to one industry
   startedAt: timestamp("started_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

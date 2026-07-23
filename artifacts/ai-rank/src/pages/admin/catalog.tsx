@@ -7,9 +7,11 @@ import {
   useCreateBrand,
   useUpdateBrand,
   getGetCatalogQueryKey,
+  useTriggerRun,
+  getListRunsQueryKey,
 } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Building2, Plus, Pencil, Check, X } from 'lucide-react';
+import { Building2, Plus, Pencil, Check, X, Play, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -142,6 +144,48 @@ function InlineEdit({ value, onSave }: { value: string; onSave: (v: string) => v
   );
 }
 
+function SurveyIndustryButton({ industry }: { industry: IndustryRowData }) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  const triggerRun = useTriggerRun({
+    mutation: {
+      onSuccess: () => {
+        toast({
+          title: 'Industry Survey Started',
+          description: `Surveying ${industry.name} only — results will appear shortly.`,
+        });
+        queryClient.invalidateQueries({ queryKey: getListRunsQueryKey() });
+      },
+      onError: (error) => {
+        toast({
+          variant: 'destructive',
+          title: 'Survey Failed to Start',
+          description: error.message || 'Could not start the industry survey',
+        });
+      },
+    },
+  });
+
+  return (
+    <Button
+      variant="outline"
+      size="sm"
+      className="gap-1.5 font-mono"
+      disabled={!industry.enabled || triggerRun.isPending}
+      onClick={() => triggerRun.mutate({ data: { industryId: industry.id } })}
+      data-testid={`button-survey-industry-${industry.id}`}
+    >
+      {triggerRun.isPending ? (
+        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+      ) : (
+        <Play className="w-3.5 h-3.5" />
+      )}
+      Survey now
+    </Button>
+  );
+}
+
 function IndustryCard(props: {
   industry: IndustryRowData;
   brands: BrandRowData[];
@@ -168,6 +212,7 @@ function IndustryCard(props: {
             <Badge variant="outline" className="font-mono text-xs">{industry.slug}</Badge>
           </CardTitle>
           <div className="flex items-center gap-2">
+            <SurveyIndustryButton industry={industry} />
             <span className="text-xs font-mono text-muted-foreground">{industry.enabled ? 'Enabled' : 'Disabled'}</span>
             <Switch checked={industry.enabled} onCheckedChange={props.onToggleIndustry} />
           </div>
