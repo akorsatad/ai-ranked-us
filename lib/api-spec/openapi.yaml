@@ -123,6 +123,48 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiMessage"
+  /movers:
+    get:
+      operationId: getMovers
+      tags: [rankings]
+      summary: Biggest brand rank/score movers between the two most recent runs
+      responses:
+        "200":
+          description: Movers report
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MoversReport"
+  /industries/{industryId}/history:
+    get:
+      operationId: getIndustryHistory
+      tags: [rankings]
+      summary: Real measured per-run historical score series for an industry metric
+      parameters:
+        - name: industryId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: metric
+          in: query
+          required: true
+          description: Metric key (e.g. positive_sentiment)
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Historical series from stored survey runs
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IndustryHistory"
+        "404":
+          description: Industry not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
   /runs:
     get:
       operationId: listRuns
@@ -941,6 +983,74 @@ components:
           items:
             $ref: "#/components/schemas/BrandTrend"
       required: [industryId, industryName, metric, engine, brands]
+    Mover:
+      type: object
+      properties:
+        industryId: { type: integer }
+        industryName: { type: string }
+        metric: { type: string }
+        metricLabel: { type: string }
+        brandId: { type: integer }
+        brandName: { type: string }
+        previousRank: { type: integer }
+        currentRank: { type: integer }
+        rankDelta:
+          type: integer
+          description: Positive = moved up (improved), negative = moved down
+        previousScore: { type: number }
+        currentScore: { type: number }
+        scoreDelta:
+          type: number
+          description: currentScore - previousScore
+      required:
+        [industryId, industryName, metric, metricLabel, brandId, brandName,
+         previousRank, currentRank, rankDelta, previousScore, currentScore, scoreDelta]
+    MoversReport:
+      type: object
+      properties:
+        latestRunId: { type: ["integer", "null"] }
+        previousRunId: { type: ["integer", "null"] }
+        latestRunAt: { type: ["string", "null"] }
+        previousRunAt: { type: ["string", "null"] }
+        movers:
+          type: array
+          description: Sorted by absolute movement, biggest first
+          items:
+            $ref: "#/components/schemas/Mover"
+      required: [latestRunId, previousRunId, latestRunAt, previousRunAt, movers]
+    HistoryPoint:
+      type: object
+      properties:
+        runId: { type: integer }
+        date:
+          type: string
+          description: ISO timestamp of the run's responses
+        score: { type: number }
+      required: [runId, date, score]
+    BrandHistory:
+      type: object
+      properties:
+        brandId: { type: integer }
+        brandName: { type: string }
+        points:
+          type: array
+          items:
+            $ref: "#/components/schemas/HistoryPoint"
+      required: [brandId, brandName, points]
+    IndustryHistory:
+      type: object
+      properties:
+        industryId: { type: integer }
+        industryName: { type: string }
+        metric: { type: string }
+        runsCount:
+          type: integer
+          description: Number of distinct runs with data for this industry/metric
+        brands:
+          type: array
+          items:
+            $ref: "#/components/schemas/BrandHistory"
+      required: [industryId, industryName, metric, runsCount, brands]
     IndustryLeader:
       type: object
       properties:

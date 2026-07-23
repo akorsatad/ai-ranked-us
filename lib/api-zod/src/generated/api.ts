@@ -148,6 +148,59 @@ export const GetIndustryTrendsResponse = zod.object({
 
 
 /**
+ * @summary Biggest brand rank/score movers between the two most recent runs
+ */
+export const GetMoversResponse = zod.object({
+  "latestRunId": zod.number().nullable(),
+  "previousRunId": zod.number().nullable(),
+  "latestRunAt": zod.string().nullable(),
+  "previousRunAt": zod.string().nullable(),
+  "movers": zod.array(zod.object({
+  "industryId": zod.number(),
+  "industryName": zod.string(),
+  "metric": zod.string(),
+  "metricLabel": zod.string(),
+  "brandId": zod.number(),
+  "brandName": zod.string(),
+  "previousRank": zod.number(),
+  "currentRank": zod.number(),
+  "rankDelta": zod.number().describe('Positive = moved up (improved), negative = moved down'),
+  "previousScore": zod.number(),
+  "currentScore": zod.number(),
+  "scoreDelta": zod.number().describe('currentScore - previousScore')
+})).describe('Sorted by absolute movement, biggest first')
+})
+
+
+/**
+ * @summary Real measured per-run historical score series for an industry metric
+ */
+export const GetIndustryHistoryParams = zod.object({
+  "industryId": zod.coerce.number()
+})
+
+export const GetIndustryHistoryQueryParams = zod.object({
+  "metric": zod.coerce.string().describe('Metric key (e.g. positive_sentiment)')
+})
+
+export const GetIndustryHistoryResponse = zod.object({
+  "industryId": zod.number(),
+  "industryName": zod.string(),
+  "metric": zod.string(),
+  "runsCount": zod.number().describe('Number of distinct runs with data for this industry\/metric'),
+  "brands": zod.array(zod.object({
+  "brandId": zod.number(),
+  "brandName": zod.string(),
+  "points": zod.array(zod.object({
+  "runId": zod.number(),
+  "date": zod.string().describe('ISO timestamp of the run\'s responses'),
+  "score": zod.number()
+}))
+}))
+})
+
+
+/**
  * @summary Survey run history, newest first
  */
 export const ListRunsResponseItem = zod.object({

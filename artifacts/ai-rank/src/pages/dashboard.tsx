@@ -7,7 +7,9 @@ import {
   getListRunsQueryKey,
   useTriggerRun,
   useGetCatalog,
-  getGetCatalogQueryKey
+  getGetCatalogQueryKey,
+  useGetMovers,
+  getGetMoversQueryKey
 } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { 
@@ -18,7 +20,10 @@ import {
   Play, 
   AlertCircle,
   Trophy,
-  ArrowRight
+  ArrowRight,
+  TrendingUp,
+  TrendingDown,
+  Minus
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -47,6 +52,13 @@ export default function Dashboard() {
   const { data: overview, isLoading: isLoadingOverview } = useGetOverview({
     query: {
       queryKey: getGetOverviewQueryKey(),
+      refetchInterval: isRunning ? 3000 : false,
+    }
+  });
+
+  const { data: moversReport } = useGetMovers({
+    query: {
+      queryKey: getGetMoversQueryKey(),
       refetchInterval: isRunning ? 3000 : false,
     }
   });
@@ -152,6 +164,71 @@ export default function Dashboard() {
         <StatCard title="AI Engines" value={overview?.enginesCount || 0} icon={Cpu} />
         <StatCard title="Total Responses" value={overview?.responsesCount || 0} icon={MessageSquare} highlight />
       </div>
+
+      {/* Biggest Movers since previous run */}
+      {hasData && moversReport && moversReport.movers.length > 0 && (
+        <div className="space-y-6">
+          <div className="flex items-center justify-between">
+            <h2 className="text-2xl font-bold tracking-tight">Biggest Movers</h2>
+            <p className="text-sm text-muted-foreground font-mono">
+              {moversReport.previousRunAt
+                ? `vs. run ${formatDistanceToNow(new Date(moversReport.previousRunAt), { addSuffix: true })}`
+                : 'vs. previous run'}
+            </p>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+            {moversReport.movers.slice(0, 6).map((mover, idx) => {
+              const up = mover.rankDelta > 0 || (mover.rankDelta === 0 && mover.scoreDelta > 0);
+              const flat = mover.rankDelta === 0;
+              return (
+                <Card
+                  key={`${mover.industryId}-${mover.metric}-${mover.brandId}`}
+                  className="border-border animate-in fade-in slide-in-from-bottom-2"
+                  style={{ animationDelay: `${idx * 60}ms`, animationFillMode: 'both' }}
+                >
+                  <CardContent className="p-5 flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className={`p-2 rounded-lg shrink-0 ${
+                        flat ? 'bg-muted text-muted-foreground'
+                          : up ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                          : 'bg-red-500/10 text-red-600 dark:text-red-400'
+                      }`}>
+                        {flat ? <Minus className="w-5 h-5" /> : up ? <TrendingUp className="w-5 h-5" /> : <TrendingDown className="w-5 h-5" />}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="font-bold truncate">{mover.brandName}</p>
+                        <p className="text-xs text-muted-foreground font-mono truncate">
+                          {mover.industryName} • {mover.metricLabel}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="text-right shrink-0">
+                      {mover.rankDelta !== 0 ? (
+                        <p className={`font-mono font-bold ${up ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
+                          {mover.rankDelta > 0 ? '▲' : '▼'} {Math.abs(mover.rankDelta)} {Math.abs(mover.rankDelta) === 1 ? 'spot' : 'spots'}
+                        </p>
+                      ) : (
+                        <p className={`font-mono font-bold ${mover.scoreDelta > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
+                          {mover.scoreDelta > 0 ? '+' : ''}{mover.scoreDelta.toFixed(1)} pts
+                        </p>
+                      )}
+                      <p className="text-xs text-muted-foreground font-mono mt-1">
+                        #{mover.previousRank} → #{mover.currentRank} • {mover.scoreDelta > 0 ? '+' : ''}{mover.scoreDelta.toFixed(1)}
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {hasData && moversReport && moversReport.previousRunId == null && (
+        <p className="text-sm text-muted-foreground font-mono">
+          Day-over-day movement will appear here once a second survey run completes.
+        </p>
+      )}
 
       {/* Main Content: Industry Leaders */}
       {hasData && catalog && overview && (

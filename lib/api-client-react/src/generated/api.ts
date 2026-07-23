@@ -34,16 +34,19 @@ import type {
   Catalog,
   EngineInput,
   EngineUpdate,
+  GetIndustryHistoryParams,
   GetIndustryRankingsParams,
   GetIndustryTrendsParams,
   HealthStatus,
   Industry,
+  IndustryHistory,
   IndustryInput,
   IndustryRankings,
   IndustryTrends,
   IndustryUpdate,
   ListAlertsParams,
   MarkAlertsReadInput,
+  MoversReport,
   Overview,
   ProviderKeyStatus,
   SurveyRun,
@@ -477,6 +480,172 @@ export function useGetIndustryTrends<TData = Awaited<ReturnType<typeof getIndust
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetIndustryTrendsQueryOptions(industryId,params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetMoversUrl = () => {
+
+
+
+
+  return `/api/movers`
+}
+
+/**
+ * @summary Biggest brand rank/score movers between the two most recent runs
+ */
+export const getMovers = async ( options?: RequestInit): Promise<MoversReport> => {
+
+  return customFetch<MoversReport>(getGetMoversUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetMoversQueryKey = () => {
+    return [
+    `/api/movers`
+    ] as const;
+    }
+
+
+export const getGetMoversQueryOptions = <TData = Awaited<ReturnType<typeof getMovers>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMovers>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMoversQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMovers>>> = ({ signal }) => getMovers({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMovers>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetMoversQueryResult = NonNullable<Awaited<ReturnType<typeof getMovers>>>
+export type GetMoversQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Biggest brand rank/score movers between the two most recent runs
+ */
+
+export function useGetMovers<TData = Awaited<ReturnType<typeof getMovers>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMovers>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetMoversQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetIndustryHistoryUrl = (industryId: number,
+    params: GetIndustryHistoryParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/industries/${industryId}/history?${stringifiedParams}` : `/api/industries/${industryId}/history`
+}
+
+/**
+ * @summary Real measured per-run historical score series for an industry metric
+ */
+export const getIndustryHistory = async (industryId: number,
+    params: GetIndustryHistoryParams, options?: RequestInit): Promise<IndustryHistory> => {
+
+  return customFetch<IndustryHistory>(getGetIndustryHistoryUrl(industryId,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetIndustryHistoryQueryKey = (industryId: number,
+    params?: GetIndustryHistoryParams,) => {
+    return [
+    `/api/industries/${industryId}/history`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetIndustryHistoryQueryOptions = <TData = Awaited<ReturnType<typeof getIndustryHistory>>, TError = ErrorType<ApiMessage>>(industryId: number,
+    params: GetIndustryHistoryParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getIndustryHistory>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetIndustryHistoryQueryKey(industryId,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getIndustryHistory>>> = ({ signal }) => getIndustryHistory(industryId,params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: industryId !== null && industryId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getIndustryHistory>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetIndustryHistoryQueryResult = NonNullable<Awaited<ReturnType<typeof getIndustryHistory>>>
+export type GetIndustryHistoryQueryError = ErrorType<ApiMessage>
+
+
+/**
+ * @summary Real measured per-run historical score series for an industry metric
+ */
+
+export function useGetIndustryHistory<TData = Awaited<ReturnType<typeof getIndustryHistory>>, TError = ErrorType<ApiMessage>>(
+ industryId: number,
+    params: GetIndustryHistoryParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getIndustryHistory>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetIndustryHistoryQueryOptions(industryId,params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

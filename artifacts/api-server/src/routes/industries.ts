@@ -6,6 +6,8 @@ import {
   GetIndustryRankingsQueryParams,
   GetIndustryTrendsParams,
   GetIndustryTrendsQueryParams,
+  GetIndustryHistoryParams,
+  GetIndustryHistoryQueryParams,
 } from "@workspace/api-zod";
 import { getMetric } from "../lib/metrics";
 import {
@@ -13,6 +15,7 @@ import {
   averageEntries,
   averageTrends,
   rankEntries,
+  runSnapshots,
 } from "../lib/aggregate";
 
 const router: IRouter = Router();
@@ -95,6 +98,69 @@ router.get(
       metric: metric.key,
       engine: engineKey,
       brands: averageTrends(responses.map((r) => r.response)),
+    });
+    return;
+  },
+);
+
+router.get(
+  "/industries/:industryId/history",
+  async (req, res): Promise<void> => {
+    const params = GetIndustryHistoryParams.safeParse(req.params);
+    const query = GetIndustryHistoryQueryParams.safeParse(req.query);
+    if (!params.success || !query.success) {
+      res.status(400).json({ message: "Invalid parameters" });
+      return;
+    }
+    const metric = getMetric(query.data.metric);
+    if (!metric) {
+      res.status(400).json({ message: `Unknown metric: ${query.data.metric}` });
+      return;
+    }
+    const [industry] = await db
+      .select()
+      .from(industriesTable)
+      .where(eq(industriesTable.id, params.data.industryId));
+    if (!industry) {
+      res.status(404).json({ message: "Industry not found" });
+      return;
+    }
+
+    const snapshots = await runSnapshots(
+      industry.id,
+      metric.key,
+      metric.higherIsBetter,
+    );
+
+    const byBrand = new Map<
+      number,
+      { brandName: string; points: { runId: number; date: string; score: number }[] }
+    >();
+    for (const snapshot of snapshots) {
+      for (const entry of snapshot.entries) {
+        let acc = byBrand.get(entry.brandId);
+        if (!acc) {
+          acc = { brandName: entry.brandName, points: [] };
+          byBrand.set(entry.brandId, acc);
+        }
+        acc.points.push({
+          runId: snapshot.runId,
+          date: snapshot.date,
+          score: entry.score,
+        });
+      }
+    }
+
+    res.status(200).json({
+      industryId: industry.id,
+      industryName: industry.name,
+      metric: metric.key,
+      runsCount: snapshots.length,
+      brands: [...byBrand.entries()].map(([brandId, acc]) => ({
+        brandId,
+        brandName: acc.brandName,
+        points: acc.points,
+      })),
     });
     return;
   },

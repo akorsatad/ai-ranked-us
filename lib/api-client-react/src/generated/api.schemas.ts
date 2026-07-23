@@ -338,6 +338,58 @@ export interface IndustryTrends {
   brands: BrandTrend[];
 }
 
+export interface Mover {
+  industryId: number;
+  industryName: string;
+  metric: string;
+  metricLabel: string;
+  brandId: number;
+  brandName: string;
+  previousRank: number;
+  currentRank: number;
+  /** Positive = moved up (improved), negative = moved down */
+  rankDelta: number;
+  previousScore: number;
+  currentScore: number;
+  /** currentScore - previousScore */
+  scoreDelta: number;
+}
+
+export interface MoversReport {
+  /** @nullable */
+  latestRunId: number | null;
+  /** @nullable */
+  previousRunId: number | null;
+  /** @nullable */
+  latestRunAt: string | null;
+  /** @nullable */
+  previousRunAt: string | null;
+  /** Sorted by absolute movement, biggest first */
+  movers: Mover[];
+}
+
+export interface HistoryPoint {
+  runId: number;
+  /** ISO timestamp of the run's responses */
+  date: string;
+  score: number;
+}
+
+export interface BrandHistory {
+  brandId: number;
+  brandName: string;
+  points: HistoryPoint[];
+}
+
+export interface IndustryHistory {
+  industryId: number;
+  industryName: string;
+  metric: string;
+  /** Number of distinct runs with data for this industry/metric */
+  runsCount: number;
+  brands: BrandHistory[];
+}
+
 export interface IndustryLeader {
   industryId: number;
   industryName: string;
@@ -413,6 +465,13 @@ metric: string;
  * Engine key to filter by; omitted = averaged across engines
  */
 engine?: string;
+};
+
+export type GetIndustryHistoryParams = {
+/**
+ * Metric key (e.g. positive_sentiment)
+ */
+metric: string;
 };
 
 export type BrowseTableParams = {

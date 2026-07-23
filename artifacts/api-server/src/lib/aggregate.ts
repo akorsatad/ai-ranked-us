@@ -1,8 +1,9 @@
-import { and, eq, desc } from "drizzle-orm";
+import { and, eq, desc, inArray } from "drizzle-orm";
 import {
   db,
   enginesTable,
   surveyResponsesTable,
+  surveyRunsTable,
   type EngineRow,
   type SurveyResponseRow,
   type StoredRankingEntry,
@@ -91,6 +92,102 @@ export function averageEntries(
     rationale: v.rationale,
   }));
   return rankEntries(averaged, higherIsBetter);
+}
+
+export interface RunSnapshot {
+  runId: number;
+  /** ISO timestamp of the latest response in the run for this pair */
+  date: string;
+  entries: StoredRankingEntry[];
+}
+
+/**
+ * Per-run averaged + ranked snapshots for an (industry, metric) pair,
+ * oldest run first. Each snapshot averages ok responses across engines
+ * within that run.
+ */
+export async function runSnapshots(
+  industryId: number,
+  metricKey: string,
+  higherIsBetter: boolean,
+): Promise<RunSnapshot[]> {
+  const responses = await db
+    .select()
+    .from(surveyResponsesTable)
+    .where(
+      and(
+        eq(surveyResponsesTable.industryId, industryId),
+        eq(surveyResponsesTable.metricKey, metricKey),
+        eq(surveyResponsesTable.status, "ok"),
+      ),
+    );
+  if (responses.length === 0) return [];
+
+  const byRun = new Map<number, SurveyResponseRow[]>();
+  for (const response of responses) {
+    const list = byRun.get(response.runId);
+    if (list) list.push(response);
+    else byRun.set(response.runId, [response]);
+  }
+
+  const runIds = [...byRun.keys()];
+  const runs = await db
+    .select()
+    .from(surveyRunsTable)
+    .where(inArray(surveyRunsTable.id, runIds));
+  const runStart = new Map(runs.map((r) => [r.id, r.startedAt.getTime()]));
+
+  return runIds
+    .sort((a, b) => (runStart.get(a) ?? 0) - (runStart.get(b) ?? 0))
+    .map((runId) => {
+      const runResponses = byRun.get(runId)!;
+      const latest = runResponses.reduce((max, r) =>
+        r.createdAt > max.createdAt ? r : max,
+      );
+      return {
+        runId,
+        date: latest.createdAt.toISOString(),
+        entries: averageEntries(runResponses, higherIsBetter),
+      };
+    });
+}
+
+export interface MoverComputation {
+  brandId: number;
+  brandName: string;
+  previousRank: number;
+  currentRank: number;
+  rankDelta: number;
+  previousScore: number;
+  currentScore: number;
+  scoreDelta: number;
+}
+
+/**
+ * Compare the two most recent run snapshots and compute per-brand movement.
+ * rankDelta > 0 means the brand moved UP (improved rank).
+ */
+export function computeMovers(
+  previous: RunSnapshot,
+  current: RunSnapshot,
+): MoverComputation[] {
+  const prevByBrand = new Map(previous.entries.map((e) => [e.brandId, e]));
+  const movers: MoverComputation[] = [];
+  for (const entry of current.entries) {
+    const prev = prevByBrand.get(entry.brandId);
+    if (!prev) continue;
+    movers.push({
+      brandId: entry.brandId,
+      brandName: entry.brandName,
+      previousRank: prev.rank,
+      currentRank: entry.rank,
+      rankDelta: prev.rank - entry.rank,
+      previousScore: prev.score,
+      currentScore: entry.score,
+      scoreDelta: Math.round((entry.score - prev.score) * 10) / 10,
+    });
+  }
+  return movers;
 }
 
 /**

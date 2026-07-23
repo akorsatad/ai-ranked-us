@@ -6,7 +6,9 @@ import {
   useGetIndustryRankings,
   getGetIndustryRankingsQueryKey,
   useGetIndustryTrends,
-  getGetIndustryTrendsQueryKey
+  getGetIndustryTrendsQueryKey,
+  useGetIndustryHistory,
+  getGetIndustryHistoryQueryKey
 } from '@workspace/api-client-react';
 import { 
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Legend
@@ -14,6 +16,7 @@ import {
 import { 
   Building2, 
   TrendingUp, 
+  History,
   Bot, 
   Info,
   ChevronRight,
@@ -75,6 +78,17 @@ export default function Industry() {
     }
   );
 
+  const { data: history, isLoading: isLoadingHistory } = useGetIndustryHistory(
+    industryId,
+    { metric: activeMetric },
+    {
+      query: {
+        enabled: !!industryId && !!activeMetric,
+        queryKey: getGetIndustryHistoryQueryKey(industryId, { metric: activeMetric })
+      }
+    }
+  );
+
   const industry = catalog?.industries.find(i => i.id === industryId);
   const metricInfo = catalog?.metrics.find(m => m.key === activeMetric);
 
@@ -100,6 +114,27 @@ export default function Industry() {
     
     return data;
   }, [trends]);
+
+  // Transform measured per-run history for Recharts (points keyed by runId)
+  const historyChartData = useMemo(() => {
+    if (!history || history.brands.length === 0) return [];
+
+    const runMap = new Map<number, { name: string; runId: number; [brand: string]: any }>();
+    for (const brand of history.brands) {
+      for (const point of brand.points) {
+        let row = runMap.get(point.runId);
+        if (!row) {
+          row = {
+            runId: point.runId,
+            name: new Date(point.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
+          };
+          runMap.set(point.runId, row);
+        }
+        row[brand.brandName] = point.score;
+      }
+    }
+    return [...runMap.values()].sort((a, b) => a.runId - b.runId);
+  }, [history]);
 
   if (isLoadingCatalog || !industry) {
     return (
@@ -231,6 +266,87 @@ export default function Industry() {
               ) : (
                 <div className="h-[400px] flex items-center justify-center text-muted-foreground font-mono">
                   No trend data available.
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Measured per-run history */}
+          <Card className="border-border">
+            <CardHeader className="border-b border-border bg-muted/20">
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <History className="w-5 h-5 text-primary" />
+                    Measured History
+                  </CardTitle>
+                  <CardDescription>
+                    Real day-over-day scores from stored survey runs (averaged across engines)
+                  </CardDescription>
+                </div>
+                {history && (
+                  <span className="text-xs font-mono bg-primary/10 px-2 py-1 rounded-md text-primary shrink-0">
+                    {history.runsCount} {history.runsCount === 1 ? 'RUN' : 'RUNS'}
+                  </span>
+                )}
+              </div>
+            </CardHeader>
+            <CardContent className="p-6">
+              {isLoadingHistory ? (
+                <Skeleton className="h-[300px] w-full" />
+              ) : historyChartData.length > 1 ? (
+                <div className="h-[300px] w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={historyChartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+                      <XAxis 
+                        dataKey="name" 
+                        stroke="hsl(var(--muted-foreground))" 
+                        fontSize={12} 
+                        fontFamily="var(--app-font-mono)"
+                        tickMargin={10}
+                      />
+                      <YAxis 
+                        domain={[0, 100]} 
+                        stroke="hsl(var(--muted-foreground))" 
+                        fontSize={12}
+                        fontFamily="var(--app-font-mono)"
+                        tickMargin={10}
+                      />
+                      <RechartsTooltip 
+                        contentStyle={{ 
+                          backgroundColor: 'hsl(var(--card))', 
+                          borderColor: 'hsl(var(--border))',
+                          borderRadius: '0.5rem',
+                          fontFamily: 'var(--app-font-mono)',
+                          fontSize: '12px',
+                          color: 'hsl(var(--foreground))'
+                        }}
+                        itemStyle={{ color: 'hsl(var(--foreground))' }}
+                      />
+                      <Legend 
+                        wrapperStyle={{ paddingTop: '20px', fontFamily: 'var(--app-font-sans)', fontSize: '14px' }}
+                      />
+                      {history?.brands.map((brand, i) => (
+                        <Line 
+                          key={brand.brandId}
+                          type="monotone" 
+                          dataKey={brand.brandName} 
+                          stroke={CHART_COLORS[i % CHART_COLORS.length]} 
+                          strokeWidth={2}
+                          dot={{ r: 4, strokeWidth: 2 }}
+                          activeDot={{ r: 6, strokeWidth: 0 }}
+                          connectNulls
+                        />
+                      ))}
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              ) : (
+                <div className="h-[120px] flex items-center justify-center text-center text-muted-foreground font-mono text-sm px-6">
+                  {historyChartData.length === 1
+                    ? 'One run recorded — measured history appears once a second survey run completes.'
+                    : 'No measured history yet. Run surveys to start building real day-over-day data.'}
                 </div>
               )}
             </CardContent>
