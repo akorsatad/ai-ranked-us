@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Space+Mono:ital,wght@0,400;0,700;1,400&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap');
 @layer theme, base, clerk, components, utilities;
 @import 'tailwindcss';
 @import '@clerk/themes/shadcn.css';
@@ -79,83 +79,83 @@
   --elevate-1: rgba(0, 0, 0, 0.03);
   --elevate-2: rgba(0, 0, 0, 0.08);
 
-  /* Cream / Off-white background */
-  --background: 40 33% 98%;
-  /* Deep Ink / Navy foreground */
-  --foreground: 220 35% 15%;
-  /* Soft grey border */
-  --border: 40 10% 88%;
+  /* Cool off-white canvas (datainc.ai) */
+  --background: 160 10% 96%;
+  /* Near-black ink foreground */
+  --foreground: 210 24% 12%;
+  /* Understated cool border */
+  --border: 160 8% 87%;
 
-  /* White-ish cards for contrast against cream */
+  /* White cards against the mist canvas */
   --card: 0 0% 100%;
-  --card-foreground: 220 35% 15%;
-  --card-border: 40 15% 92%;
+  --card-foreground: 210 24% 12%;
+  --card-border: 160 8% 90%;
 
-  /* Sidebar slightly darker cream */
-  --sidebar: 40 25% 95%;
-  --sidebar-foreground: 220 35% 15%;
-  --sidebar-border: 40 15% 90%;
-  --sidebar-primary: 225 85% 55%;
+  /* Sidebar slightly deeper mist */
+  --sidebar: 160 10% 94%;
+  --sidebar-foreground: 210 24% 12%;
+  --sidebar-border: 160 8% 87%;
+  --sidebar-primary: 160 84% 30%;
   --sidebar-primary-foreground: 0 0% 100%;
-  --sidebar-accent: 40 20% 90%;
-  --sidebar-accent-foreground: 220 35% 15%;
-  --sidebar-ring: 225 85% 55%;
+  --sidebar-accent: 160 12% 89%;
+  --sidebar-accent-foreground: 210 24% 12%;
+  --sidebar-ring: 160 84% 30%;
 
   --popover: 0 0% 100%;
-  --popover-foreground: 220 35% 15%;
-  --popover-border: 40 15% 92%;
+  --popover-foreground: 210 24% 12%;
+  --popover-border: 160 8% 90%;
 
-  /* Electric Cobalt */
-  --primary: 225 85% 55%;
+  /* Signal Emerald */
+  --primary: 160 84% 30%;
   --primary-foreground: 0 0% 100%;
 
-  /* Soft slate secondary */
-  --secondary: 220 15% 90%;
-  --secondary-foreground: 220 35% 15%;
+  /* Soft cool-grey secondary */
+  --secondary: 200 10% 90%;
+  --secondary-foreground: 210 24% 12%;
 
-  --muted: 40 15% 92%;
-  --muted-foreground: 220 15% 45%;
+  --muted: 160 8% 92%;
+  --muted-foreground: 200 8% 42%;
 
-  /* Chartreuse / Lime Accent */
-  --accent: 75 90% 45%;
-  --accent-foreground: 220 45% 15%;
+  /* Emerald accent (dark ink foreground for tinted uses) */
+  --accent: 160 78% 36%;
+  --accent-foreground: 165 100% 8%;
 
-  /* Deep Rose for destructive */
-  --destructive: 345 80% 55%;
+  /* Coral red for destructive / at-risk */
+  --destructive: 356 78% 56%;
   --destructive-foreground: 0 0% 100%;
 
-  --input: 40 10% 85%;
-  --ring: 225 85% 55%;
-  
-  /* Chart Colors */
-  --chart-1: 225 85% 55%; /* Cobalt */
-  --chart-2: 75 90% 45%;  /* Lime */
-  --chart-3: 280 80% 65%; /* Purple */
-  --chart-4: 345 80% 55%; /* Rose */
-  --chart-5: 45 95% 55%;  /* Orange/Amber */
+  --input: 160 8% 84%;
+  --ring: 160 84% 30%;
 
-  --app-font-sans: 'Outfit', sans-serif;
+  /* Chart Colors */
+  --chart-1: 160 84% 32%; /* Emerald */
+  --chart-2: 200 60% 45%; /* Steel blue */
+  --chart-3: 38 92% 50%;  /* Amber */
+  --chart-4: 356 78% 56%; /* Coral */
+  --chart-5: 260 45% 58%; /* Violet */
+
+  --app-font-sans: 'Inter', sans-serif;
   --app-font-serif: Georgia, serif;
-  --app-font-mono: 'Space Mono', monospace;
-  --radius: 0.5rem;
-  --shadow-2xs: 0px 2px 0px 0px hsl(220 35% 15% / 0.05);
-  --shadow-xs: 0px 2px 0px 0px hsl(220 35% 15% / 0.05);
+  --app-font-mono: 'IBM Plex Mono', monospace;
+  --radius: 0.375rem;
+  --shadow-2xs: 0px 1px 2px 0px hsl(210 24% 12% / 0.04);
+  --shadow-xs: 0px 1px 2px 0px hsl(210 24% 12% / 0.04);
   --shadow-sm:
-    0px 2px 0px 0px hsl(220 35% 15% / 0.05),
-    0px 1px 2px -1px hsl(220 35% 15% / 0.05);
+    0px 1px 2px 0px hsl(210 24% 12% / 0.04),
+    0px 1px 2px -1px hsl(210 24% 12% / 0.04);
   --shadow:
-    0px 2px 0px 0px hsl(220 35% 15% / 0.05),
-    0px 1px 2px -1px hsl(220 35% 15% / 0.05);
+    0px 1px 2px 0px hsl(210 24% 12% / 0.04),
+    0px 1px 2px -1px hsl(210 24% 12% / 0.04);
   --shadow-md:
-    0px 2px 0px 0px hsl(220 35% 15% / 0.05),
-    0px 2px 4px -1px hsl(220 35% 15% / 0.05);
+    0px 1px 2px 0px hsl(210 24% 12% / 0.04),
+    0px 2px 4px -1px hsl(210 24% 12% / 0.05);
   --shadow-lg:
-    0px 2px 0px 0px hsl(220 35% 15% / 0.05),
-    0px 4px 6px -1px hsl(220 35% 15% / 0.05);
+    0px 1px 2px 0px hsl(210 24% 12% / 0.04),
+    0px 4px 6px -1px hsl(210 24% 12% / 0.06);
   --shadow-xl:
-    0px 2px 0px 0px hsl(220 35% 15% / 0.05),
-    0px 8px 10px -1px hsl(220 35% 15% / 0.05);
-  --shadow-2xl: 0px 2px 0px 0px hsl(220 35% 15% / 0.05);
+    0px 1px 2px 0px hsl(210 24% 12% / 0.04),
+    0px 8px 10px -1px hsl(210 24% 12% / 0.06);
+  --shadow-2xl: 0px 1px 2px 0px hsl(210 24% 12% / 0.04);
   --tracking-normal: 0em;
   --spacing: 0.25rem;
 
@@ -175,51 +175,51 @@
   --elevate-1: rgba(255, 255, 255, 0.04);
   --elevate-2: rgba(255, 255, 255, 0.09);
 
-  /* Deep midnight background */
-  --background: 220 40% 6%;
-  --foreground: 40 20% 96%;
-  --border: 220 30% 16%;
+  /* Deep charcoal, faint green cast */
+  --background: 180 8% 6%;
+  --foreground: 160 8% 94%;
+  --border: 180 6% 16%;
 
-  --card: 220 35% 9%;
-  --card-foreground: 40 20% 96%;
-  --card-border: 220 30% 16%;
+  --card: 180 7% 9%;
+  --card-foreground: 160 8% 94%;
+  --card-border: 180 6% 16%;
 
-  --sidebar: 220 40% 6%;
-  --sidebar-foreground: 40 20% 96%;
-  --sidebar-border: 220 30% 16%;
-  --sidebar-primary: 225 85% 65%;
-  --sidebar-primary-foreground: 0 0% 100%;
-  --sidebar-accent: 220 30% 16%;
-  --sidebar-accent-foreground: 40 20% 96%;
-  --sidebar-ring: 225 85% 65%;
+  --sidebar: 180 8% 6%;
+  --sidebar-foreground: 160 8% 94%;
+  --sidebar-border: 180 6% 16%;
+  --sidebar-primary: 160 70% 42%;
+  --sidebar-primary-foreground: 165 100% 6%;
+  --sidebar-accent: 180 6% 15%;
+  --sidebar-accent-foreground: 160 8% 94%;
+  --sidebar-ring: 160 70% 42%;
 
-  --popover: 220 35% 9%;
-  --popover-foreground: 40 20% 96%;
-  --popover-border: 220 30% 16%;
+  --popover: 180 7% 9%;
+  --popover-foreground: 160 8% 94%;
+  --popover-border: 180 6% 16%;
 
-  --primary: 225 85% 65%;
-  --primary-foreground: 0 0% 100%;
+  --primary: 160 70% 42%;
+  --primary-foreground: 165 100% 6%;
 
-  --secondary: 220 30% 16%;
-  --secondary-foreground: 40 20% 96%;
+  --secondary: 180 6% 15%;
+  --secondary-foreground: 160 8% 94%;
 
-  --muted: 220 30% 16%;
-  --muted-foreground: 220 15% 65%;
+  --muted: 180 6% 15%;
+  --muted-foreground: 180 5% 62%;
 
-  --accent: 75 90% 55%;
-  --accent-foreground: 220 40% 10%;
+  --accent: 160 65% 46%;
+  --accent-foreground: 165 100% 6%;
 
-  --destructive: 345 80% 60%;
+  --destructive: 356 75% 60%;
   --destructive-foreground: 0 0% 100%;
 
-  --input: 220 30% 16%;
-  --ring: 225 85% 65%;
+  --input: 180 6% 16%;
+  --ring: 160 70% 42%;
 
-  --chart-1: 225 85% 65%;
-  --chart-2: 75 90% 55%;
-  --chart-3: 280 80% 75%;
-  --chart-4: 345 80% 65%;
-  --chart-5: 45 95% 65%;
+  --chart-1: 160 70% 45%;
+  --chart-2: 200 60% 58%;
+  --chart-3: 38 90% 58%;
+  --chart-4: 356 75% 62%;
+  --chart-5: 260 50% 68%;
 }
 
 @layer base {
