@@ -1,7 +1,15 @@
 import React, { useState } from 'react';
 import { useBrowseTable } from '@workspace/api-client-react';
 
-type BrowseTableTable = 'industries' | 'brands' | 'engines' | 'survey_runs' | 'survey_responses';
+type BrowseTableTable =
+  | 'industries'
+  | 'brands'
+  | 'engines'
+  | 'survey_runs'
+  | 'survey_responses'
+  | 'users'
+  | 'sessions'
+  | 'ad_hoc_requests';
 import { ChevronLeft, ChevronRight, Braces } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -24,11 +32,15 @@ const TABLES: { value: BrowseTableTable; label: string }[] = [
   { value: 'engines', label: 'Engines' },
   { value: 'survey_runs', label: 'Survey Runs' },
   { value: 'survey_responses', label: 'Survey Responses' },
+  { value: 'users', label: 'Users' },
+  { value: 'sessions', label: 'Sessions' },
+  { value: 'ad_hoc_requests', label: 'Ad-hoc Requests' },
 ];
 
 const STATUS_OPTIONS: Record<string, string[]> = {
   survey_runs: ['running', 'completed', 'failed', 'partial'],
   survey_responses: ['ok', 'failed'],
+  ad_hoc_requests: ['pending', 'running', 'completed', 'failed'],
 };
 
 const PAGE_SIZE = 25;
@@ -48,7 +60,14 @@ export default function AdminData() {
   const { data, isLoading } = useBrowseTable(table, params);
 
   const totalPages = data ? Math.max(1, Math.ceil(data.total / PAGE_SIZE)) : 1;
-  const supportsSearch = ['industries', 'brands', 'engines'].includes(table);
+  const supportsSearch = [
+    'industries',
+    'brands',
+    'engines',
+    'users',
+    'sessions',
+    'ad_hoc_requests',
+  ].includes(table);
 
   const changeTable = (t: BrowseTableTable) => {
     setTable(t);

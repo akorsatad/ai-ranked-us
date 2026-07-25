@@ -11,6 +11,14 @@ import {
 } from "@workspace/db";
 
 /**
+ * The two survey queries are stored as separate rows tagged by query_type.
+ * "combined" is the legacy single-call shape (imported/historical rows) that
+ * carries both rankings and trend, so it belongs to both sets.
+ */
+export const RANKING_QUERY_TYPES = ["current", "combined"];
+export const TREND_QUERY_TYPES = ["trend", "combined"];
+
+/**
  * Latest successful response per engine for an (industry, metric) pair.
  * Also returns that engine's previous successful response (from the prior
  * run), or null when the engine has only one successful response.
@@ -18,6 +26,7 @@ import {
 export async function latestResponsesByEngine(
   industryId: number,
   metricKey: string,
+  carrying: "ranking" | "trend" = "ranking",
 ): Promise<
   {
     engine: EngineRow;
@@ -25,6 +34,8 @@ export async function latestResponsesByEngine(
     previousResponse: SurveyResponseRow | null;
   }[]
 > {
+  const queryTypes =
+    carrying === "trend" ? TREND_QUERY_TYPES : RANKING_QUERY_TYPES;
   const engines = await db.select().from(enginesTable);
   const results: {
     engine: EngineRow;
@@ -41,6 +52,7 @@ export async function latestResponsesByEngine(
           eq(surveyResponsesTable.metricKey, metricKey),
           eq(surveyResponsesTable.engineId, engine.id),
           eq(surveyResponsesTable.status, "ok"),
+          inArray(surveyResponsesTable.queryType, queryTypes),
         ),
       )
       .orderBy(desc(surveyResponsesTable.createdAt))
@@ -134,6 +146,7 @@ export async function runSnapshots(
         eq(surveyResponsesTable.industryId, industryId),
         eq(surveyResponsesTable.metricKey, metricKey),
         eq(surveyResponsesTable.status, "ok"),
+        inArray(surveyResponsesTable.queryType, RANKING_QUERY_TYPES),
       ),
     );
   if (responses.length === 0) return [];

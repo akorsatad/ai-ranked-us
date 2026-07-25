@@ -19,7 +19,7 @@ The admin area (`/admin`) provides operational control over the AI Rank intellig
 - Inspect error details for failed/partial runs
 - Dashboard stats: total runs, average success rate, failed count
 
-### `/admin/brands` — Industry & Brand Catalog
+### `/admin/catalog` — Industry & Brand Catalog
 - Manage industries: create, rename, enable/disable
 - Manage brands within industries: add, rename, enable/disable
 - Collapsible industry cards with brand counts
@@ -42,10 +42,37 @@ The admin area (`/admin`) provides operational control over the AI Rank intellig
 - Set custom keys (overrides env), clear to revert to default
 - Keys are never exposed in full — only last 4 characters shown
 
+### `/admin/costs` — Spend & Token Usage
+- Token and estimated-USD rollups by provider, model, and run
+- Optional day-window filter
+
+### `/admin/model-results` — Per-Model Survey Results
+- Per-engine ranking entries, resolved model, and token usage for a chosen
+  industry and metric, alongside the aggregated consensus
+
+### `/admin/queries` — Survey Prompt Template
+- Edit the survey prompt template with required-placeholder validation
+- Live preview with sample values; reset to the built-in default
+
+### `/admin/users` — Public User Management
+- Magic-link user directory: email, name, joined date, ad-hoc run count,
+  last activity, active session count
+- Search by email or name; paginated
+- Disable/enable accounts — disabling revokes all active sessions and blocks
+  new magic-link sign-ins (requests get a neutral response, no enumeration)
+
+### `/admin/admins` — Admin Accounts
+- List admin accounts and pending email invites
+- Invite by email: the invite is claimed automatically when a Clerk user
+  with that email first opens the admin area
+- Remove admins / revoke invites, with guards: you cannot remove yourself,
+  and the last claimed admin cannot be removed
+
 ### `/admin/data` — Database Browser
 - Read-only access to raw database tables
-- Tables: industries, brands, engines, survey_runs, survey_responses
-- Paginated views (50 rows per page)
+- Tables: industries, brands, engines, survey_runs, survey_responses,
+  users, sessions (tokens never exposed), ad_hoc_requests
+- Paginated views
 - JSON fields expand on click
 - Long text truncates with expand option
 

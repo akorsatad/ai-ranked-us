@@ -1,7 +1,11 @@
 import React from 'react';
 import { Link, useLocation } from 'wouter';
-import { useClerk, useUser } from '@clerk/react';
-import { History, Building2, Cpu, KeyRound, Database, FileText, LogOut, DollarSign, Microscope } from 'lucide-react';
+import {
+  useGetAdminMe,
+  getGetAdminMeQueryKey,
+  useAdminSignOut,
+} from '@workspace/api-client-react';
+import { History, Building2, Cpu, KeyRound, Database, FileText, LogOut, Microscope, Users, ShieldCheck, DollarSign, Receipt } from 'lucide-react';
 
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, '');
 
@@ -9,17 +13,28 @@ const NAV = [
   { href: '/admin/runs', label: 'Runs', icon: History },
   { href: '/admin/catalog', label: 'Brands & Industries', icon: Building2 },
   { href: '/admin/engines', label: 'Engines', icon: Cpu },
-  { href: '/admin/costs', label: 'Costs', icon: DollarSign },
   { href: '/admin/model-results', label: 'Model Results', icon: Microscope },
   { href: '/admin/api-keys', label: 'API Keys', icon: KeyRound },
+  { href: '/admin/costs', label: 'API Costs', icon: Receipt },
+  { href: '/admin/pricing', label: 'Pricing', icon: DollarSign },
   { href: '/admin/queries', label: 'Queries', icon: FileText },
+  { href: '/admin/users', label: 'Users', icon: Users },
+  { href: '/admin/admins', label: 'Admins', icon: ShieldCheck },
   { href: '/admin/data', label: 'Data Browser', icon: Database },
 ];
 
 export function AdminLayout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
-  const { signOut } = useClerk();
-  const { user } = useUser();
+  const me = useGetAdminMe({
+    query: { queryKey: getGetAdminMeQueryKey(), retry: false },
+  });
+  const signOut = useAdminSignOut({
+    mutation: {
+      onSettled: () => {
+        window.location.href = `${basePath}/` || '/';
+      },
+    },
+  });
   return (
     <div className="flex flex-col md:flex-row min-h-[calc(100vh-4rem)]">
       <aside className="w-full md:w-60 shrink-0 border-b md:border-b-0 md:border-r border-border bg-card/50">
@@ -49,14 +64,15 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
             })}
           </nav>
           <div className="mt-4 pt-3 border-t border-border px-2 hidden md:block">
-            {user?.primaryEmailAddress && (
+            {me.data?.email && (
               <p className="text-xs text-muted-foreground font-mono truncate mb-2">
-                {user.primaryEmailAddress.emailAddress}
+                {me.data.email}
               </p>
             )}
             <button
               type="button"
-              onClick={() => signOut({ redirectUrl: basePath || '/' })}
+              onClick={() => signOut.mutate()}
+              disabled={signOut.isPending}
               className="flex items-center gap-2 px-1 py-1 rounded-md text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
             >
               <LogOut className="w-4 h-4" />

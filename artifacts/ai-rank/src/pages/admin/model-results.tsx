@@ -8,18 +8,13 @@ import {
   ModelRankingEntry,
 } from '@workspace/api-client-react';
 import { format } from 'date-fns';
-import { Microscope, Coins } from 'lucide-react';
+import { Microscope } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-
-function formatUsd(v: number): string {
-  if (v < 0.01) return `$${v.toFixed(4)}`;
-  return `$${v.toFixed(2)}`;
-}
 
 export default function AdminModelResults() {
   const { data: catalog } = useGetCatalog({
@@ -125,15 +120,7 @@ export default function AdminModelResults() {
                   <CardHeader className="bg-muted/30 border-b border-border">
                     <div className="flex items-center justify-between flex-wrap gap-2">
                       <CardTitle className="text-lg">{m.engineName}</CardTitle>
-                      <div className="flex items-center gap-2">
-                        <Badge variant="outline" className="font-mono text-xs uppercase">{m.provider}</Badge>
-                        {m.costUsd != null && (
-                          <Badge variant="outline" className="font-mono text-xs gap-1">
-                            <Coins className="w-3 h-3" />
-                            {formatUsd(m.costUsd)}
-                          </Badge>
-                        )}
-                      </div>
+                      <Badge variant="outline" className="font-mono text-xs uppercase">{m.provider}</Badge>
                     </div>
                     <CardDescription className="font-mono text-xs space-x-2">
                       <span>{m.resolvedModel ?? m.model}</span>

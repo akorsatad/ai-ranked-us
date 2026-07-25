@@ -1,4 +1,4 @@
-import { ReplitConnectors } from "@replit/connectors-sdk";
+import { sendViaResend, emailFrom } from "./emailTransport";
 import { logger } from "./logger";
 
 export interface AlertEmailItem {
@@ -88,20 +88,15 @@ async function sendEmail(
   text: string,
 ): Promise<SendEmailResult> {
   try {
-    const connectors = new ReplitConnectors();
-    const response = await connectors.proxy("resend", "/emails", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        from: "AI Rank Alerts <onboarding@resend.dev>",
-        to: [recipient],
-        subject,
-        html,
-        text,
-      }),
+    const response = await sendViaResend({
+      from: emailFrom("AI Rank Alerts"),
+      to: [recipient],
+      subject,
+      html,
+      text,
     });
     if (!response.ok) {
-      const body = await response.text().catch(() => "");
+      const body = response.body;
       logger.error({ status: response.status, body, recipient }, "Alert email failed");
       let detail = body;
       try {

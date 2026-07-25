@@ -40,7 +40,7 @@ Daily tracker of how major AI engines (GPT, Claude, Gemini, Grok) perceive major
 - Dashboard: run stats, industry leaders per metric, manual "Run Survey Now"
 - Industry detail: metric tabs, consensus ranking with rationales, per-engine breakdowns, 13-week trend chart
 - Runs history: statuses, success/failure counts, manual trigger
-- Admin area (`/admin`, unauthenticated for now — see task for admin login): run control, industry/brand/engine management (enable/disable excludes from surveys and public catalog), per-provider API keys (stored keys in `app_settings` take precedence over Replit AI Integration env keys and hit provider public endpoints), read-only data browser with per-table filters
+- Admin area (`/admin`, native Google OIDC — `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` + `ADMIN_ALLOWED_EMAILS` allowlist; sessions in `admin_sessions`; further admins invited by email at `/admin/admins`): run control, industry/brand/engine management (enable/disable excludes from surveys and public catalog), per-provider API keys (stored keys take precedence over Replit AI Integration env keys and hit provider public endpoints), public-user management (`/admin/users`: disable/enable accounts, usage stats), read-only data browser with per-table filters (incl. users/sessions/ad_hoc_requests; session tokens never exposed)
 
 ## User preferences
 

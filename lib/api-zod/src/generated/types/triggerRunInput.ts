@@ -9,4 +9,6 @@
 export interface TriggerRunInput {
   /** Scope the run to a single industry; omit for a full run */
   industryId?: number;
+  /** Scope the run to a single AI engine; omit for all engines */
+  engineId?: number;
 }

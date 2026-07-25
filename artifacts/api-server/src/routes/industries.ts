@@ -124,7 +124,11 @@ router.get(
       return;
     }
 
-    let responses = await latestResponsesByEngine(industry.id, metric.key);
+    let responses = await latestResponsesByEngine(
+      industry.id,
+      metric.key,
+      "trend",
+    );
     const engineKey = query.data.engine ?? null;
     if (engineKey) {
       responses = responses.filter((r) => r.engine.key === engineKey);

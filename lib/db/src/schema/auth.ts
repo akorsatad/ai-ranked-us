@@ -17,6 +17,9 @@ export const usersTable = pgTable("users", {
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
+  // Set when an admin disables the account; disabled users cannot sign in
+  // or use an existing session.
+  disabledAt: timestamp("disabled_at", { withTimezone: true }),
 });
 
 export type UserRow = typeof usersTable.$inferSelect;

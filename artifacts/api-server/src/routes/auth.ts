@@ -7,6 +7,7 @@ import {
   sessionsTable,
 } from "@workspace/db";
 import { sendMagicLinkEmail } from "../lib/mailer";
+import { sanitizePersonName } from "../lib/sanitizeInput";
 import { logger } from "../lib/logger";
 import crypto from "node:crypto";
 
@@ -47,7 +48,13 @@ export async function resolveSession(
     })
     .from(sessionsTable)
     .innerJoin(usersTable, eq(sessionsTable.userId, usersTable.id))
-    .where(and(eq(sessionsTable.token, token), gt(sessionsTable.expiresAt, now)))
+    .where(
+      and(
+        eq(sessionsTable.token, token),
+        gt(sessionsTable.expiresAt, now),
+        isNull(usersTable.disabledAt),
+      ),
+    )
     .limit(1);
 
   return rows[0] ?? null;
@@ -70,11 +77,15 @@ const router: IRouter = Router();
 
 // POST /auth/request-link
 router.post("/auth/request-link", async (req, res): Promise<void> => {
-  const { email, firstName, lastName } = req.body as {
+  const body = req.body as {
     email?: string;
-    firstName?: string;
-    lastName?: string;
+    firstName?: unknown;
+    lastName?: unknown;
   };
+  const email = body.email;
+  // Names are free text rendered in emails/UI — allowlist-sanitize + cap.
+  const firstName = sanitizePersonName(body.firstName);
+  const lastName = sanitizePersonName(body.lastName);
 
   if (!email || !firstName || !lastName) {
     res.status(400).json({ message: "email, firstName, and lastName are required" });
@@ -97,6 +108,11 @@ router.post("/auth/request-link", async (req, res): Promise<void> => {
 
   if (existing[0]) {
     user = existing[0];
+    if (user.disabledAt) {
+      // Same response as success so a disabled account can't be probed.
+      res.json({ message: "Check your inbox — your sign-in link is on its way." });
+      return;
+    }
   } else {
     const [created] = await db
       .insert(usersTable)
@@ -158,6 +174,18 @@ router.post("/auth/verify", async (req, res): Promise<void> => {
     return;
   }
 
+  // Fetch user (and refuse disabled accounts before minting a session)
+  const users = await db
+    .select()
+    .from(usersTable)
+    .where(eq(usersTable.id, tokenRow.userId))
+    .limit(1);
+  const user = users[0]!;
+  if (user.disabledAt) {
+    res.status(403).json({ message: "This account has been disabled." });
+    return;
+  }
+
   // Create session
   const sessionToken = generateToken();
   await db.insert(sessionsTable).values({
@@ -165,14 +193,6 @@ router.post("/auth/verify", async (req, res): Promise<void> => {
     token: sessionToken,
     expiresAt: sessionExpiry(),
   });
-
-  // Fetch user
-  const users = await db
-    .select()
-    .from(usersTable)
-    .where(eq(usersTable.id, tokenRow.userId))
-    .limit(1);
-  const user = users[0]!;
 
   res.cookie(SESSION_COOKIE, sessionToken, {
     httpOnly: true,

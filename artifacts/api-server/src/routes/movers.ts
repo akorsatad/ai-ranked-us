@@ -8,6 +8,7 @@ import {
 } from "@workspace/db";
 import { METRICS } from "../lib/metrics";
 import { buildMoversReport } from "../lib/movers";
+import { RANKING_QUERY_TYPES } from "../lib/aggregate";
 
 const router: IRouter = Router();
 
@@ -52,6 +53,7 @@ router.get("/movers", async (_req, res): Promise<void> => {
         and(
           inArray(surveyResponsesTable.runId, [latestRun.id, previousRun.id]),
           eq(surveyResponsesTable.status, "ok"),
+          inArray(surveyResponsesTable.queryType, RANKING_QUERY_TYPES),
         ),
       ),
   ]);

@@ -3,31 +3,32 @@ import { useLocation, Link } from 'wouter';
 import {
   useSuggestCompetitors,
   useRunAdHocRank,
+  useGetMovers,
+  getGetMoversQueryKey,
+  useGetOverview,
+  getGetOverviewQueryKey,
+  useGetPricing,
+  getGetPricingQueryKey,
+  useGetMe,
+  getGetMeQueryKey,
+  PricingTier,
 } from '@workspace/api-client-react';
-import {
-  Zap,
-  BarChart3,
-  ArrowRight,
-  Plus,
-  X,
-  Sparkles,
-  Globe,
-  Loader2,
-  Trophy,
-  TrendingUp,
-  Shield,
-} from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Card, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
+import { Plus, X, Sparkles, Loader2, ArrowRight } from 'lucide-react';
 import { AuthModal } from '@/components/auth-modal';
+import {
+  DI,
+  Eyebrow,
+  SectionHeading,
+  BrandButton,
+  FieldLabel,
+  CornerCard,
+} from '@/components/brand';
+import { Ticker, SideRail, LiveIndexBoard } from '@/components/home-board';
 
 const COUNTRIES = [
   { code: 'US', label: 'United States' },
-  { code: 'UK', label: 'United Kingdom' },
   { code: 'CA', label: 'Canada' },
+  { code: 'UK', label: 'United Kingdom' },
   { code: 'AU', label: 'Australia' },
   { code: 'DE', label: 'Germany' },
   { code: 'FR', label: 'France' },
@@ -37,11 +38,22 @@ const COUNTRIES = [
   { code: 'MX', label: 'Mexico' },
 ];
 
-const METRICS_PREVIEW = [
-  { icon: Trophy, label: 'Brand Sentiment', desc: 'Positive perception among consumers' },
-  { icon: Shield, label: 'Trustworthiness', desc: 'How reliable & honest the brand appears' },
-  { icon: TrendingUp, label: 'Innovation Score', desc: 'Perceived leadership & forward-thinking' },
-];
+const inputStyle: React.CSSProperties = {
+  width: '100%',
+  height: 42,
+  padding: '0 12px',
+  background: '#fff',
+  border: `1px solid ${DI.line}`,
+  borderRadius: 0,
+  fontFamily: 'var(--font-sans)',
+  fontSize: 14,
+  color: DI.ink,
+  outline: 'none',
+};
+
+const MAX_W = '72rem';
+/** Query stashed while the visitor sets up their account; run after verify. */
+export const PENDING_RANK_KEY = 'airank_pending_rank';
 
 export default function Home() {
   const [, setLocation] = useLocation();
@@ -53,6 +65,19 @@ export default function Home() {
   const [authModalMsg, setAuthModalMsg] = useState('Sign in to continue');
   const [formError, setFormError] = useState<string | null>(null);
   const [rateLimitMsg, setRateLimitMsg] = useState<string | null>(null);
+
+  const { data: moversData } = useGetMovers({
+    query: { queryKey: getGetMoversQueryKey() },
+  });
+  const { data: overview } = useGetOverview({
+    query: { queryKey: getGetOverviewQueryKey() },
+  });
+  const { data: pricing } = useGetPricing({
+    query: { queryKey: getGetPricingQueryKey() },
+  });
+  const { data: me } = useGetMe({
+    query: { queryKey: getGetMeQueryKey(), retry: false, retryOnMount: false },
+  });
 
   const { mutate: suggest, isPending: isSuggesting } = useSuggestCompetitors({
     mutation: {
@@ -69,20 +94,19 @@ export default function Home() {
 
   const { mutate: runRank, isPending: isRunning } = useRunAdHocRank({
     mutation: {
-      onSuccess: (data: { id: number }) => {
-        setLocation(`/results/${data.id}`);
-      },
+      onSuccess: (data: { id: number }) => setLocation(`/results/${data.id}`),
       onError: (err: unknown) => {
         const apiErr = err as { status: number; data?: { message?: string; requiresAuth?: boolean; retryAt?: string } };
-        const status = apiErr.status;
         const body = apiErr.data;
-
-        if (status === 401 && body?.requiresAuth) {
-          setAuthModalMsg('Sign in to run more rankings');
+        if (apiErr.status === 401 && body?.requiresAuth) {
+          try {
+            localStorage.setItem(PENDING_RANK_KEY, JSON.stringify({ brand: brand.trim(), competitors: validCompetitors, country }));
+          } catch { /* ignore */ }
+          setAuthModalMsg('Create your account to run this ranking');
           setShowAuthModal(true);
           return;
         }
-        if (status === 429) {
+        if (apiErr.status === 429) {
           const retryTime = body?.retryAt
             ? new Date(body.retryAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
             : 'tomorrow';
@@ -95,18 +119,6 @@ export default function Home() {
   });
 
   const validCompetitors = competitors.filter((c) => c.trim().length > 0);
-
-  function addCompetitor() {
-    setCompetitors((prev) => [...prev, '']);
-  }
-
-  function removeCompetitor(idx: number) {
-    setCompetitors((prev) => prev.filter((_, i) => i !== idx));
-  }
-
-  function updateCompetitor(idx: number, value: string) {
-    setCompetitors((prev) => prev.map((c, i) => (i === idx ? value : c)));
-  }
 
   const handleSuggest = useCallback(() => {
     if (!brand.trim()) {
@@ -121,279 +133,359 @@ export default function Home() {
     e.preventDefault();
     setFormError(null);
     setRateLimitMsg(null);
+    if (!brand.trim()) return setFormError('Brand name is required.');
+    if (validCompetitors.length === 0) return setFormError('Add at least one competitor.');
 
-    if (!brand.trim()) {
-      setFormError('Brand name is required.');
+    const payload = { brand: brand.trim(), competitors: validCompetitors, country };
+    if (!me) {
+      // No account yet: stash the query, then collect email + confirm. The
+      // ranking kicks off automatically once the magic link is verified.
+      try {
+        localStorage.setItem(PENDING_RANK_KEY, JSON.stringify(payload));
+      } catch {
+        /* storage unavailable — the user can resubmit after signing in */
+      }
+      setAuthModalMsg('Create your account to run this ranking');
+      setShowAuthModal(true);
       return;
     }
-    if (validCompetitors.length === 0) {
-      setFormError('Add at least one competitor.');
-      return;
-    }
-
-    runRank({
-      data: {
-        brand: brand.trim(),
-        competitors: validCompetitors,
-        country,
-      },
-    });
+    runRank({ data: payload });
   }
 
+  const scrollToRank = () =>
+    document.getElementById('rank-form')?.scrollIntoView({ behavior: 'smooth' });
+
+  // Real data: top movers (up to 4) and one leader card per industry.
+  const movers = (moversData?.movers ?? []).slice(0, 4);
+  const leadersByIndustry = new Map<number, { name: string; leader: string; score: number }>();
+  for (const l of overview?.leaders ?? []) {
+    if (!leadersByIndustry.has(l.industryId)) {
+      leadersByIndustry.set(l.industryId, { name: l.industryName, leader: l.brandName, score: l.score });
+    }
+  }
+  const industryCards = [...leadersByIndustry.entries()].slice(0, 8).map(([id, v]) => ({ id, ...v }));
+
   return (
-    <div className="min-h-screen bg-background">
-      {/* ── Hero ──────────────────────────────────────────────────── */}
-      <section className="relative overflow-hidden border-b border-border">
-        {/* Ambient glow */}
-        <div className="absolute inset-0 pointer-events-none">
-          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[300px] bg-primary/10 rounded-full blur-3xl" />
-        </div>
+    <div style={{ background: DI.paper }}>
+      <Ticker movers={moversData} />
+      <SideRail />
 
-        <div className="relative max-w-4xl mx-auto px-6 py-20 text-center">
-          <div className="inline-flex items-center gap-2 bg-primary/10 border border-primary/20 rounded-full px-4 py-1.5 text-xs font-medium text-primary mb-8">
-            <Zap className="w-3 h-3 fill-current" />
-            Powered by multiple AI engines
+      {/* ── Hero ─────────────────────────────────────────────── */}
+      <header className="mx-auto" style={{ maxWidth: MAX_W, padding: '48px 24px 40px' }}>
+        <div className="di-hero-grid grid items-end" style={{ gridTemplateColumns: 'minmax(0,1.6fr) minmax(0,1fr)', gap: 56 }}>
+          <div>
+            <Eyebrow>The AI consensus index</Eyebrow>
+            <h1 style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 'clamp(2.75rem,6vw,4.5rem)', lineHeight: 1.02, letterSpacing: '-0.025em', color: DI.ink, margin: '20px 0 0', textWrap: 'pretty' }}>
+              Every week, AI picks winners. <span style={{ color: DI.teal }}>We keep score.</span>
+            </h1>
+            <p style={{ fontSize: 17, lineHeight: 1.625, color: DI.body, maxWidth: '40rem', margin: '24px 0 0' }}>
+              AI Ranked US asks ChatGPT, Claude, Gemini, and Grok the questions consumers ask — then publishes who they recommend, how it changes over time, and why.
+            </p>
+            <div className="flex flex-wrap items-center" style={{ gap: 16, marginTop: 32 }}>
+              <BrandButton onClick={scrollToRank}>Rank my brand — free</BrandButton>
+              <Link href="/explore"><BrandButton variant="ghost">Explore the rankings</BrandButton></Link>
+            </div>
+            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, letterSpacing: '0.2em', textTransform: 'uppercase', color: DI.faint, marginTop: 28 }}>
+              4 AI engines &middot; 12 industries &middot; 92 brands &middot; free to cite
+            </div>
           </div>
 
-          <h1 className="text-4xl sm:text-6xl font-extrabold tracking-tight text-foreground mb-5 leading-tight">
-            How does AI perceive<br />
-            <span className="text-primary">your brand?</span>
-          </h1>
-
-          <p className="text-lg text-muted-foreground max-w-xl mx-auto mb-8 leading-relaxed">
-            AI Rank surveys leading AI models — ChatGPT, Claude, Gemini — and aggregates their brand
-            perceptions into actionable sentiment scores.
-          </p>
-
-          <div className="flex flex-wrap items-center justify-center gap-3 mb-10">
-            {METRICS_PREVIEW.map(({ icon: Icon, label, desc }) => (
-              <div
-                key={label}
-                className="flex items-center gap-2 bg-card border border-border rounded-full px-4 py-2 text-sm"
-              >
-                <Icon className="w-4 h-4 text-primary shrink-0" />
-                <span className="font-medium text-foreground">{label}</span>
+          <CornerCard style={{ padding: 24 }}>
+            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '0.2em', textTransform: 'uppercase', color: DI.faint, marginBottom: 6 }}>
+              Biggest movers
+            </div>
+            {movers.length === 0 ? (
+              <div style={{ padding: '18px 0', fontSize: 13, color: DI.faint }}>
+                Movers appear once two survey runs have completed.
               </div>
-            ))}
-          </div>
+            ) : (
+              movers.map((mv, i) => {
+                const up = mv.rankDelta > 0 || (mv.rankDelta === 0 && mv.scoreDelta > 0);
+                const dTxt = mv.rankDelta !== 0 ? `${up ? '▲' : '▼'} ${Math.abs(mv.rankDelta)}` : `${mv.scoreDelta > 0 ? '+' : ''}${mv.scoreDelta}`;
+                return (
+                  <div key={i} className="flex items-baseline justify-between" style={{ gap: 12, padding: '10px 0', borderBottom: `1px solid ${DI.line}` }}>
+                    <span className="flex flex-col" style={{ gap: 2 }}>
+                      <span style={{ fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: 15, color: DI.ink }}>{mv.brandName}</span>
+                      <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '0.15em', textTransform: 'uppercase', color: DI.faint }}>{mv.industryName}</span>
+                    </span>
+                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 700, color: up ? DI.teal : DI.danger }}>{dTxt}</span>
+                  </div>
+                );
+              })
+            )}
+            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '0.15em', textTransform: 'uppercase', color: DI.faint, marginTop: 12 }}>
+              Largest moves &middot; all industries
+            </div>
+          </CornerCard>
+        </div>
+      </header>
 
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
-            <Button size="lg" className="gap-2 px-6" onClick={() => {
-              document.getElementById('rank-form')?.scrollIntoView({ behavior: 'smooth' });
-            }}>
-              <Sparkles className="w-4 h-4" />
-              Rank your brand — free
-            </Button>
-            <Button variant="outline" size="lg" asChild className="gap-2 px-6">
-              <Link href="/explore">
-                Explore industry rankings
-                <ArrowRight className="w-4 h-4" />
-              </Link>
-            </Button>
+      {/* ── Live index board ─────────────────────────────────── */}
+      <div id="board" className="mx-auto" style={{ maxWidth: MAX_W, padding: '0 24px 64px' }}>
+        <LiveIndexBoard onOpenIndustry={(id) => setLocation(`/industry/${id}`)} />
+      </div>
+
+      {/* ── Industry leaders ─────────────────────────────────── */}
+      <section id="industries" style={{ background: DI.surface, borderTop: `1px solid ${DI.line}`, borderBottom: `1px solid ${DI.line}`, padding: '96px 0' }}>
+        <div className="mx-auto" style={{ maxWidth: MAX_W, padding: '0 24px' }}>
+          <SectionHeading number="01" title="12 industries. One leader each." />
+          {industryCards.length === 0 ? (
+            <p style={{ marginTop: 40, fontSize: 15, color: DI.body }}>
+              Industry leaders appear here after the first survey run completes.
+            </p>
+          ) : (
+            <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fill,minmax(230px,1fr))', gap: 16, marginTop: 40 }}>
+              {industryCards.map((c) => (
+                <IndustryCard key={c.id} id={c.id} name={c.name} leader={c.leader} score={c.score} onOpen={() => setLocation(`/industry/${c.id}`)} />
+              ))}
+            </div>
+          )}
+          <div className="flex flex-wrap items-center justify-between" style={{ gap: 16, marginTop: 32 }}>
+            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '0.15em', textTransform: 'uppercase', color: DI.faint }}>
+              Every card opens the full industry analysis
+            </div>
+            <Link href="/explore">
+              <BrandButton variant="ghost">Explore all rankings →</BrandButton>
+            </Link>
           </div>
         </div>
       </section>
 
-      {/* ── Rank Your Brand Form ────────────────────────────────────── */}
-      <section id="rank-form" className="max-w-2xl mx-auto px-6 py-16">
-        <div className="text-center mb-10">
-          <h2 className="text-2xl sm:text-3xl font-bold text-foreground mb-3">
-            Rank your brand
-          </h2>
-          <p className="text-muted-foreground">
-            Enter your brand, pick competitors, and let AI engines score them across multiple perception metrics.
-            Your <span className="text-foreground font-medium">first ranking is free</span> — no account needed.
-          </p>
-        </div>
-
-        <Card className="border-border shadow-lg">
-          <CardContent className="pt-6">
-            <form onSubmit={handleSubmit} className="space-y-6">
-              {/* Brand + Country row */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div className="sm:col-span-2 space-y-1.5">
-                  <Label htmlFor="brand-name" className="text-sm font-medium">
-                    Your brand / product
-                  </Label>
-                  <Input
-                    id="brand-name"
-                    value={brand}
-                    onChange={(e) => setBrand(e.target.value)}
-                    placeholder="e.g. Notion, Tesla, Airbnb"
-                    className="h-10"
-                    required
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="country" className="text-sm font-medium flex items-center gap-1.5">
-                    <Globe className="w-3.5 h-3.5" />
-                    Market
-                  </Label>
-                  <select
-                    id="country"
-                    value={country}
-                    onChange={(e) => setCountry(e.target.value)}
-                    className="h-10 w-full rounded-md border border-input bg-background px-3 py-1 text-sm text-foreground shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
-                  >
-                    {COUNTRIES.map((c) => (
-                      <option key={c.code} value={c.code}>
-                        {c.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              {/* Competitors */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label className="text-sm font-medium">Competitors</Label>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={handleSuggest}
-                    disabled={isSuggesting || !brand.trim()}
-                    className="h-7 text-xs gap-1.5 text-primary hover:text-primary"
-                  >
-                    {isSuggesting ? (
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    ) : (
-                      <Sparkles className="w-3.5 h-3.5" />
-                    )}
-                    {isSuggesting ? 'Thinking…' : 'AI suggest'}
-                  </Button>
-                </div>
-
-                <div className="space-y-2">
-                  {competitors.map((c, idx) => (
-                    <div key={idx} className="flex gap-2">
-                      <Input
-                        value={c}
-                        onChange={(e) => updateCompetitor(idx, e.target.value)}
-                        placeholder={`Competitor ${idx + 1}`}
-                        className="h-9 flex-1"
-                      />
-                      {competitors.length > 1 && (
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          className="h-9 w-9 shrink-0 text-muted-foreground hover:text-foreground"
-                          onClick={() => removeCompetitor(idx)}
-                        >
-                          <X className="w-4 h-4" />
-                        </Button>
-                      )}
-                    </div>
-                  ))}
-                </div>
-
-                {competitors.length < 8 && (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="h-8 text-xs gap-1.5 text-muted-foreground"
-                    onClick={addCompetitor}
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    Add competitor
-                  </Button>
-                )}
-              </div>
-
-              {/* Error / rate limit */}
-              {formError && (
-                <p className="text-sm text-destructive bg-destructive/10 rounded-lg px-3 py-2">
-                  {formError}
-                </p>
-              )}
-              {rateLimitMsg && (
-                <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg px-3 py-2.5 text-sm">
-                  <p className="font-medium text-amber-400 mb-0.5">Daily limit reached</p>
-                  <p className="text-muted-foreground">{rateLimitMsg}</p>
-                </div>
-              )}
-
-              <Button
-                type="submit"
-                disabled={isRunning || !brand.trim() || validCompetitors.length === 0}
-                className="w-full gap-2"
-                size="lg"
-              >
-                {isRunning ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    Starting survey…
-                  </>
-                ) : (
-                  <>
-                    <BarChart3 className="w-4 h-4" />
-                    Rank this brand
-                  </>
-                )}
-              </Button>
-
-              <p className="text-xs text-center text-muted-foreground">
-                First ranking is free — no account required. Sign in for daily rankings.
+      {/* ── Rank your brand ──────────────────────────────────── */}
+      <section id="rank-form" style={{ padding: '96px 0' }}>
+        <div className="mx-auto" style={{ maxWidth: MAX_W, padding: '0 24px' }}>
+          <SectionHeading number="02" title="Rank your brand. Free to start." />
+          <div className="di-two-col grid" style={{ gridTemplateColumns: 'minmax(0,1fr) minmax(0,1.1fr)', gap: 48, marginTop: 40, alignItems: 'start' }}>
+            <div>
+              <p style={{ fontSize: 15, lineHeight: 1.625, color: DI.body, maxWidth: '34rem', margin: 0 }}>
+                Commercial brand-research against the four major AI engines. Enter your brand and up to three competitors, create your account, and confirm your email — your ranking kicks off automatically and lands on a private results page, scored across seven perception metrics. Your first ranking is free.
               </p>
-            </form>
-          </CardContent>
-        </Card>
-      </section>
-
-      {/* ── How it works ──────────────────────────────────────────── */}
-      <section className="border-t border-border bg-muted/20 py-16">
-        <div className="max-w-4xl mx-auto px-6">
-          <h2 className="text-xl font-bold text-foreground text-center mb-10">How it works</h2>
-          <div className="grid sm:grid-cols-3 gap-6">
-            {[
-              {
-                step: '1',
-                title: 'Enter your brand',
-                desc: 'Name your brand and competitors. Use AI Suggest to auto-fill likely rivals.',
-              },
-              {
-                step: '2',
-                title: 'AI engines survey',
-                desc: 'We query ChatGPT, Claude, Gemini, and more across sentiment, trust, and innovation metrics.',
-              },
-              {
-                step: '3',
-                title: 'Get your score',
-                desc: 'See how your brand ranks against competitors with per-engine breakdowns and rationale.',
-              },
-            ].map(({ step, title, desc }) => (
-              <div key={step} className="text-center">
-                <div className="w-10 h-10 rounded-full bg-primary/10 border border-primary/20 text-primary font-bold text-sm flex items-center justify-center mx-auto mb-4">
-                  {step}
-                </div>
-                <h3 className="font-semibold text-foreground mb-2">{title}</h3>
-                <p className="text-sm text-muted-foreground leading-relaxed">{desc}</p>
+              <div style={{ marginTop: 28, display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {[
+                  'Submit your brand and up to three competitors',
+                  'Create your account & confirm your email',
+                  'Your ranking runs — results on your own private page',
+                ].map((t, i) => (
+                  <div key={i} className="flex items-baseline" style={{ gap: 12 }}>
+                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: DI.teal }}>0{i + 1}</span>
+                    <span style={{ fontSize: 14, color: DI.body }}>{t}</span>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
+            </div>
 
-          <div className="text-center mt-10">
-            <Button variant="outline" asChild className="gap-2">
-              <Link href="/explore">
-                Explore existing industry rankings
-                <ArrowRight className="w-4 h-4" />
-              </Link>
-            </Button>
+            <div style={{ background: '#fff', border: `1px solid ${DI.line}`, boxShadow: '0 1px 2px rgba(0,0,0,0.05)', padding: 28 }}>
+              <form onSubmit={handleSubmit}>
+                <div className="grid" style={{ gridTemplateColumns: 'minmax(0,1.4fr) minmax(0,1fr)', gap: 16 }}>
+                  <div>
+                    <FieldLabel htmlFor="brand-name">Your brand / product</FieldLabel>
+                    <input id="brand-name" value={brand} onChange={(e) => setBrand(e.target.value)} placeholder="e.g. Notion, Tesla, Airbnb" style={inputStyle} />
+                  </div>
+                  <div>
+                    <FieldLabel htmlFor="country">Market</FieldLabel>
+                    <select id="country" value={country} onChange={(e) => setCountry(e.target.value)} style={inputStyle}>
+                      {COUNTRIES.map((c) => <option key={c.code} value={c.code}>{c.label}</option>)}
+                    </select>
+                  </div>
+                </div>
+
+                <div style={{ marginTop: 18 }}>
+                  <div className="flex items-center justify-between">
+                    <FieldLabel>Competitors</FieldLabel>
+                    <button type="button" onClick={handleSuggest} disabled={isSuggesting || !brand.trim()}
+                      style={{ fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', color: DI.teal, background: 'none', border: 'none', cursor: brand.trim() ? 'pointer' : 'not-allowed', display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                      {isSuggesting ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
+                      {isSuggesting ? 'Thinking…' : 'AI suggest'}
+                    </button>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    {competitors.map((c, idx) => (
+                      <div key={idx} className="flex" style={{ gap: 8 }}>
+                        <input value={c} onChange={(e) => setCompetitors((p) => p.map((x, i) => (i === idx ? e.target.value : x)))} placeholder={`Competitor ${idx + 1}`} style={inputStyle} />
+                        {competitors.length > 1 && (
+                          <button type="button" onClick={() => setCompetitors((p) => p.filter((_, i) => i !== idx))}
+                            style={{ width: 42, height: 42, flexShrink: 0, background: '#fff', border: `1px solid ${DI.line}`, color: DI.steel, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <X className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                  {competitors.length < 8 && (
+                    <button type="button" onClick={() => setCompetitors((p) => [...p, ''])}
+                      style={{ fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: DI.teal, background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, marginTop: 12 }}>
+                      <Plus className="w-3 h-3" /> Add competitor
+                    </button>
+                  )}
+                </div>
+
+                {formError && (
+                  <p style={{ fontSize: 13, color: DI.danger, background: 'rgba(229,72,77,0.10)', padding: '8px 12px', marginTop: 16 }}>{formError}</p>
+                )}
+                {rateLimitMsg && (
+                  <div style={{ background: 'rgba(217,119,6,0.10)', border: '1px solid rgba(217,119,6,0.3)', padding: '10px 12px', marginTop: 16 }}>
+                    <p style={{ fontWeight: 600, color: DI.warn, margin: '0 0 2px', fontSize: 13 }}>Daily limit reached</p>
+                    <p style={{ color: DI.body, margin: 0, fontSize: 13 }}>{rateLimitMsg}</p>
+                  </div>
+                )}
+
+                <div style={{ marginTop: 24 }}>
+                  <BrandButton type="submit" fullWidth disabled={isRunning || !brand.trim() || validCompetitors.length === 0}>
+                    {isRunning ? <><Loader2 className="w-4 h-4 animate-spin" /> Starting survey…</> : 'Rank this brand — free'}
+                  </BrandButton>
+                </div>
+                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '0.15em', textTransform: 'uppercase', color: DI.faint, marginTop: 14 }}>
+                  Free first ranking &middot; Verify your email &middot; No spam, ever
+                </div>
+              </form>
+            </div>
           </div>
         </div>
       </section>
 
-      {/* Auth modal */}
+      {/* ── Methodology ──────────────────────────────────────── */}
+      <section id="methodology" style={{ background: DI.surface, borderTop: `1px solid ${DI.line}`, borderBottom: `1px solid ${DI.line}`, padding: '96px 0' }}>
+        <div className="mx-auto" style={{ maxWidth: MAX_W, padding: '0 24px' }}>
+          <SectionHeading number="03" title="Scoring you can check, end to end." />
+          <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit,minmax(260px,1fr))', border: `1px solid ${DI.line}`, boxShadow: '0 1px 2px rgba(0,0,0,0.05)', marginTop: 40, background: '#fff' }}>
+            {[
+              { tag: 'Step 1 · Ask', title: 'The questions consumers ask', meta: '92 brands · 4 engines · daily', desc: 'Every day we put the same plain-language questions to ChatGPT, Claude, Gemini, and Grok. Fresh sessions, no history, no steering.' },
+              { tag: 'Step 2 · Score', title: 'Every answer becomes a number', meta: '7 metrics · Rank · Sentiment', desc: 'We record who gets named, in what order, and how each brand is described across seven perception metrics — then roll it into a 0–100 AI Consensus Score.', active: true },
+              { tag: 'Step 3 · Publish', title: 'The full log is public', meta: 'Every prompt · Every response', desc: 'Raw model responses are archived, so journalists and researchers can check every number we publish against the source.' },
+            ].map((s, i) => (
+              <div key={i} style={{ position: 'relative', padding: 40, background: s.active ? DI.paper : '#fff', borderRight: i < 2 ? `1px solid ${DI.line}` : undefined }}>
+                {s.active && <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 4, background: `linear-gradient(to right, ${DI.teal}, ${DI.tealLight})` }} />}
+                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '0.1em', color: DI.teal, textTransform: 'uppercase', marginBottom: 16 }}>{s.tag}</div>
+                <h3 style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 20, color: DI.ink, margin: '0 0 6px' }}>{s.title}</h3>
+                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: DI.steel, marginBottom: 14 }}>{s.meta}</div>
+                <p style={{ fontSize: 14, lineHeight: 1.625, color: DI.body, margin: 0 }}>{s.desc}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── Pricing ──────────────────────────────────────────── */}
+      <section id="pricing" style={{ padding: '96px 0' }}>
+        <div className="mx-auto" style={{ maxWidth: MAX_W, padding: '0 24px' }}>
+          <SectionHeading number="04" title="Pricing that scales with your research." />
+          <p style={{ fontSize: 15, lineHeight: 1.625, color: DI.body, maxWidth: '40rem', margin: '20px 0 0' }}>
+            Every plan is token-based — you&rsquo;re billed per token used, and you can top up anytime at your tier&rsquo;s rate. Start free, upgrade when you need the volume.
+          </p>
+          <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit,minmax(240px,1fr))', gap: 16, marginTop: 40, alignItems: 'stretch' }}>
+            {(pricing?.tiers ?? []).map((t) => <PricingCard key={t.key} tier={t} onStart={scrollToRank} />)}
+          </div>
+          <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '0.15em', textTransform: 'uppercase', color: DI.faint, marginTop: 24 }}>
+            All tiers billed per token used &middot; Refill anytime at your account rate &middot; Proposed — subject to change
+          </div>
+        </div>
+      </section>
+
+      {/* ── Built to be cited ────────────────────────────────── */}
+      <section id="cite" style={{ background: DI.surface, borderTop: `1px solid ${DI.line}`, padding: '96px 0' }}>
+        <div className="mx-auto" style={{ maxWidth: MAX_W, padding: '0 24px' }}>
+          <SectionHeading number="05" title="Built to be cited." />
+          <div className="di-two-col grid" style={{ gridTemplateColumns: 'minmax(0,1.2fr) minmax(0,1fr)', gap: 48, marginTop: 40, alignItems: 'start' }}>
+            <div>
+              <p style={{ fontSize: 15, lineHeight: 1.625, color: DI.body, maxWidth: '36rem', margin: 0 }}>
+                Every figure on this site links back to an archived model response. The dataset is free for editorial and academic use — no signup, no license fee. If a number moves, we publish why.
+              </p>
+              <div className="flex flex-wrap" style={{ gap: 14, marginTop: 28 }}>
+                <Link href="/explore"><BrandButton>Explore the rankings</BrandButton></Link>
+              </div>
+            </div>
+            <div style={{ background: '#fff', border: `1px solid ${DI.line}`, padding: 24 }}>
+              <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '0.2em', textTransform: 'uppercase', color: DI.faint, marginBottom: 12 }}>Cite as</div>
+              <div style={{ fontFamily: 'var(--font-mono)', fontSize: 12.5, lineHeight: 1.7, color: DI.ink }}>
+                AI Ranked US, &ldquo;AI Consensus Index.&rdquo; airanked.us
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {showAuthModal && (
         <AuthModal
           title={authModalMsg}
-          description="Create a free account to run daily custom rankings."
+          description="Verify your email and your ranking starts automatically — results land on your own page."
           onClose={() => setShowAuthModal(false)}
         />
       )}
+    </div>
+  );
+}
+
+function fmtRate(v: number): string {
+  // Show a readable per-token rate, e.g. $0.000020 or $0.02 / 1K.
+  const per1k = v * 1000;
+  return per1k >= 0.01 ? `$${per1k.toFixed(2)} / 1K tokens` : `$${v.toFixed(6)} / token`;
+}
+
+function PricingCard({ tier, onStart }: { tier: PricingTier; onStart: () => void }) {
+  const hl = tier.highlighted;
+  return (
+    <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', background: '#fff', border: `1px solid ${hl ? DI.teal : DI.line}`, padding: 28, boxShadow: hl ? '0 4px 6px rgba(0,0,0,0.06)' : '0 1px 2px rgba(0,0,0,0.05)' }}>
+      {hl && <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 4, background: `linear-gradient(to right, ${DI.teal}, ${DI.tealLight})` }} />}
+      <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '0.2em', textTransform: 'uppercase', color: hl ? DI.teal : DI.faint }}>{tier.name}</div>
+      <div style={{ marginTop: 12, display: 'flex', alignItems: 'baseline', gap: 6 }}>
+        {tier.monthlyPriceUsd != null ? (
+          <>
+            <span style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 40, letterSpacing: '-0.02em', color: DI.ink }}>${tier.monthlyPriceUsd.toFixed(0)}</span>
+            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: DI.steel }}>/ month</span>
+          </>
+        ) : (
+          <span style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 32, letterSpacing: '-0.02em', color: DI.ink }}>Custom</span>
+        )}
+      </div>
+      <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: DI.teal, marginTop: 8 }}>{fmtRate(tier.costPerTokenUsd)}</div>
+      <p style={{ fontSize: 13, lineHeight: 1.5, color: DI.body, margin: '14px 0 0' }}>{tier.blurb}</p>
+      <div style={{ marginTop: 18, display: 'flex', flexDirection: 'column', gap: 9, flex: 1 }}>
+        {tier.features.map((f, i) => (
+          <div key={i} style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+            <span style={{ color: DI.teal, fontSize: 12 }}>▸</span>
+            <span style={{ fontSize: 13, color: DI.body }}>{f}</span>
+          </div>
+        ))}
+      </div>
+      <div style={{ marginTop: 20 }}>
+        {tier.monthlyPriceUsd != null ? (
+          <BrandButton variant={hl ? 'primary' : 'ghost'} fullWidth onClick={onStart}>Start free</BrandButton>
+        ) : (
+          <BrandButton variant="ghost" fullWidth href="mailto:hello@airanked.us?subject=Enterprise%20plan">Contact sales</BrandButton>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function IndustryCard({ id, name, leader, score, onOpen }: { id: number; name: string; leader: string; score: number; onOpen: () => void }) {
+  const [hover, setHover] = useState(false);
+  return (
+    <div
+      onClick={onOpen}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      data-testid={`card-industry-${id}`}
+      style={{
+        background: '#fff',
+        border: `1px solid ${DI.line}`,
+        padding: 24,
+        cursor: 'pointer',
+        transition: 'all 0.3s',
+        transform: hover ? 'translateY(-4px)' : 'none',
+        boxShadow: hover ? '0 4px 6px rgba(0,0,0,0.07)' : 'none',
+      }}
+    >
+      <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '0.2em', textTransform: 'uppercase', color: DI.teal, marginBottom: 14 }}>{name}</div>
+      <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 22, color: DI.ink }}>{leader}</div>
+      <div className="flex items-baseline" style={{ gap: 10, marginTop: 8 }}>
+        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 26, fontWeight: 700, color: DI.ink }}>{score.toFixed(0)}</span>
+        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: DI.steel }}>/ 100</span>
+      </div>
+      <div style={{ fontSize: 12, color: DI.steel, marginTop: 12, borderTop: `1px solid ${DI.line}`, paddingTop: 12 }}>Top-ranked brand this period</div>
+      <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '0.15em', textTransform: 'uppercase', color: hover ? '#fff' : DI.teal, background: hover ? DI.teal : 'transparent', border: `1px solid ${hover ? DI.teal : 'rgba(14,168,142,0.35)'}`, padding: '7px 12px', marginTop: 12, transition: 'all 0.3s' }}>
+        Analyze <ArrowRight className="w-3 h-3" />
+      </div>
     </div>
   );
 }

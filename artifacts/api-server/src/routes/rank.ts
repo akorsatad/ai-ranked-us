@@ -1,34 +1,19 @@
 import { Router, type IRouter } from "express";
 import { eq, desc, and, gte } from "drizzle-orm";
-import {
-  db,
-  adHocRequestsTable,
-  visitorUsageTable,
-} from "@workspace/db";
+import { db, adHocRequestsTable } from "@workspace/db";
 import { resolveSession } from "./auth";
 import { runAdHocSurvey, suggestCompetitors } from "../lib/adHocSurvey";
+import {
+  sanitizeBrandName,
+  sanitizeCompetitors,
+  sanitizeCountry,
+} from "../lib/sanitizeInput";
 import { logger } from "../lib/logger";
-import crypto from "node:crypto";
 
+// Legacy cookie name still used to scope ownership of any pre-existing
+// anonymous ad-hoc requests on the GET route.
 const VISITOR_COOKIE = "airank_visitor";
-const VISITOR_FREE_QUERIES = 1; // anonymous visitors get this many free queries
 const AUTH_DAILY_LIMIT = 1; // authenticated users: queries per rolling 24h
-
-function getOrCreateVisitorId(
-  req: import("express").Request,
-  res: import("express").Response,
-): string {
-  const existing = (req.cookies as Record<string, string>)?.[VISITOR_COOKIE];
-  if (existing) return existing;
-  const id = crypto.randomUUID();
-  res.cookie(VISITOR_COOKIE, id, {
-    httpOnly: true,
-    sameSite: "lax",
-    maxAge: 365 * 24 * 60 * 60 * 1000,
-    path: "/",
-  });
-  return id;
-}
 
 function serializeRequest(row: typeof adHocRequestsTable.$inferSelect) {
   return {
@@ -48,13 +33,18 @@ const router: IRouter = Router();
 
 // POST /rank/suggest-competitors
 router.post("/rank/suggest-competitors", async (req, res): Promise<void> => {
-  const { brand, country = "US" } = req.body as { brand?: string; country?: string };
-  if (!brand?.trim()) {
+  const body = req.body as { brand?: unknown; country?: unknown };
+  // Strict allowlist sanitization — free text here flows into LLM prompts.
+  const brand = sanitizeBrandName(body.brand);
+  const country = sanitizeCountry(body.country);
+  if (!brand) {
     res.status(400).json({ message: "brand is required" });
     return;
   }
   try {
-    const competitors = await suggestCompetitors(brand.trim(), country);
+    const competitors = (await suggestCompetitors(brand, country))
+      .map((c) => sanitizeBrandName(c))
+      .filter(Boolean);
     res.json({ competitors });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
@@ -65,89 +55,71 @@ router.post("/rank/suggest-competitors", async (req, res): Promise<void> => {
 
 // POST /rank/run
 router.post("/rank/run", async (req, res): Promise<void> => {
-  const { brand, competitors = [], country = "US" } = req.body as {
-    brand?: string;
-    competitors?: string[];
-    country?: string;
+  const body = req.body as {
+    brand?: unknown;
+    competitors?: unknown;
+    country?: unknown;
   };
 
-  if (!brand?.trim()) {
+  // Strict allowlist sanitization + hard caps — these strings flow into
+  // LLM prompts and stored records, so no code/SQL-ish characters survive.
+  const brand = sanitizeBrandName(body.brand);
+  const country = sanitizeCountry(body.country);
+  const competitors = sanitizeCompetitors(body.competitors, brand);
+
+  if (!brand) {
     res.status(400).json({ message: "brand is required" });
     return;
   }
-  if (!Array.isArray(competitors) || competitors.length === 0) {
+  if (competitors.length === 0) {
     res.status(400).json({ message: "At least one competitor is required" });
     return;
   }
 
+  // Rankings require a verified account — no anonymous runs. The client
+  // gates on this 401 to open the account-setup flow, then re-runs the
+  // stored query once the magic link is confirmed.
   const user = await resolveSession(req);
-  const visitorId = getOrCreateVisitorId(req, res);
+  if (!user) {
+    res.status(401).json({
+      message: "Create your account to run a ranking.",
+      requiresAuth: true,
+    });
+    return;
+  }
 
-  if (user) {
-    // Authenticated: check daily limit
-    const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
-    const recentRows = await db
-      .select()
-      .from(adHocRequestsTable)
-      .where(
-        and(
-          eq(adHocRequestsTable.userId, user.id),
-          gte(adHocRequestsTable.createdAt, since),
-        ),
-      )
-      .limit(AUTH_DAILY_LIMIT);
-
-    if (recentRows.length >= AUTH_DAILY_LIMIT) {
-      const oldest = recentRows.sort(
-        (a, b) => a.createdAt.getTime() - b.createdAt.getTime(),
-      )[0]!;
-      const retryAt = new Date(oldest.createdAt.getTime() + 24 * 60 * 60 * 1000);
-      res.status(429).json({
-        message: `You've used your free ranking for today.`,
-        retryAt: retryAt.toISOString(),
-      });
-      return;
-    }
-  } else {
-    // Anonymous: check visitor usage
-    const usage = await db
-      .select()
-      .from(visitorUsageTable)
-      .where(eq(visitorUsageTable.visitorId, visitorId))
-      .limit(1);
-
-    const used = usage[0]?.queriesUsed ?? 0;
-    if (used >= VISITOR_FREE_QUERIES) {
-      res.status(401).json({
-        message: "Sign in to run more custom rankings.",
-        requiresAuth: true,
-      });
-      return;
-    }
-
-    // Increment usage
-    if (usage.length === 0) {
-      await db.insert(visitorUsageTable).values({
-        visitorId,
-        queriesUsed: 1,
-        lastQueryAt: new Date(),
-      });
-    } else {
-      await db
-        .update(visitorUsageTable)
-        .set({ queriesUsed: (usage[0]!.queriesUsed ?? 0) + 1, lastQueryAt: new Date() })
-        .where(eq(visitorUsageTable.visitorId, visitorId));
-    }
+  // Per-account daily limit.
+  const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  const recentRows = await db
+    .select()
+    .from(adHocRequestsTable)
+    .where(
+      and(
+        eq(adHocRequestsTable.userId, user.id),
+        gte(adHocRequestsTable.createdAt, since),
+      ),
+    )
+    .limit(AUTH_DAILY_LIMIT);
+  if (recentRows.length >= AUTH_DAILY_LIMIT) {
+    const oldest = recentRows.sort(
+      (a, b) => a.createdAt.getTime() - b.createdAt.getTime(),
+    )[0]!;
+    const retryAt = new Date(oldest.createdAt.getTime() + 24 * 60 * 60 * 1000);
+    res.status(429).json({
+      message: `You've used your free ranking for today.`,
+      retryAt: retryAt.toISOString(),
+    });
+    return;
   }
 
   // Create the request record
   const [requestRow] = await db
     .insert(adHocRequestsTable)
     .values({
-      userId: user?.id ?? null,
-      visitorId: user ? null : visitorId,
-      brand: brand.trim(),
-      competitors: competitors.map((c) => String(c).trim()).filter(Boolean),
+      userId: user.id,
+      visitorId: null,
+      brand,
+      competitors,
       country,
       status: "pending",
     })
@@ -158,10 +130,10 @@ router.post("/rank/run", async (req, res): Promise<void> => {
     return;
   }
 
-  req.log.info({ requestId: requestRow.id, brand: brand.trim() }, "Ad-hoc rank started");
+  req.log.info({ requestId: requestRow.id, brand }, "Ad-hoc rank started");
 
   // Fire-and-forget background survey
-  void runAdHocSurvey(requestRow.id, brand.trim(), competitors, country).catch((err) => {
+  void runAdHocSurvey(requestRow.id, brand, competitors, country).catch((err) => {
     logger.error({ requestId: requestRow.id, err }, "Ad-hoc survey crashed");
   });
 

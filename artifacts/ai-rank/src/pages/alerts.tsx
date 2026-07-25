@@ -7,6 +7,8 @@ import {
   getGetAlertSettingsQueryKey,
   useUpdateAlertSettings,
   useSendTestAlertEmail,
+  useGetAdminMe,
+  getGetAdminMeQueryKey,
   BrandAlert,
 } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
@@ -20,14 +22,44 @@ import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
+import { AuthModal } from '@/components/auth-modal';
 
 export default function Alerts() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [showAuth, setShowAuth] = useState(false);
 
-  const { data, isLoading } = useListAlerts(undefined, {
-    query: { queryKey: getListAlertsQueryKey() },
+  const { data, isLoading, error } = useListAlerts(undefined, {
+    query: { queryKey: getListAlertsQueryKey(), retry: false },
   });
+
+  // Alerts are sign-in only.
+  if ((error as { status?: number } | null)?.status === 401) {
+    return (
+      <div className="flex min-h-[calc(100vh-12rem)] items-center justify-center px-4">
+        <div className="text-center max-w-sm space-y-4">
+          <BellOff className="w-10 h-10 mx-auto text-muted-foreground" />
+          <h1 className="text-xl font-bold">Sign in to see alerts</h1>
+          <p className="text-sm text-muted-foreground">
+            Brand alerts — sharp score drops and ranking falls — are available
+            to signed-in users.
+          </p>
+          <Button onClick={() => setShowAuth(true)} data-testid="button-alerts-signin">
+            Sign in
+          </Button>
+        </div>
+        {showAuth && (
+          <AuthModal
+            onClose={() => {
+              setShowAuth(false);
+              queryClient.invalidateQueries({ queryKey: getListAlertsQueryKey() });
+            }}
+            title="Sign in to see alerts"
+          />
+        )}
+      </div>
+    );
+  }
 
   const markRead = useMarkAlertsRead({
     mutation: {
@@ -61,7 +93,7 @@ export default function Alerts() {
         </Button>
       </div>
 
-      <ThresholdSettings />
+      <AdminOnlyThresholdSettings />
 
       <Card className="border-border">
         <CardHeader className="bg-muted/30 border-b border-border">
@@ -100,13 +132,20 @@ export default function Alerts() {
 
 function AlertRow({ alert, onMarkRead }: { alert: BrandAlert; onMarkRead: () => void }) {
   const isScore = alert.kind === 'score_drop';
+  const isRunIssue = alert.kind === 'run_issue';
   return (
     <div
       className={`flex items-start gap-4 p-4 ${alert.read ? 'opacity-60' : 'bg-destructive/5'}`}
       data-testid={`alert-row-${alert.id}`}
     >
       <div className="mt-1 p-2 rounded-md bg-destructive/10 text-destructive shrink-0">
-        {isScore ? <TrendingDown className="w-4 h-4" /> : <ArrowDownWideNarrow className="w-4 h-4" />}
+        {isRunIssue ? (
+          <Settings2 className="w-4 h-4" />
+        ) : isScore ? (
+          <TrendingDown className="w-4 h-4" />
+        ) : (
+          <ArrowDownWideNarrow className="w-4 h-4" />
+        )}
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex flex-wrap items-center gap-2">
@@ -116,7 +155,14 @@ function AlertRow({ alert, onMarkRead }: { alert: BrandAlert; onMarkRead: () => 
           {!alert.read && <Badge className="text-xs">New</Badge>}
         </div>
         <p className="text-sm text-muted-foreground mt-1">
-          {isScore ? (
+          {isRunIssue ? (
+            <>
+              <span className="text-destructive font-semibold">
+                {alert.currentValue} of {alert.previousValue} queries failed
+              </span>{' '}
+              — reported from the run console
+            </>
+          ) : isScore ? (
             <>
               Score worsened by <span className="text-destructive font-semibold">{alert.delta.toFixed(1)} pts</span>{' '}
               ({alert.previousValue.toFixed(1)} → {alert.currentValue.toFixed(1)}) — threshold {alert.threshold}
@@ -139,6 +185,15 @@ function AlertRow({ alert, onMarkRead }: { alert: BrandAlert; onMarkRead: () => 
       )}
     </div>
   );
+}
+
+/** Alert thresholds/email are admin-managed — hide the form from regular users. */
+function AdminOnlyThresholdSettings() {
+  const me = useGetAdminMe({
+    query: { queryKey: getGetAdminMeQueryKey(), retry: false },
+  });
+  if (!me.data?.isAdmin) return null;
+  return <ThresholdSettings />;
 }
 
 function ThresholdSettings() {

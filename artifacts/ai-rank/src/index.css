@@ -1,7 +1,6 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap');
-@layer theme, base, clerk, components, utilities;
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Barlow:wght@300;400;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap');
+@layer theme, base, components, utilities;
 @import 'tailwindcss';
-@import '@clerk/themes/shadcn.css';
 @import 'tw-animate-css';
 @plugin "@tailwindcss/typography";
 
@@ -62,6 +61,7 @@
   --font-sans: var(--app-font-sans);
   --font-serif: var(--app-font-serif);
   --font-mono: var(--app-font-mono);
+  --font-display: var(--app-font-display);
 
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
@@ -79,65 +79,67 @@
   --elevate-1: rgba(0, 0, 0, 0.03);
   --elevate-2: rgba(0, 0, 0, 0.08);
 
-  /* Cool off-white canvas (datainc.ai) */
-  --background: 160 10% 96%;
-  /* Near-black ink foreground */
-  --foreground: 210 24% 12%;
-  /* Understated cool border */
-  --border: 160 8% 87%;
+  /* DataInc.ai — paper canvas #FCFCFB */
+  --background: 60 20% 99%;
+  /* Ink #0B0F19 */
+  --foreground: 223 39% 7%;
+  /* Hairline #E6E9E8 */
+  --border: 160 8% 91%;
 
-  /* White cards against the mist canvas */
+  /* White cards */
   --card: 0 0% 100%;
-  --card-foreground: 210 24% 12%;
-  --card-border: 160 8% 90%;
+  --card-foreground: 223 39% 7%;
+  --card-border: 160 8% 91%;
 
-  /* Sidebar slightly deeper mist */
-  --sidebar: 160 10% 94%;
-  --sidebar-foreground: 210 24% 12%;
-  --sidebar-border: 160 8% 87%;
-  --sidebar-primary: 160 84% 30%;
+  /* Sidebar = surface #F4F6F5 */
+  --sidebar: 150 11% 96%;
+  --sidebar-foreground: 223 39% 7%;
+  --sidebar-border: 160 8% 91%;
+  --sidebar-primary: 167 84% 36%;
   --sidebar-primary-foreground: 0 0% 100%;
-  --sidebar-accent: 160 12% 89%;
-  --sidebar-accent-foreground: 210 24% 12%;
-  --sidebar-ring: 160 84% 30%;
+  --sidebar-accent: 150 11% 92%;
+  --sidebar-accent-foreground: 223 39% 7%;
+  --sidebar-ring: 167 84% 36%;
 
   --popover: 0 0% 100%;
-  --popover-foreground: 210 24% 12%;
-  --popover-border: 160 8% 90%;
+  --popover-foreground: 223 39% 7%;
+  --popover-border: 160 8% 91%;
 
-  /* Signal Emerald */
-  --primary: 160 84% 30%;
+  /* DataInc teal #0EA88E */
+  --primary: 167 84% 36%;
   --primary-foreground: 0 0% 100%;
 
-  /* Soft cool-grey secondary */
-  --secondary: 200 10% 90%;
-  --secondary-foreground: 210 24% 12%;
+  /* Surface secondary #F4F6F5 */
+  --secondary: 150 11% 96%;
+  --secondary-foreground: 223 39% 7%;
 
-  --muted: 160 8% 92%;
-  --muted-foreground: 200 8% 42%;
+  --muted: 150 11% 96%;
+  --muted-foreground: 215 14% 40%;
 
-  /* Emerald accent (dark ink foreground for tinted uses) */
-  --accent: 160 78% 36%;
-  --accent-foreground: 165 100% 8%;
+  /* Teal accent */
+  --accent: 167 84% 36%;
+  --accent-foreground: 0 0% 100%;
 
-  /* Coral red for destructive / at-risk */
-  --destructive: 356 78% 56%;
+  /* Danger #E5484D */
+  --destructive: 358 75% 59%;
   --destructive-foreground: 0 0% 100%;
 
-  --input: 160 8% 84%;
-  --ring: 160 84% 30%;
+  --input: 160 8% 88%;
+  --ring: 167 84% 36%;
 
-  /* Chart Colors */
-  --chart-1: 160 84% 32%; /* Emerald */
-  --chart-2: 200 60% 45%; /* Steel blue */
-  --chart-3: 38 92% 50%;  /* Amber */
-  --chart-4: 356 78% 56%; /* Coral */
-  --chart-5: 260 45% 58%; /* Violet */
+  /* Chart Colors (DataInc chart tokens) */
+  --chart-1: 167 84% 36%; /* Teal */
+  --chart-2: 223 39% 7%;  /* Ink */
+  --chart-3: 33 95% 44%;  /* Warn amber */
+  --chart-4: 358 75% 59%; /* Danger */
+  --chart-5: 215 14% 40%; /* Steel */
 
   --app-font-sans: 'Inter', sans-serif;
   --app-font-serif: Georgia, serif;
-  --app-font-mono: 'IBM Plex Mono', monospace;
-  --radius: 0.375rem;
+  --app-font-mono: 'JetBrains Mono', monospace;
+  --app-font-display: 'Barlow', sans-serif;
+  /* The brand is square-cornered */
+  --radius: 0rem;
   --shadow-2xs: 0px 1px 2px 0px hsl(210 24% 12% / 0.04);
   --shadow-xs: 0px 1px 2px 0px hsl(210 24% 12% / 0.04);
   --shadow-sm:
@@ -230,6 +232,35 @@
   body {
     @apply font-sans antialiased bg-background text-foreground;
   }
+}
+
+/* Collapse the DataInc two-column public layouts on small screens.
+   !important overrides the inline grid-template-columns set for desktop. */
+@media (max-width: 860px) {
+  .di-hero-grid,
+  .di-two-col,
+  .di-board-grid {
+    grid-template-columns: 1fr !important;
+    gap: 32px !important;
+  }
+}
+
+/* Scrolling brand ticker marquee (home hero bar). */
+@keyframes di-ticker {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+.di-ticker-track {
+  display: inline-flex;
+  white-space: nowrap;
+  animation: di-ticker 60s linear infinite;
+}
+.di-ticker-track:hover { animation-play-state: paused; }
+
+/* The sticky section rail is desktop-only. */
+.di-rail { display: none; }
+@media (min-width: 1180px) {
+  .di-rail { display: flex; }
 }
 
 @layer utilities {

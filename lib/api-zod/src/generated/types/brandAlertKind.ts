@@ -12,4 +12,5 @@ export type BrandAlertKind = typeof BrandAlertKind[keyof typeof BrandAlertKind];
 export const BrandAlertKind = {
   score_drop: 'score_drop',
   rank_drop: 'rank_drop',
+  run_issue: 'run_issue',
 } as const;

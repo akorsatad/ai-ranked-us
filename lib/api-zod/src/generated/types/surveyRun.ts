@@ -18,9 +18,19 @@ export interface SurveyRun {
      * @nullable
      */
   industryId: number | null;
+  /**
+     * When set, the run was scoped to this AI engine only
+     * @nullable
+     */
+  engineId: number | null;
   startedAt: string;
   /** @nullable */
   completedAt: string | null;
+  /**
+     * Last liveness signal from the run loop; null for historical runs
+     * @nullable
+     */
+  heartbeatAt: string | null;
   /** @nullable */
   error: string | null;
   totalQueries: number;

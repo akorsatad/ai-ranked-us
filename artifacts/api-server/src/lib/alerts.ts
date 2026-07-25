@@ -10,7 +10,7 @@ import {
   type StoredRankingEntry,
 } from "@workspace/db";
 import { METRICS, type MetricDef } from "./metrics";
-import { averageEntries } from "./aggregate";
+import { averageEntries, RANKING_QUERY_TYPES } from "./aggregate";
 import { logger } from "./logger";
 import { sendAlertDigestEmail, type AlertEmailItem } from "./alertEmail";
 
@@ -180,6 +180,7 @@ export async function detectAlertsForRun(run: SurveyRunRow): Promise<number> {
       and(
         eq(surveyResponsesTable.runId, run.id),
         eq(surveyResponsesTable.status, "ok"),
+        inArray(surveyResponsesTable.queryType, RANKING_QUERY_TYPES),
       ),
     );
 
@@ -212,6 +213,7 @@ export async function detectAlertsForRun(run: SurveyRunRow): Promise<number> {
             eq(surveyResponsesTable.metricKey, metric.key),
             eq(surveyResponsesTable.industryId, industryId),
             eq(surveyResponsesTable.status, "ok"),
+            inArray(surveyResponsesTable.queryType, RANKING_QUERY_TYPES),
           ),
         )
         .orderBy(desc(surveyResponsesTable.runId));

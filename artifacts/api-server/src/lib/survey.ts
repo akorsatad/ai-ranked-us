@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import {
   db,
   industriesTable,
@@ -31,27 +31,102 @@ import { logger } from "./logger";
 let runInProgress = false;
 let activeRunId: number | null = null;
 
+/** Statuses that represent an in-flight (not yet terminal) run. */
+const ACTIVE_RUN_STATUSES = ["running", "pausing", "cancelling"] as const;
+
 /**
- * Mark any survey runs left in status "running" (e.g. after a server
- * restart interrupted them) as failed, so they don't show as in-progress
- * forever. Call once on server startup, before any new run can begin.
+ * A run is considered dead if its heartbeat (or, for legacy rows, its start
+ * time) has gone silent for longer than this. Well above the longest a single
+ * batch of in-flight engine calls can take, so a genuinely alive run is never
+ * finalized out from under itself. Overridable via STALE_RUN_MS.
+ */
+export const STALE_RUN_MS = (() => {
+  const raw = Number(process.env.STALE_RUN_MS);
+  return Number.isFinite(raw) && raw >= 60_000 ? raw : 10 * 60_000;
+})();
+
+/**
+ * Bring one run to a terminal state using the responses actually stored for
+ * it as the source of truth (rather than trusting in-memory counters that a
+ * crash may have lost). Used by both the restart sweep and the watchdog so a
+ * run can never be stuck non-terminal.
+ */
+async function finalizeRunFromResponses(
+  run: SurveyRunRow,
+  reason: string,
+): Promise<{ status: string; succeeded: number; failed: number }> {
+  const rows = await db
+    .select({ status: surveyResponsesTable.status })
+    .from(surveyResponsesTable)
+    .where(eq(surveyResponsesTable.runId, run.id));
+  const succeeded = rows.filter((r) => r.status === "ok").length;
+  const failed = rows.length - succeeded;
+  const status =
+    succeeded > 0 ? (failed > 0 ? "partial" : "completed") : "failed";
+  await db
+    .update(surveyRunsTable)
+    .set({
+      status,
+      completedAt: new Date(),
+      succeededQueries: succeeded,
+      failedQueries: failed,
+      error: succeeded > 0 ? run.error : reason,
+    })
+    .where(eq(surveyRunsTable.id, run.id));
+  logger.warn(
+    { runId: run.id, status, succeeded, failed, reason },
+    "Finalized survey run",
+  );
+  return { status, succeeded, failed };
+}
+
+/**
+ * Finalize any run left in an active state (e.g. after a server restart
+ * interrupted it), so nothing shows as in-progress forever. Counts are
+ * reconciled from stored responses. Call once on server startup, before any
+ * new run can begin.
  */
 export async function failInterruptedRuns(): Promise<void> {
   const interrupted = await db
-    .update(surveyRunsTable)
-    .set({
-      status: "failed",
-      completedAt: new Date(),
-      error: "Interrupted by server restart",
-    })
-    .where(eq(surveyRunsTable.status, "running"))
-    .returning({ id: surveyRunsTable.id });
+    .select()
+    .from(surveyRunsTable)
+    .where(inArray(surveyRunsTable.status, [...ACTIVE_RUN_STATUSES]));
+  for (const run of interrupted) {
+    await finalizeRunFromResponses(run, "Interrupted by server restart");
+  }
   if (interrupted.length > 0) {
     logger.warn(
       { runIds: interrupted.map((r) => r.id) },
-      "Marked interrupted survey runs as failed after restart",
+      "Finalized interrupted survey runs after restart",
     );
   }
+}
+
+/**
+ * Watchdog: finalize runs whose heartbeat has gone stale (the owning loop
+ * died without writing a terminal status). A run still being worked — by this
+ * process or a serverless cron continuation — heartbeats continuously and is
+ * left untouched. Returns the number of runs finalized.
+ */
+export async function reconcileStaleRuns(
+  maxStaleMs: number = STALE_RUN_MS,
+): Promise<number> {
+  const cutoff = Date.now() - maxStaleMs;
+  const candidates = await db
+    .select()
+    .from(surveyRunsTable)
+    .where(inArray(surveyRunsTable.status, [...ACTIVE_RUN_STATUSES]));
+  let finalized = 0;
+  for (const run of candidates) {
+    const beat = (run.heartbeatAt ?? run.startedAt).getTime();
+    if (beat > cutoff) continue; // still alive
+    await finalizeRunFromResponses(
+      run,
+      `Finalized by watchdog — no heartbeat for over ${Math.round(maxStaleMs / 60_000)} min`,
+    );
+    finalized++;
+  }
+  return finalized;
 }
 
 export function isRunInProgress(): boolean {
@@ -172,17 +247,21 @@ export async function recoverPendingAutoRuns(): Promise<void> {
   }
 }
 
+type QueryType = "current" | "trend";
+
 interface SurveyQuery {
   engine: EngineRow;
   industry: IndustryRow;
   brands: BrandRow[];
   metric: MetricDef;
+  queryType: QueryType;
 }
 
 import {
   getActivePromptTemplate,
   renderPromptTemplate,
   placeholderValuesFor,
+  type PromptKind,
 } from "./promptTemplate";
 
 function weekLabels(): string[] {
@@ -202,6 +281,65 @@ function buildPrompt(query: SurveyQuery, template: string): string {
     template,
     placeholderValuesFor(query.metric, query.brands),
   );
+}
+
+function parseRankings(query: SurveyQuery, raw: string): StoredRankingEntry[] {
+  const parsed = parseJsonBlock(raw) as {
+    rankings?: {
+      brand?: string;
+      rank?: number;
+      score?: number;
+      rationale?: string;
+    }[];
+  };
+  if (!Array.isArray(parsed.rankings) || parsed.rankings.length === 0) {
+    throw new Error("Engine response missing rankings array");
+  }
+  const entries: StoredRankingEntry[] = [];
+  for (const r of parsed.rankings) {
+    if (!r.brand) continue;
+    const brand = matchBrand(query.brands, r.brand);
+    if (!brand) continue;
+    entries.push({
+      brandId: brand.id,
+      brandName: brand.name,
+      rank: typeof r.rank === "number" ? r.rank : entries.length + 1,
+      score: Math.max(0, Math.min(100, Number(r.score ?? 0))),
+      rationale: r.rationale ? String(r.rationale).slice(0, 500) : null,
+    });
+  }
+  if (entries.length === 0) {
+    throw new Error("No ranking entries matched known brands");
+  }
+  entries.sort((a, b) => a.rank - b.rank);
+  return entries;
+}
+
+function parseTrend(query: SurveyQuery, raw: string): StoredBrandTrend[] {
+  const parsed = parseJsonBlock(raw) as {
+    trend?: { brand?: string; weekly_scores?: number[] }[];
+  };
+  if (!Array.isArray(parsed.trend) || parsed.trend.length === 0) {
+    throw new Error("Engine response missing trend array");
+  }
+  const labels = weekLabels();
+  const trend: StoredBrandTrend[] = [];
+  for (const t of parsed.trend) {
+    if (!t.brand || !Array.isArray(t.weekly_scores)) continue;
+    const brand = matchBrand(query.brands, t.brand);
+    if (!brand) continue;
+    const scores = t.weekly_scores.slice(0, 13);
+    const points: StoredTrendPoint[] = scores.map((s, i) => ({
+      weekIndex: i,
+      weekLabel: labels[i] ?? `W${i}`,
+      score: Math.max(0, Math.min(100, Number(s))),
+    }));
+    trend.push({ brandId: brand.id, brandName: brand.name, points });
+  }
+  if (trend.length === 0) {
+    throw new Error("No trend series matched known brands");
+  }
+  return trend;
 }
 
 function parseJsonBlock(text: string): unknown {
@@ -230,59 +368,6 @@ function matchBrand(brands: BrandRow[], name: string): BrandRow | undefined {
   );
 }
 
-function parseResponse(
-  query: SurveyQuery,
-  raw: string,
-): { entries: StoredRankingEntry[]; trend: StoredBrandTrend[] } {
-  const parsed = parseJsonBlock(raw) as {
-    rankings?: {
-      brand?: string;
-      rank?: number;
-      score?: number;
-      rationale?: string;
-    }[];
-    trend?: { brand?: string; weekly_scores?: number[] }[];
-  };
-  if (!Array.isArray(parsed.rankings) || parsed.rankings.length === 0) {
-    throw new Error("Engine response missing rankings array");
-  }
-
-  const entries: StoredRankingEntry[] = [];
-  for (const r of parsed.rankings) {
-    if (!r.brand) continue;
-    const brand = matchBrand(query.brands, r.brand);
-    if (!brand) continue;
-    entries.push({
-      brandId: brand.id,
-      brandName: brand.name,
-      rank: typeof r.rank === "number" ? r.rank : entries.length + 1,
-      score: Math.max(0, Math.min(100, Number(r.score ?? 0))),
-      rationale: r.rationale ? String(r.rationale).slice(0, 500) : null,
-    });
-  }
-  if (entries.length === 0) {
-    throw new Error("No ranking entries matched known brands");
-  }
-  entries.sort((a, b) => a.rank - b.rank);
-
-  const labels = weekLabels();
-  const trend: StoredBrandTrend[] = [];
-  for (const t of parsed.trend ?? []) {
-    if (!t.brand || !Array.isArray(t.weekly_scores)) continue;
-    const brand = matchBrand(query.brands, t.brand);
-    if (!brand) continue;
-    const scores = t.weekly_scores.slice(0, 13);
-    const points: StoredTrendPoint[] = scores.map((s, i) => ({
-      weekIndex: i,
-      weekLabel: labels[i] ?? `W${i}`,
-      score: Math.max(0, Math.min(100, Number(s))),
-    }));
-    trend.push({ brandId: brand.id, brandName: brand.name, points });
-  }
-
-  return { entries, trend };
-}
-
 export type StartRunResult =
   | { kind: "started"; run: SurveyRunRow }
   | { kind: "in_progress" }
@@ -302,12 +387,13 @@ export function describeKeyFailures(failures: StoredKeyWarning[]): string {
 export async function startSurveyRun(
   trigger: "scheduled" | "manual" | "auto",
   industryId?: number,
+  engineId?: number,
 ): Promise<StartRunResult> {
   if (runInProgress) return { kind: "in_progress" };
   runInProgress = true;
   activeRunId = null;
   try {
-    const result = await beginSurveyRun(trigger, industryId);
+    const result = await beginSurveyRun(trigger, industryId, engineId);
     if (result.kind !== "started") {
       // Nothing was started (skipped or blocked) — release the lock.
       runInProgress = false;
@@ -326,9 +412,10 @@ export async function startSurveyRun(
 async function beginSurveyRun(
   trigger: "scheduled" | "manual" | "auto",
   industryId?: number,
+  engineId?: number,
 ): Promise<StartRunResult> {
   const engines = (await db.select().from(enginesTable)).filter(
-    (e) => e.enabled,
+    (e) => e.enabled && (engineId == null || e.id === engineId),
   );
 
   // Pre-flight: verify the key for every provider used by an enabled engine.
@@ -355,6 +442,7 @@ async function beginSurveyRun(
           status: "failed",
           trigger,
           industryId: industryId ?? null,
+          engineId: engineId ?? null,
           completedAt: new Date(),
           totalQueries: 0,
           keyWarnings,
@@ -368,6 +456,7 @@ async function beginSurveyRun(
 
   const industries = await db.select().from(industriesTable);
   const brands = await db.select().from(brandsTable);
+  // engines is already filtered to the scoped engine (if any) above.
   const queries = buildAllQueries(engines, industries, brands, industryId);
 
   // Auto-triggered scoped runs with nothing to survey (e.g. industry has no
@@ -386,6 +475,7 @@ async function beginSurveyRun(
       status: "running",
       trigger,
       industryId: industryId ?? null,
+      engineId: engineId ?? null,
       totalQueries: queries.length,
       keyWarnings: keyWarnings.length > 0 ? keyWarnings : null,
     })
@@ -427,7 +517,23 @@ function buildAllQueries(
       );
       if (industryBrands.length === 0) continue;
       for (const metric of METRICS) {
-        queries.push({ engine, industry, brands: industryBrands, metric });
+        // Two fully isolated engine calls per (engine, industry, metric):
+        // one for today's ranking, one for the 13-week trajectory, so
+        // neither answer anchors the other.
+        queries.push({
+          engine,
+          industry,
+          brands: industryBrands,
+          metric,
+          queryType: "current",
+        });
+        queries.push({
+          engine,
+          industry,
+          brands: industryBrands,
+          metric,
+          queryType: "trend",
+        });
       }
     }
   }
@@ -443,7 +549,11 @@ export async function resumeSurveyRun(
   runInProgress = true;
   activeRunId = run.id;
   try {
-    const engines = await db.select().from(enginesTable);
+    const allEngines = await db.select().from(enginesTable);
+    const engines =
+      run.engineId == null
+        ? allEngines
+        : allEngines.filter((e) => e.id === run.engineId);
     const industries = await db.select().from(industriesTable);
     const brands = await db.select().from(brandsTable);
     const allQueries = buildAllQueries(
@@ -459,15 +569,21 @@ export async function resumeSurveyRun(
         engineId: surveyResponsesTable.engineId,
         industryId: surveyResponsesTable.industryId,
         metricKey: surveyResponsesTable.metricKey,
+        queryType: surveyResponsesTable.queryType,
         status: surveyResponsesTable.status,
       })
       .from(surveyResponsesTable)
       .where(eq(surveyResponsesTable.runId, run.id));
     const done = new Set(
-      existing.map((r) => `${r.engineId}:${r.industryId}:${r.metricKey}`),
+      existing.map(
+        (r) => `${r.engineId}:${r.industryId}:${r.metricKey}:${r.queryType}`,
+      ),
     );
     const remaining = allQueries.filter(
-      (q) => !done.has(`${q.engine.id}:${q.industry.id}:${q.metric.key}`),
+      (q) =>
+        !done.has(
+          `${q.engine.id}:${q.industry.id}:${q.metric.key}:${q.queryType}`,
+        ),
     );
     const succeededSoFar = existing.filter((r) => r.status === "ok").length;
     const failedSoFar = existing.length - succeededSoFar;
@@ -548,8 +664,41 @@ async function executeRun(
   let totalOutputTokens = 0;
   let totalCostUsd = 0;
 
-  // Resolve the template once so every query in the run uses the same text.
-  const { template } = await getActivePromptTemplate();
+  // Live progress + heartbeat: persist counters and a heartbeat timestamp as
+  // the run advances, throttled so we don't hammer the DB. This is what makes
+  // the admin console (and the serverless cron's status poll) show real
+  // progress instead of 0/N until the very end, and it is the liveness signal
+  // the watchdog uses to tell a working run from a dead one.
+  const FLUSH_INTERVAL_MS = 3000;
+  let lastFlush = 0;
+  const flushProgress = async (force = false): Promise<void> => {
+    const now = Date.now();
+    if (!force && now - lastFlush < FLUSH_INTERVAL_MS) return;
+    lastFlush = now;
+    try {
+      await db
+        .update(surveyRunsTable)
+        .set({
+          succeededQueries: succeeded,
+          failedQueries: failed,
+          heartbeatAt: new Date(),
+          totalInputTokens,
+          totalOutputTokens,
+          totalCostUsd: Math.round(totalCostUsd * 1_000_000) / 1_000_000,
+        })
+        .where(eq(surveyRunsTable.id, run.id));
+    } catch (err) {
+      logger.warn({ err, runId: run.id }, "Failed to flush run progress");
+    }
+  };
+  // Stamp an initial heartbeat so the run reads as alive from the first moment.
+  await flushProgress(true);
+
+  // Resolve both templates once so every query in the run uses the same text.
+  const currentTemplate = (await getActivePromptTemplate("current")).template;
+  const trendTemplate = (await getActivePromptTemplate("trend")).template;
+  const templateFor = (kind: PromptKind): string =>
+    kind === "trend" ? trendTemplate : currentTemplate;
 
   await batchProcess(
     queries,
@@ -559,13 +708,17 @@ async function executeRun(
         skipped++;
         return null;
       }
-      // Every query is an entirely new, isolated request to the engine.
-      const prompt = buildPrompt(query, template);
+      // Every query is an entirely new, isolated request to the engine, for
+      // exactly one of the two asks (current ranking OR 13-week trend).
+      const prompt = buildPrompt(query, templateFor(query.queryType));
       let raw: string | null = null;
       try {
         const result = await callEngine(query.engine, prompt);
         raw = result.text;
-        const { entries, trend } = parseResponse(query, result.text);
+        const entries =
+          query.queryType === "current" ? parseRankings(query, result.text) : null;
+        const trend =
+          query.queryType === "trend" ? parseTrend(query, result.text) : null;
         const costUsd =
           result.inputTokens != null && result.outputTokens != null
             ? estimateCostUsd(
@@ -584,6 +737,7 @@ async function executeRun(
             engineId: query.engine.id,
             industryId: query.industry.id,
             metricKey: query.metric.key,
+            queryType: query.queryType,
             status: "ok",
             entries,
             trend,
@@ -599,6 +753,7 @@ async function executeRun(
           await recordSeriesForResponse(inserted);
         }
         succeeded++;
+        await flushProgress();
       } catch (err) {
         failed++;
         const message = err instanceof Error ? err.message : String(err);
@@ -608,6 +763,7 @@ async function executeRun(
             engine: query.engine.key,
             industry: query.industry.slug,
             metric: query.metric.key,
+            queryType: query.queryType,
             error: message,
           },
           "Survey query failed",
@@ -617,11 +773,13 @@ async function executeRun(
           engineId: query.engine.id,
           industryId: query.industry.id,
           metricKey: query.metric.key,
+          queryType: query.queryType,
           status: "failed",
           error: message.slice(0, 1000),
           prompt,
           rawResponse: raw,
         });
+        await flushProgress();
       }
       return null;
     },

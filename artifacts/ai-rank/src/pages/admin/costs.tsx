@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import {
   useGetCostSummary,
   getGetCostSummaryQueryKey,
+  useListApiKeys,
+  getListApiKeysQueryKey,
   GetCostSummaryParams,
   CostBucket,
 } from '@workspace/api-client-react';
@@ -21,6 +23,13 @@ const RANGES = [
 ] as const;
 
 type RangeValue = typeof RANGES[number]['value'];
+
+const PROVIDERS: { key: string; label: string }[] = [
+  { key: 'openai', label: 'OpenAI' },
+  { key: 'anthropic', label: 'Anthropic' },
+  { key: 'gemini', label: 'Google Gemini' },
+  { key: 'openrouter', label: 'OpenRouter' },
+];
 
 function formatUsd(v: number): string {
   if (v === 0) return '$0.00';
@@ -43,6 +52,13 @@ export default function AdminCosts() {
   const { data, isLoading } = useGetCostSummary(params, {
     query: { queryKey: getGetCostSummaryQueryKey(params) },
   });
+  const { data: keyStatuses } = useListApiKeys({
+    query: { queryKey: getListApiKeysQueryKey() },
+  });
+  const keyByProvider = new Map(
+    (keyStatuses ?? []).map((k) => [k.provider as string, k]),
+  );
+  const bucketByProvider = new Map((data?.byProvider ?? []).map((b) => [b.key, b]));
 
   // "Last run" = the most recent run bucket in the unfiltered summary.
   const lastRun = data?.byRun?.[0];
@@ -151,22 +167,61 @@ export default function AdminCosts() {
               </div>
             )}
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <BucketTable
-                title="By Provider"
-                description="Spend grouped by API provider"
-                buckets={showLastRunOnly ? [] : data.byProvider}
-                emptyText={showLastRunOnly ? 'Switch to a time range to see provider breakdown.' : 'No usage recorded yet.'}
-                testId="table-by-provider"
-              />
-              <BucketTable
-                title="By Model"
-                description="Spend grouped by resolved model"
-                buckets={showLastRunOnly ? [] : data.byModel}
-                emptyText={showLastRunOnly ? 'Switch to a time range to see model breakdown.' : 'No usage recorded yet.'}
-                testId="table-by-model"
-              />
+            {/* Per-API tracker: one card per provider */}
+            <div>
+              <h2 className="text-lg font-bold tracking-tight mb-3 flex items-center gap-2">
+                <Cpu className="w-5 h-5 text-primary" /> Cost by API
+              </h2>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                {PROVIDERS.map((p) => {
+                  const bucket = bucketByProvider.get(p.key);
+                  const key = keyByProvider.get(p.key);
+                  const connected = !!key && (key.hasStoredKey || key.hasEnvKey);
+                  return (
+                    <Card key={p.key} className="border-border" data-testid={`card-api-${p.key}`}>
+                      <CardContent className="p-5 space-y-3">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="font-mono text-xs uppercase tracking-wider text-muted-foreground">{p.label}</span>
+                          <Badge
+                            variant="outline"
+                            className={`font-mono text-[10px] uppercase ${connected ? 'text-emerald-600 border-emerald-500/30' : 'text-muted-foreground'}`}
+                          >
+                            {connected ? `key: ${key?.hasStoredKey ? 'stored' : 'env'}` : 'no key'}
+                          </Badge>
+                        </div>
+                        <div className="text-3xl font-bold font-mono tracking-tight" data-testid={`text-api-cost-${p.key}`}>
+                          {showLastRunOnly ? '—' : formatUsd(bucket?.costUsd ?? 0)}
+                        </div>
+                        <div className="grid grid-cols-2 gap-2 text-xs font-mono text-muted-foreground pt-1 border-t border-border">
+                          <div>
+                            <div className="text-[10px] uppercase tracking-wider">In / Out</div>
+                            <div className="text-foreground">{formatTokens(bucket?.inputTokens ?? 0)} / {formatTokens(bucket?.outputTokens ?? 0)}</div>
+                          </div>
+                          <div>
+                            <div className="text-[10px] uppercase tracking-wider">Responses</div>
+                            <div className="text-foreground">{bucket?.responses ?? 0}</div>
+                          </div>
+                        </div>
+                        {bucket && bucket.unknownCostResponses > 0 && (
+                          <p className="text-[11px] text-muted-foreground font-mono">{bucket.unknownCostResponses} unpriced (no rate for model)</p>
+                        )}
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+              <p className="text-xs text-muted-foreground font-mono mt-3">
+                Estimated from a static per-model rate table (what we pay providers). Cost accrues only on responses that recorded token usage.
+              </p>
             </div>
+
+            <BucketTable
+              title="By Model"
+              description="Spend grouped by the model each API resolved to"
+              buckets={showLastRunOnly ? [] : data.byModel}
+              emptyText={showLastRunOnly ? 'Switch to a time range to see the model breakdown.' : 'No usage recorded yet.'}
+              testId="table-by-model"
+            />
 
             <Card className="border-border">
               <CardHeader className="bg-muted/30 border-b border-border">

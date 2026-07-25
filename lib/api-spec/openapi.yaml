@@ -256,6 +256,45 @@ paths:
       operationId: listRuns
       tags: [runs]
       summary: Survey run history, newest first
+      parameters:
+        - name: status
+          in: query
+          required: false
+          description: Only runs with this status
+          schema:
+            type: string
+            enum: [running, pausing, cancelling, paused, completed, partial, failed, cancelled]
+        - name: trigger
+          in: query
+          required: false
+          description: Only runs with this trigger
+          schema:
+            type: string
+            enum: [scheduled, manual, auto]
+        - name: engineId
+          in: query
+          required: false
+          description: Only runs scoped to this AI engine
+          schema:
+            type: integer
+        - name: from
+          in: query
+          required: false
+          description: Only runs started on or after this date (YYYY-MM-DD)
+          schema:
+            type: string
+        - name: to
+          in: query
+          required: false
+          description: Only runs started on or before this date (YYYY-MM-DD, inclusive)
+          schema:
+            type: string
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 50
       responses:
         "200":
           description: Runs
@@ -401,6 +440,253 @@ paths:
                 $ref: "#/components/schemas/ApiMessage"
         "409":
           description: Run is not in a cancellable state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+  /runs/{runId}/report-issue:
+    post:
+      operationId: reportRunIssue
+      tags: [runs]
+      summary: Push a problem run into the alert queue
+      description: Creates a run_issue alert summarizing the run's failures. Refused when the run has no issues or was already reported.
+      parameters:
+        - name: runId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "201":
+          description: Alert created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrandAlert"
+        "400":
+          description: Run has no issues to report
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "404":
+          description: Run not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "409":
+          description: Run already reported to the alert queue
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+  /pricing:
+    get:
+      operationId: getPricing
+      tags: [pricing]
+      summary: Public pricing tiers
+      responses:
+        "200":
+          description: Pricing tiers
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PricingTierList"
+  /admin/pricing:
+    get:
+      operationId: getAdminPricing
+      tags: [admin]
+      summary: Pricing tiers for the admin editor
+      responses:
+        "200":
+          description: Pricing tiers
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PricingTierList"
+  /admin/pricing/{key}:
+    put:
+      operationId: updatePricingTier
+      tags: [admin]
+      summary: Update a tier's per-token rate, monthly fee, and included tokens
+      parameters:
+        - name: key
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdatePricingTierInput"
+      responses:
+        "200":
+          description: Updated tier
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PricingTier"
+        "400":
+          description: Invalid values
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "404":
+          description: Tier not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+  /admin/schedules:
+    get:
+      operationId: listSchedules
+      tags: [admin]
+      summary: Cron schedules (recurring and one-time)
+      responses:
+        "200":
+          description: Schedules
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScheduleList"
+    post:
+      operationId: createSchedule
+      tags: [admin]
+      summary: Create a recurring or one-time schedule
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ScheduleInput"
+      responses:
+        "201":
+          description: Created schedule
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Schedule"
+        "400":
+          description: Invalid schedule
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+  /admin/schedules/{id}:
+    patch:
+      operationId: updateSchedule
+      tags: [admin]
+      summary: Edit a schedule — switch mode/cadence, scope, or enable/disable
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ScheduleUpdate"
+      responses:
+        "200":
+          description: Updated schedule
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Schedule"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+    delete:
+      operationId: deleteSchedule
+      tags: [admin]
+      summary: Delete a schedule
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+  /runs/summary:
+    get:
+      operationId: getRunsSummary
+      tags: [runs]
+      summary: Ops summary — first run, last run, next scheduled fire, counts
+      responses:
+        "200":
+          description: Summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RunsSummary"
+  /runs/reconcile:
+    post:
+      operationId: reconcileRuns
+      tags: [runs]
+      summary: Finalize runs stuck in an active state with a stale heartbeat
+      responses:
+        "200":
+          description: Number of stale runs finalized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReconcileResult"
+  /runs/failed:
+    delete:
+      operationId: clearFailedRuns
+      tags: [runs]
+      summary: Delete all failed survey runs and their rows
+      responses:
+        "200":
+          description: Count of runs deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+  /runs/{runId}:
+    delete:
+      operationId: deleteRun
+      tags: [runs]
+      summary: Delete a survey run and all rows that reference it
+      parameters:
+        - name: runId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Run deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "404":
+          description: Run not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "409":
+          description: Run is active — cancel it before deleting
           content:
             application/json:
               schema:
@@ -715,6 +1001,141 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiMessage"
+  /admin/users:
+    get:
+      operationId: listAdminUsers
+      tags: [admin]
+      summary: Public (magic-link) users with usage stats
+      parameters:
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 1
+        - name: pageSize
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 25
+        - name: search
+          in: query
+          required: false
+          description: Case-insensitive match on email or name
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Page of users
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminUserPage"
+  /admin/users/{userId}:
+    patch:
+      operationId: updateUserStatus
+      tags: [admin]
+      summary: Disable or re-enable a public user account
+      description: Disabling also revokes the user's active sessions.
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateUserStatusInput"
+      responses:
+        "200":
+          description: Updated user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminAppUser"
+        "404":
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+  /admin/admins:
+    get:
+      operationId: listAdmins
+      tags: [admin]
+      summary: Admin accounts and pending email invites
+      responses:
+        "200":
+          description: Admin list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminAccountList"
+    post:
+      operationId: inviteAdmin
+      tags: [admin]
+      summary: Invite an admin by email
+      description: The invite is claimed automatically when a Clerk user with this email first opens the admin area.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InviteAdminInput"
+      responses:
+        "201":
+          description: Created invite
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminAccount"
+        "400":
+          description: Invalid email
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "409":
+          description: Already an admin or already invited
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+  /admin/admins/{adminId}:
+    delete:
+      operationId: removeAdmin
+      tags: [admin]
+      summary: Remove an admin or revoke a pending invite
+      description: You cannot remove yourself, and the last claimed admin cannot be removed.
+      parameters:
+        - name: adminId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Removed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "400":
+          description: Refused (self-removal or last admin)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
   /settings/api-keys/{provider}/test:
     post:
       operationId: testApiKey
@@ -805,7 +1226,7 @@ paths:
           required: true
           schema:
             type: string
-            enum: [industries, brands, engines, survey_runs, survey_responses]
+            enum: [industries, brands, engines, survey_runs, survey_responses, users, sessions, ad_hoc_requests]
         - name: page
           in: query
           required: false
@@ -996,7 +1417,14 @@ paths:
     delete:
       operationId: resetPromptTemplate
       tags: [admin]
-      summary: Reset the survey prompt template to the built-in default
+      summary: Reset one survey prompt template to the built-in default
+      parameters:
+        - name: kind
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [current, trend]
       responses:
         "200":
           description: Template info after reset
@@ -1004,6 +1432,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/PromptTemplateInfo"
+        "400":
+          description: Invalid kind
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
   /auth/request-link:
     post:
       operationId: requestMagicLink
@@ -1075,6 +1509,18 @@ paths:
       operationId: signOut
       tags: [auth]
       summary: Destroy the current session
+      responses:
+        "200":
+          description: Signed out
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+  /auth/admin/session:
+    delete:
+      operationId: adminSignOut
+      tags: [admin]
+      summary: Destroy the current admin session (Google sign-in)
       responses:
         "200":
           description: Signed out
@@ -1204,26 +1650,153 @@ components:
         email:
           type: string
           nullable: true
+    AdminAppUser:
+      type: object
+      required:
+        [id, email, firstName, lastName, createdAt, disabled, rankRequests, activeSessions]
+      properties:
+        id:
+          type: integer
+        email:
+          type: string
+        firstName:
+          type: string
+        lastName:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        disabled:
+          type: boolean
+        disabledAt:
+          type: string
+          format: date-time
+          nullable: true
+        rankRequests:
+          type: integer
+          description: Total ad-hoc ranking requests made by this user
+        lastRequestAt:
+          type: string
+          format: date-time
+          nullable: true
+        activeSessions:
+          type: integer
+    AdminUserPage:
+      type: object
+      required: [users, total, page, pageSize]
+      properties:
+        users:
+          type: array
+          items:
+            $ref: "#/components/schemas/AdminAppUser"
+        total:
+          type: integer
+        page:
+          type: integer
+        pageSize:
+          type: integer
+    UpdateUserStatusInput:
+      type: object
+      required: [disabled]
+      properties:
+        disabled:
+          type: boolean
+    AdminAccount:
+      type: object
+      required: [id, pending, self, createdAt]
+      properties:
+        id:
+          type: integer
+        email:
+          type: string
+          nullable: true
+        pending:
+          type: boolean
+          description: True for an email invite not yet claimed
+        self:
+          type: boolean
+          description: True when this row is the calling admin
+        createdAt:
+          type: string
+          format: date-time
+    AdminAccountList:
+      type: object
+      required: [admins]
+      properties:
+        admins:
+          type: array
+          items:
+            $ref: "#/components/schemas/AdminAccount"
+    InviteAdminInput:
+      type: object
+      required: [email]
+      properties:
+        email:
+          type: string
+          description: Email address of the person to invite
     ApiMessage:
       type: object
       properties:
         message:
           type: string
       required: [message]
+    PricingTier:
+      type: object
+      required: [key, name, blurb, costPerTokenUsd, includedTokens, features, highlighted, sortOrder]
+      properties:
+        key: { type: string }
+        name: { type: string }
+        blurb: { type: string }
+        monthlyPriceUsd:
+          type: number
+          nullable: true
+          description: Monthly plan fee; null means custom / contact sales
+        costPerTokenUsd:
+          type: number
+          description: Billed rate per token for this tier
+        includedTokens:
+          type: integer
+          description: Tokens included with the monthly fee before refills
+        features:
+          type: array
+          items: { type: string }
+        highlighted: { type: boolean }
+        sortOrder: { type: integer }
+        updatedAt:
+          type: string
+          format: date-time
+    PricingTierList:
+      type: object
+      required: [tiers]
+      properties:
+        tiers:
+          type: array
+          items:
+            $ref: "#/components/schemas/PricingTier"
+    UpdatePricingTierInput:
+      type: object
+      properties:
+        costPerTokenUsd:
+          type: number
+        monthlyPriceUsd:
+          type: number
+          nullable: true
+        includedTokens:
+          type: integer
     BrandAlert:
       type: object
       properties:
         id: { type: integer }
         runId: { type: integer }
-        brandId: { type: integer }
+        brandId: { type: integer, nullable: true }
         brandName: { type: string }
-        industryId: { type: integer }
+        industryId: { type: integer, nullable: true }
         industryName: { type: string }
         metric: { type: string }
         metricLabel: { type: string }
         kind:
           type: string
-          enum: [score_drop, rank_drop]
+          enum: [score_drop, rank_drop, run_issue]
         previousValue: { type: number }
         currentValue: { type: number }
         delta: { type: number }
@@ -1433,18 +2006,31 @@ components:
           type: boolean
           description: Whether the template must contain this placeholder
       required: [name, description, required]
+    PromptTemplateKind:
+      type: object
+      properties:
+        kind:
+          type: string
+          enum: [current, trend]
+          description: current = daily ranking, trend = 13-week trajectory
+        template:
+          type: string
+          description: The active template text for this kind (custom or default)
+        isCustom:
+          type: boolean
+          description: True when a custom template is stored for this kind
+        defaultTemplate:
+          type: string
+          description: The built-in default template text for this kind
+      required: [kind, template, isCustom, defaultTemplate]
     PromptTemplateInfo:
       type: object
       properties:
-        template:
-          type: string
-          description: The active template text (custom or default)
-        isCustom:
-          type: boolean
-          description: True when a custom template is stored in the database
-        defaultTemplate:
-          type: string
-          description: The built-in default template text
+        templates:
+          type: array
+          description: One entry per prompt kind (current, trend)
+          items:
+            $ref: "#/components/schemas/PromptTemplateKind"
         placeholders:
           type: array
           items:
@@ -1454,14 +2040,17 @@ components:
           additionalProperties:
             type: string
           description: Example value for each placeholder, for client-side preview rendering
-      required: [template, isCustom, defaultTemplate, placeholders, exampleValues]
+      required: [templates, placeholders, exampleValues]
     PromptTemplateInput:
       type: object
       properties:
+        kind:
+          type: string
+          enum: [current, trend]
         template:
           type: string
           minLength: 1
-      required: [template]
+      required: [kind, template]
     TablePage:
       type: object
       properties:
@@ -1881,8 +2470,14 @@ components:
         industryId:
           type: ["integer", "null"]
           description: When set, the run was scoped to this industry only
+        engineId:
+          type: ["integer", "null"]
+          description: When set, the run was scoped to this AI engine only
         startedAt: { type: string }
         completedAt: { type: ["string", "null"] }
+        heartbeatAt:
+          type: ["string", "null"]
+          description: Last liveness signal from the run loop; null for historical runs
         error: { type: ["string", "null"] }
         totalQueries: { type: integer }
         succeededQueries: { type: integer }
@@ -1900,7 +2495,88 @@ components:
         totalCostUsd:
           type: ["number", "null"]
           description: Estimated total cost in USD, null for historical runs
-      required: [id, status, trigger, industryId, startedAt, completedAt, error, totalQueries, succeededQueries, failedQueries, keyWarnings, totalInputTokens, totalOutputTokens, totalCostUsd]
+      required: [id, status, trigger, industryId, engineId, startedAt, completedAt, heartbeatAt, error, totalQueries, succeededQueries, failedQueries, keyWarnings, totalInputTokens, totalOutputTokens, totalCostUsd]
+    ReconcileResult:
+      type: object
+      required: [finalized, message]
+      properties:
+        finalized: { type: integer }
+        message: { type: string }
+    Schedule:
+      type: object
+      required: [id, mode, industryId, engineId, enabled, nextRunAt, lastRunAt, lastRunId, createdAt]
+      properties:
+        id: { type: integer }
+        mode:
+          type: string
+          enum: [once, recurring]
+        cadence:
+          type: ["string", "null"]
+          enum: [daily, weekly, monthly, null]
+        industryId: { type: ["integer", "null"] }
+        engineId: { type: ["integer", "null"] }
+        enabled: { type: boolean }
+        nextRunAt: { type: string }
+        lastRunAt: { type: ["string", "null"] }
+        lastRunId: { type: ["integer", "null"] }
+        createdAt: { type: string }
+    ScheduleList:
+      type: object
+      required: [schedules]
+      properties:
+        schedules:
+          type: array
+          items:
+            $ref: "#/components/schemas/Schedule"
+    ScheduleInput:
+      type: object
+      required: [mode]
+      properties:
+        mode:
+          type: string
+          enum: [once, recurring]
+        cadence:
+          type: string
+          enum: [daily, weekly, monthly]
+        industryId: { type: integer }
+        engineId: { type: integer }
+        runAt:
+          type: string
+          description: ISO datetime — required for once, optional start for recurring
+    ScheduleUpdate:
+      type: object
+      properties:
+        mode:
+          type: string
+          enum: [once, recurring]
+        cadence:
+          type: string
+          enum: [daily, weekly, monthly]
+        industryId: { type: ["integer", "null"] }
+        engineId: { type: ["integer", "null"] }
+        enabled: { type: boolean }
+        runAt: { type: string }
+    RunsSummary:
+      type: object
+      required: [totalRuns, activeRuns, firstRun, lastRun, nextScheduledRun, statusCounts]
+      properties:
+        totalRuns: { type: integer }
+        activeRuns: { type: integer }
+        firstRun:
+          oneOf:
+            - $ref: "#/components/schemas/SurveyRun"
+            - type: "null"
+        lastRun:
+          oneOf:
+            - $ref: "#/components/schemas/SurveyRun"
+            - type: "null"
+        nextScheduledRun:
+          type: string
+          description: ISO timestamp of the next scheduled daily fire (06:00 UTC)
+        statusCounts:
+          type: object
+          additionalProperties:
+            type: integer
     KeyWarning:
       type: object
       properties:
@@ -1924,6 +2600,9 @@ components:
         industryId:
           type: integer
           description: Scope the run to a single industry; omit for a full run
+        engineId:
+          type: integer
+          description: Scope the run to a single AI engine; omit for all engines
     CostBucket:
       type: object
       description: Aggregated usage and estimated cost for one grouping bucket

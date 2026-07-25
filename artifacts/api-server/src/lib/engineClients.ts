@@ -10,6 +10,50 @@ export interface EngineCallResult {
 }
 
 /**
+ * Hard ceiling on a single engine call. Without this a stalled socket blocks a
+ * concurrency slot indefinitely, so the whole survey run can sit in "running"
+ * forever (the exact failure this guard exists to prevent). Overridable via
+ * ENGINE_CALL_TIMEOUT_MS; defaults to 120s, comfortably above a normal
+ * 8k-token completion but well short of an infinite hang.
+ */
+export const ENGINE_CALL_TIMEOUT_MS = (() => {
+  const raw = Number(process.env.ENGINE_CALL_TIMEOUT_MS);
+  return Number.isFinite(raw) && raw >= 10_000 ? raw : 120_000;
+})();
+
+export class EngineTimeoutError extends Error {
+  constructor(label: string, ms: number) {
+    super(`${label} timed out after ${ms}ms`);
+    this.name = "EngineTimeoutError";
+  }
+}
+
+/**
+ * Runs a provider call with an abort-backed hard timeout. The AbortSignal is
+ * handed to SDKs that honor it (best-effort socket cancellation); the
+ * Promise.race guarantees the call rejects and frees its slot even if the SDK
+ * ignores the signal.
+ */
+async function withTimeout<T>(
+  label: string,
+  fn: (signal: AbortSignal) => Promise<T>,
+): Promise<T> {
+  const controller = new AbortController();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const guard = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => {
+      controller.abort();
+      reject(new EngineTimeoutError(label, ENGINE_CALL_TIMEOUT_MS));
+    }, ENGINE_CALL_TIMEOUT_MS);
+  });
+  try {
+    return await Promise.race([fn(controller.signal), guard]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+/**
  * Calls a single AI engine with a single, fully isolated one-shot prompt.
  * No conversation state or shared context is ever reused between calls.
  *
@@ -40,12 +84,17 @@ export async function callEngine(
         client = (await import("@workspace/integrations-openai-ai-server"))
           .openai;
       }
-      const response = await client.chat.completions.create({
-        model: engine.model,
-        max_completion_tokens: 8192,
-        messages: [{ role: "user", content: prompt }],
-        response_format: { type: "json_object" },
-      });
+      const response = await withTimeout(`openai:${engine.model}`, (signal) =>
+        client.chat.completions.create(
+          {
+            model: engine.model,
+            max_completion_tokens: 8192,
+            messages: [{ role: "user", content: prompt }],
+            response_format: { type: "json_object" },
+          },
+          { signal, maxRetries: 0 },
+        ),
+      );
       return {
         text: response.choices[0]?.message?.content ?? "",
         resolvedModel: response.model || engine.model,
@@ -62,11 +111,16 @@ export async function callEngine(
         client = (await import("@workspace/integrations-anthropic-ai"))
           .anthropic;
       }
-      const message = await client.messages.create({
-        model: engine.model,
-        max_tokens: 8192,
-        messages: [{ role: "user", content: prompt }],
-      });
+      const message = await withTimeout(`anthropic:${engine.model}`, (signal) =>
+        client.messages.create(
+          {
+            model: engine.model,
+            max_tokens: 8192,
+            messages: [{ role: "user", content: prompt }],
+          },
+          { signal, maxRetries: 0 },
+        ),
+      );
       const block = message.content[0];
       return {
         text: block && block.type === "text" ? block.text : "",
@@ -83,11 +137,17 @@ export async function callEngine(
       } else {
         client = (await import("@workspace/integrations-gemini-ai")).ai;
       }
-      const response = await client.models.generateContent({
-        model: engine.model,
-        contents: [{ role: "user", parts: [{ text: prompt }] }],
-        config: { maxOutputTokens: 8192, responseMimeType: "application/json" },
-      });
+      const response = await withTimeout(`gemini:${engine.model}`, (signal) =>
+        client.models.generateContent({
+          model: engine.model,
+          contents: [{ role: "user", parts: [{ text: prompt }] }],
+          config: {
+            maxOutputTokens: 8192,
+            responseMimeType: "application/json",
+            abortSignal: signal,
+          },
+        }),
+      );
       const usage = response.usageMetadata;
       const outputTokens =
         usage?.candidatesTokenCount != null || usage?.thoughtsTokenCount != null
@@ -112,11 +172,16 @@ export async function callEngine(
         client = (await import("@workspace/integrations-openrouter-ai"))
           .openrouter;
       }
-      const response = await client.chat.completions.create({
-        model: engine.model,
-        max_tokens: 8192,
-        messages: [{ role: "user", content: prompt }],
-      });
+      const response = await withTimeout(`openrouter:${engine.model}`, (signal) =>
+        client.chat.completions.create(
+          {
+            model: engine.model,
+            max_tokens: 8192,
+            messages: [{ role: "user", content: prompt }],
+          },
+          { signal, maxRetries: 0 },
+        ),
+      );
       return {
         text: response.choices[0]?.message?.content ?? "",
         resolvedModel: response.model || engine.model,

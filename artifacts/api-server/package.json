@@ -6,14 +6,13 @@
   "scripts": {
     "dev": "export NODE_ENV=development && pnpm run build && pnpm run start",
     "build": "node ./build.mjs",
+    "build:vercel": "node ./build.vercel.mjs",
     "start": "node --enable-source-maps ./dist/index.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.78.0",
-    "@clerk/express": "^2.1.44",
-    "@clerk/shared": "^4.25.6",
     "@google/genai": "^1.52.0",
     "@replit/connectors-sdk": "^0.4.1",
     "@resvg/resvg-js": "^2.6.2",
@@ -27,7 +26,6 @@
     "cors": "^2.8.6",
     "drizzle-orm": "catalog:",
     "express": "^5.2.1",
-    "http-proxy-middleware": "^4.2.0",
     "openai": "^6.9.0",
     "p-limit": "^7.3.0",
     "p-retry": "^7.1.1",

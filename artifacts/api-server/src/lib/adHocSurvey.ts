@@ -138,8 +138,8 @@ export async function runAdHocSurvey(
     for (const metric of METRICS) {
       try {
         const prompt = buildAdHocPrompt(brands, metric.label, metric.description, metric.higherIsBetter, country);
-        const raw = await callEngine(engine, prompt);
-        const parsed = parseJsonBlock(raw) as {
+        const result = await callEngine(engine, prompt);
+        const parsed = parseJsonBlock(result.text) as {
           rankings?: { brand?: string; rank?: number; score?: number; rationale?: string }[];
         };
         if (!Array.isArray(parsed.rankings) || parsed.rankings.length === 0) continue;
@@ -208,8 +208,8 @@ export async function suggestCompetitors(brand: string, country: string): Promis
     `{"competitors":["Brand A","Brand B","Brand C","Brand D"]}`,
   ].join("\n");
 
-  const raw = await callEngine(engine, prompt);
-  const parsed = parseJsonBlock(raw) as { competitors?: unknown[] };
+  const result = await callEngine(engine, prompt);
+  const parsed = parseJsonBlock(result.text) as { competitors?: unknown[] };
   if (!Array.isArray(parsed.competitors)) throw new Error("Invalid competitor response");
   return parsed.competitors
     .filter((c) => typeof c === "string" && c.trim().length > 0)

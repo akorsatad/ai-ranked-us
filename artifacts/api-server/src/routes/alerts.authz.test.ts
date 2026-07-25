@@ -14,17 +14,18 @@ const state = {
   emailSent: 0,
 };
 
-vi.mock("@clerk/express", () => ({
-  getAuth: () => ({ userId: state.userId }),
-  clerkClient: { users: { getUser: async () => ({ primaryEmailAddress: null }) } },
-}));
-
 vi.mock("../middlewares/requireAdmin", async () => {
   const actual = await vi.importActual<
     typeof import("../middlewares/requireAdmin")
   >("../middlewares/requireAdmin");
   return {
     ...actual,
+    // Session resolution is DB-backed in the real module; the mock drives
+    // it from test state so the redaction branch is exercisable.
+    resolveAdminSession: async () =>
+      state.userId && state.isAdmin
+        ? { adminUserId: 1, email: "admin@example.com" }
+        : null,
     // Keep the real middleware shape but resolve admin state from the mock,
     // so the 401/403/next branching under test is the real code path.
     requireAdmin: async (
@@ -66,6 +67,7 @@ vi.mock("@workspace/db", () => ({
   db: {},
   brandAlertsTable: {},
   adminUsersTable: {},
+  adminSessionsTable: {},
 }));
 
 import alertsRouter from "./alerts";

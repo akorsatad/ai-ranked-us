@@ -3,8 +3,64 @@ import {
   industriesTable,
   brandsTable,
   enginesTable,
+  pricingTiersTable,
+  surveySchedulesTable,
 } from "@workspace/db";
 import { logger } from "./logger";
+
+// Default commercial pricing tiers. Token rates are placeholders admins edit
+// in /admin/pricing. Billing is per token used, refillable at the tier rate.
+const PRICING_TIERS = [
+  {
+    key: "starter",
+    name: "Starter",
+    blurb: "For founders and small brands tracking their own presence.",
+    monthlyPriceUsd: 20,
+    costPerTokenUsd: 0.00002,
+    includedTokens: 1_000_000,
+    features: [
+      "1M tokens included each month",
+      "Rank your brand vs. up to 3 competitors",
+      "All 7 perception metrics",
+      "Refill tokens anytime at your tier rate",
+    ],
+    highlighted: false,
+    sortOrder: 1,
+  },
+  {
+    key: "pro",
+    name: "Pro",
+    blurb: "For agencies and teams running brand research at volume.",
+    monthlyPriceUsd: 100,
+    costPerTokenUsd: 0.000015,
+    includedTokens: 6_000_000,
+    features: [
+      "6M tokens included each month",
+      "Unlimited competitors per run",
+      "Daily tracking + alerts",
+      "Priority engines & lower per-token rate",
+      "Refill tokens anytime at your tier rate",
+    ],
+    highlighted: true,
+    sortOrder: 2,
+  },
+  {
+    key: "enterprise",
+    name: "Enterprise",
+    blurb: "For publishers and enterprises with custom volume and SLAs.",
+    monthlyPriceUsd: null,
+    costPerTokenUsd: 0.00001,
+    includedTokens: 0,
+    features: [
+      "Custom token volume & lowest per-token rate",
+      "Dedicated engines and data export",
+      "SSO, audit log, and SLA",
+      "White-glove onboarding",
+    ],
+    highlighted: false,
+    sortOrder: 3,
+  },
+];
 
 const CATALOG: { name: string; slug: string; brands: string[] }[] = [
   {
@@ -269,5 +325,27 @@ export async function ensureSeeded(): Promise<void> {
   if (existingEngines.length === 0) {
     await db.insert(enginesTable).values(ENGINES);
     logger.info("Seeded engines");
+  }
+
+  const existingTiers = await db.select().from(pricingTiersTable);
+  if (existingTiers.length === 0) {
+    await db.insert(pricingTiersTable).values(PRICING_TIERS);
+    logger.info("Seeded pricing tiers");
+  }
+
+  // Default schedule: a daily full survey run at the next 06:00 UTC. This
+  // replaces the old implicit daily cron behavior with an editable schedule.
+  const existingSchedules = await db.select().from(surveySchedulesTable);
+  if (existingSchedules.length === 0) {
+    const next = new Date();
+    next.setUTCHours(6, 0, 0, 0);
+    if (next.getTime() <= Date.now()) next.setUTCDate(next.getUTCDate() + 1);
+    await db.insert(surveySchedulesTable).values({
+      mode: "recurring",
+      cadence: "daily",
+      enabled: true,
+      nextRunAt: next,
+    });
+    logger.info("Seeded default daily survey schedule");
   }
 }

@@ -5,8 +5,10 @@
  * AI Rank API — daily AI-engine brand sentiment surveys
  * OpenAPI spec version: 0.1.0
  */
+import type { PromptTemplateInputKind } from './promptTemplateInputKind';
 
 export interface PromptTemplateInput {
+  kind: PromptTemplateInputKind;
   /** @minLength 1 */
   template: string;
 }

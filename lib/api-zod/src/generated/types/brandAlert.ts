@@ -10,9 +10,9 @@ import type { BrandAlertKind } from './brandAlertKind';
 export interface BrandAlert {
   id: number;
   runId: number;
-  brandId: number;
+  brandId: number | null;
   brandName: string;
-  industryId: number;
+  industryId: number | null;
   industryName: string;
   metric: string;
   metricLabel: string;

@@ -7,14 +7,11 @@
  */
 import type { PromptPlaceholder } from './promptPlaceholder';
 import type { PromptTemplateInfoExampleValues } from './promptTemplateInfoExampleValues';
+import type { PromptTemplateKind } from './promptTemplateKind';
 
 export interface PromptTemplateInfo {
-  /** The active template text (custom or default) */
-  template: string;
-  /** True when a custom template is stored in the database */
-  isCustom: boolean;
-  /** The built-in default template text */
-  defaultTemplate: string;
+  /** One entry per prompt kind (current, trend) */
+  templates: PromptTemplateKind[];
   placeholders: PromptPlaceholder[];
   /** Example value for each placeholder, for client-side preview rendering */
   exampleValues: PromptTemplateInfoExampleValues;

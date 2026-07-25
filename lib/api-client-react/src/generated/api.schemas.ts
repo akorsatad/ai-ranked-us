@@ -14,8 +14,78 @@ export interface AdminMe {
   email?: string | null;
 }
 
+export interface AdminAppUser {
+  id: number;
+  email: string;
+  firstName: string;
+  lastName: string;
+  createdAt: string;
+  disabled: boolean;
+  disabledAt?: string | null;
+  /** Total ad-hoc ranking requests made by this user */
+  rankRequests: number;
+  lastRequestAt?: string | null;
+  activeSessions: number;
+}
+
+export interface AdminUserPage {
+  users: AdminAppUser[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+export interface UpdateUserStatusInput {
+  disabled: boolean;
+}
+
+export interface AdminAccount {
+  id: number;
+  email?: string | null;
+  /** True for an email invite not yet claimed */
+  pending: boolean;
+  /** True when this row is the calling admin */
+  self: boolean;
+  createdAt: string;
+}
+
+export interface AdminAccountList {
+  admins: AdminAccount[];
+}
+
+export interface InviteAdminInput {
+  /** Email address of the person to invite */
+  email: string;
+}
+
 export interface ApiMessage {
   message: string;
+}
+
+export interface PricingTier {
+  key: string;
+  name: string;
+  blurb: string;
+  /** Monthly plan fee; null means custom / contact sales */
+  monthlyPriceUsd?: number | null;
+  /** Billed rate per token for this tier */
+  costPerTokenUsd: number;
+  /** Tokens included with the monthly fee before refills */
+  includedTokens: number;
+  features: string[];
+  highlighted: boolean;
+  sortOrder: number;
+  updatedAt?: string;
+}
+
+export interface PricingTierList {
+  tiers: PricingTier[];
+}
+
+export interface UpdatePricingTierInput {
+  costPerTokenUsd?: number;
+  monthlyPriceUsd?: number | null;
+  includedTokens?: number;
 }
 
 export type BrandAlertKind = typeof BrandAlertKind[keyof typeof BrandAlertKind];
@@ -24,14 +94,15 @@ export type BrandAlertKind = typeof BrandAlertKind[keyof typeof BrandAlertKind];
 export const BrandAlertKind = {
   score_drop: 'score_drop',
   rank_drop: 'rank_drop',
+  run_issue: 'run_issue',
 } as const;
 
 export interface BrandAlert {
   id: number;
   runId: number;
-  brandId: number;
+  brandId: number | null;
   brandName: string;
-  industryId: number;
+  industryId: number | null;
   industryName: string;
   metric: string;
   metricLabel: string;
@@ -268,23 +339,50 @@ export interface PromptPlaceholder {
 }
 
 /**
+ * current = daily ranking, trend = 13-week trajectory
+ */
+export type PromptTemplateKindKind = typeof PromptTemplateKindKind[keyof typeof PromptTemplateKindKind];
+
+
+export const PromptTemplateKindKind = {
+  current: 'current',
+  trend: 'trend',
+} as const;
+
+export interface PromptTemplateKind {
+  /** current = daily ranking, trend = 13-week trajectory */
+  kind: PromptTemplateKindKind;
+  /** The active template text for this kind (custom or default) */
+  template: string;
+  /** True when a custom template is stored for this kind */
+  isCustom: boolean;
+  /** The built-in default template text for this kind */
+  defaultTemplate: string;
+}
+
+/**
  * Example value for each placeholder, for client-side preview rendering
  */
 export type PromptTemplateInfoExampleValues = {[key: string]: string};
 
 export interface PromptTemplateInfo {
-  /** The active template text (custom or default) */
-  template: string;
-  /** True when a custom template is stored in the database */
-  isCustom: boolean;
-  /** The built-in default template text */
-  defaultTemplate: string;
+  /** One entry per prompt kind (current, trend) */
+  templates: PromptTemplateKind[];
   placeholders: PromptPlaceholder[];
   /** Example value for each placeholder, for client-side preview rendering */
   exampleValues: PromptTemplateInfoExampleValues;
 }
 
+export type PromptTemplateInputKind = typeof PromptTemplateInputKind[keyof typeof PromptTemplateInputKind];
+
+
+export const PromptTemplateInputKind = {
+  current: 'current',
+  trend: 'trend',
+} as const;
+
 export interface PromptTemplateInput {
+  kind: PromptTemplateInputKind;
   /** @minLength 1 */
   template: string;
 }
@@ -517,9 +615,19 @@ export interface SurveyRun {
      * @nullable
      */
   industryId: number | null;
+  /**
+     * When set, the run was scoped to this AI engine only
+     * @nullable
+     */
+  engineId: number | null;
   startedAt: string;
   /** @nullable */
   completedAt: string | null;
+  /**
+     * Last liveness signal from the run loop; null for historical runs
+     * @nullable
+     */
+  heartbeatAt: string | null;
   /** @nullable */
   error: string | null;
   totalQueries: number;
@@ -652,6 +760,119 @@ export interface RateLimitError {
   retryAt?: string | null;
 }
 
+export interface ReconcileResult {
+  finalized: number;
+  message: string;
+}
+
+export type ScheduleMode = typeof ScheduleMode[keyof typeof ScheduleMode];
+
+
+export const ScheduleMode = {
+  once: 'once',
+  recurring: 'recurring',
+} as const;
+
+/**
+ * @nullable
+ */
+export type ScheduleCadence = typeof ScheduleCadence[keyof typeof ScheduleCadence] | null;
+
+
+export const ScheduleCadence = {
+  daily: 'daily',
+  weekly: 'weekly',
+  monthly: 'monthly',
+} as const;
+
+export interface Schedule {
+  id: number;
+  mode: ScheduleMode;
+  /** @nullable */
+  cadence?: ScheduleCadence;
+  /** @nullable */
+  industryId: number | null;
+  /** @nullable */
+  engineId: number | null;
+  enabled: boolean;
+  nextRunAt: string;
+  /** @nullable */
+  lastRunAt: string | null;
+  /** @nullable */
+  lastRunId: number | null;
+  createdAt: string;
+}
+
+export interface ScheduleList {
+  schedules: Schedule[];
+}
+
+export type ScheduleInputMode = typeof ScheduleInputMode[keyof typeof ScheduleInputMode];
+
+
+export const ScheduleInputMode = {
+  once: 'once',
+  recurring: 'recurring',
+} as const;
+
+export type ScheduleInputCadence = typeof ScheduleInputCadence[keyof typeof ScheduleInputCadence];
+
+
+export const ScheduleInputCadence = {
+  daily: 'daily',
+  weekly: 'weekly',
+  monthly: 'monthly',
+} as const;
+
+export interface ScheduleInput {
+  mode: ScheduleInputMode;
+  cadence?: ScheduleInputCadence;
+  industryId?: number;
+  engineId?: number;
+  /** ISO datetime — required for once, optional start for recurring */
+  runAt?: string;
+}
+
+export type ScheduleUpdateMode = typeof ScheduleUpdateMode[keyof typeof ScheduleUpdateMode];
+
+
+export const ScheduleUpdateMode = {
+  once: 'once',
+  recurring: 'recurring',
+} as const;
+
+export type ScheduleUpdateCadence = typeof ScheduleUpdateCadence[keyof typeof ScheduleUpdateCadence];
+
+
+export const ScheduleUpdateCadence = {
+  daily: 'daily',
+  weekly: 'weekly',
+  monthly: 'monthly',
+} as const;
+
+export interface ScheduleUpdate {
+  mode?: ScheduleUpdateMode;
+  cadence?: ScheduleUpdateCadence;
+  /** @nullable */
+  industryId?: number | null;
+  /** @nullable */
+  engineId?: number | null;
+  enabled?: boolean;
+  runAt?: string;
+}
+
+export type RunsSummaryStatusCounts = {[key: string]: number};
+
+export interface RunsSummary {
+  totalRuns: number;
+  activeRuns: number;
+  firstRun: SurveyRun | null;
+  lastRun: SurveyRun | null;
+  /** ISO timestamp of the next scheduled daily fire (06:00 UTC) */
+  nextScheduledRun: string;
+  statusCounts: RunsSummaryStatusCounts;
+}
+
 /**
  * warn = start the run but flag it; block = refuse to start the run
  */
@@ -671,6 +892,8 @@ export interface KeyPreflightSettings {
 export interface TriggerRunInput {
   /** Scope the run to a single industry; omit for a full run */
   industryId?: number;
+  /** Scope the run to a single AI engine; omit for all engines */
+  engineId?: number;
 }
 
 /**
@@ -797,6 +1020,62 @@ metric: string;
 engine?: string;
 };
 
+export type ListRunsParams = {
+/**
+ * Only runs with this status
+ */
+status?: ListRunsStatus;
+/**
+ * Only runs with this trigger
+ */
+trigger?: ListRunsTrigger;
+/**
+ * Only runs scoped to this AI engine
+ */
+engineId?: number;
+/**
+ * Only runs started on or after this date (YYYY-MM-DD)
+ */
+from?: string;
+/**
+ * Only runs started on or before this date (YYYY-MM-DD, inclusive)
+ */
+to?: string;
+limit?: number;
+};
+
+export type ListRunsStatus = typeof ListRunsStatus[keyof typeof ListRunsStatus];
+
+
+export const ListRunsStatus = {
+  running: 'running',
+  pausing: 'pausing',
+  cancelling: 'cancelling',
+  paused: 'paused',
+  completed: 'completed',
+  partial: 'partial',
+  failed: 'failed',
+  cancelled: 'cancelled',
+} as const;
+
+export type ListRunsTrigger = typeof ListRunsTrigger[keyof typeof ListRunsTrigger];
+
+
+export const ListRunsTrigger = {
+  scheduled: 'scheduled',
+  manual: 'manual',
+  auto: 'auto',
+} as const;
+
+export type ListAdminUsersParams = {
+page?: number;
+pageSize?: number;
+/**
+ * Case-insensitive match on email or name
+ */
+search?: string;
+};
+
 export type GetCostSummaryParams = {
 /**
  * Restrict to responses created in the last N days (omit for all time)
@@ -825,4 +1104,16 @@ export type ListAlertsParams = {
 unreadOnly?: boolean;
 limit?: number;
 };
+
+export type ResetPromptTemplateParams = {
+kind: ResetPromptTemplateKind;
+};
+
+export type ResetPromptTemplateKind = typeof ResetPromptTemplateKind[keyof typeof ResetPromptTemplateKind];
+
+
+export const ResetPromptTemplateKind = {
+  current: 'current',
+  trend: 'trend',
+} as const;
 

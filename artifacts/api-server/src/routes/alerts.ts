@@ -8,9 +8,36 @@ import {
 } from "@workspace/api-zod";
 import { getAlertSettings, setAlertSettings } from "../lib/alerts";
 import { sendTestAlertEmail } from "../lib/alertEmail";
-import { requireAdmin } from "../middlewares/requireAdmin";
+import { requireAdmin, resolveAdminSession } from "../middlewares/requireAdmin";
+import { resolveSession } from "./auth";
+import type { Request, Response, NextFunction } from "express";
 
 const router: IRouter = Router();
+
+/** True when the request carries an authenticated admin session. */
+async function isAdminRequest(req: Request): Promise<boolean> {
+  try {
+    return (await resolveAdminSession(req)) != null;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Alerts are sign-in only: a public (magic-link) user session or an admin
+ * session both qualify. Anonymous visitors get 401.
+ */
+async function requireAnySession(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  if ((await resolveSession(req)) || (await resolveAdminSession(req))) {
+    next();
+    return;
+  }
+  res.status(401).json({ message: "Authentication required" });
+}
 
 function serializeAlert(alert: BrandAlertRow) {
   const isScore = alert.kind === "score_drop";
@@ -24,7 +51,7 @@ function serializeAlert(alert: BrandAlertRow) {
     industryName: alert.industryName,
     metric: alert.metricKey,
     metricLabel: alert.metricLabel,
-    kind: alert.kind as "score_drop" | "rank_drop",
+    kind: alert.kind as "score_drop" | "rank_drop" | "run_issue",
     previousValue: alert.previousValue / scale,
     currentValue: alert.currentValue / scale,
     delta: alert.delta / scale,
@@ -34,7 +61,7 @@ function serializeAlert(alert: BrandAlertRow) {
   };
 }
 
-router.get("/alerts", async (req, res): Promise<void> => {
+router.get("/alerts", requireAnySession, async (req, res): Promise<void> => {
   const query = ListAlertsQueryParams.safeParse(req.query);
   if (!query.success) {
     res.status(400).json({ message: "Invalid parameters" });
@@ -99,8 +126,15 @@ router.post("/alerts/mark-read", requireAdmin, async (req, res): Promise<void> =
   return;
 });
 
-router.get("/alerts/settings", async (_req, res): Promise<void> => {
-  res.status(200).json(await getAlertSettings());
+router.get("/alerts/settings", requireAnySession, async (req, res): Promise<void> => {
+  const settings = await getAlertSettings();
+  // The recipient email is admin PII — only reveal it to the admin who
+  // manages it. Public consumers still get thresholds and the enabled flag.
+  if (!(await isAdminRequest(req))) {
+    res.status(200).json({ ...settings, emailRecipient: "" });
+    return;
+  }
+  res.status(200).json(settings);
   return;
 });
 

@@ -58,8 +58,10 @@ export const GetOverviewResponse = zod.object({
   "status": zod.enum(['running', 'pausing', 'paused', 'cancelling', 'cancelled', 'completed', 'failed', 'partial']),
   "trigger": zod.enum(['scheduled', 'manual', 'auto']),
   "industryId": zod.number().nullable().describe('When set, the run was scoped to this industry only'),
+  "engineId": zod.number().nullable().describe('When set, the run was scoped to this AI engine only'),
   "startedAt": zod.string(),
   "completedAt": zod.string().nullable(),
+  "heartbeatAt": zod.string().nullable().describe('Last liveness signal from the run loop; null for historical runs'),
   "error": zod.string().nullable(),
   "totalQueries": zod.number(),
   "succeededQueries": zod.number(),
@@ -269,13 +271,26 @@ export const GetTrendSnapshotResponse = zod.object({
 /**
  * @summary Survey run history, newest first
  */
+export const listRunsQueryLimitDefault = 50;
+
+export const ListRunsQueryParams = zod.object({
+  "status": zod.enum(['running', 'pausing', 'cancelling', 'paused', 'completed', 'partial', 'failed', 'cancelled']).optional().describe('Only runs with this status'),
+  "trigger": zod.enum(['scheduled', 'manual', 'auto']).optional().describe('Only runs with this trigger'),
+  "engineId": zod.coerce.number().optional().describe('Only runs scoped to this AI engine'),
+  "from": zod.coerce.string().optional().describe('Only runs started on or after this date (YYYY-MM-DD)'),
+  "to": zod.coerce.string().optional().describe('Only runs started on or before this date (YYYY-MM-DD, inclusive)'),
+  "limit": zod.coerce.number().default(listRunsQueryLimitDefault)
+})
+
 export const ListRunsResponseItem = zod.object({
   "id": zod.number(),
   "status": zod.enum(['running', 'pausing', 'paused', 'cancelling', 'cancelled', 'completed', 'failed', 'partial']),
   "trigger": zod.enum(['scheduled', 'manual', 'auto']),
   "industryId": zod.number().nullable().describe('When set, the run was scoped to this industry only'),
+  "engineId": zod.number().nullable().describe('When set, the run was scoped to this AI engine only'),
   "startedAt": zod.string(),
   "completedAt": zod.string().nullable(),
+  "heartbeatAt": zod.string().nullable().describe('Last liveness signal from the run loop; null for historical runs'),
   "error": zod.string().nullable(),
   "totalQueries": zod.number(),
   "succeededQueries": zod.number(),
@@ -296,7 +311,8 @@ export const ListRunsResponse = zod.array(ListRunsResponseItem)
  * @summary Trigger a survey run now (optionally scoped to one industry)
  */
 export const TriggerRunBody = zod.object({
-  "industryId": zod.number().optional().describe('Scope the run to a single industry; omit for a full run')
+  "industryId": zod.number().optional().describe('Scope the run to a single industry; omit for a full run'),
+  "engineId": zod.number().optional().describe('Scope the run to a single AI engine; omit for all engines')
 })
 
 export const TriggerRunResponse = zod.object({
@@ -304,8 +320,10 @@ export const TriggerRunResponse = zod.object({
   "status": zod.enum(['running', 'pausing', 'paused', 'cancelling', 'cancelled', 'completed', 'failed', 'partial']),
   "trigger": zod.enum(['scheduled', 'manual', 'auto']),
   "industryId": zod.number().nullable().describe('When set, the run was scoped to this industry only'),
+  "engineId": zod.number().nullable().describe('When set, the run was scoped to this AI engine only'),
   "startedAt": zod.string(),
   "completedAt": zod.string().nullable(),
+  "heartbeatAt": zod.string().nullable().describe('Last liveness signal from the run loop; null for historical runs'),
   "error": zod.string().nullable(),
   "totalQueries": zod.number(),
   "succeededQueries": zod.number(),
@@ -333,8 +351,10 @@ export const PauseRunResponse = zod.object({
   "status": zod.enum(['running', 'pausing', 'paused', 'cancelling', 'cancelled', 'completed', 'failed', 'partial']),
   "trigger": zod.enum(['scheduled', 'manual', 'auto']),
   "industryId": zod.number().nullable().describe('When set, the run was scoped to this industry only'),
+  "engineId": zod.number().nullable().describe('When set, the run was scoped to this AI engine only'),
   "startedAt": zod.string(),
   "completedAt": zod.string().nullable(),
+  "heartbeatAt": zod.string().nullable().describe('Last liveness signal from the run loop; null for historical runs'),
   "error": zod.string().nullable(),
   "totalQueries": zod.number(),
   "succeededQueries": zod.number(),
@@ -362,8 +382,10 @@ export const ResumeRunResponse = zod.object({
   "status": zod.enum(['running', 'pausing', 'paused', 'cancelling', 'cancelled', 'completed', 'failed', 'partial']),
   "trigger": zod.enum(['scheduled', 'manual', 'auto']),
   "industryId": zod.number().nullable().describe('When set, the run was scoped to this industry only'),
+  "engineId": zod.number().nullable().describe('When set, the run was scoped to this AI engine only'),
   "startedAt": zod.string(),
   "completedAt": zod.string().nullable(),
+  "heartbeatAt": zod.string().nullable().describe('Last liveness signal from the run loop; null for historical runs'),
   "error": zod.string().nullable(),
   "totalQueries": zod.number(),
   "succeededQueries": zod.number(),
@@ -391,8 +413,10 @@ export const CancelRunResponse = zod.object({
   "status": zod.enum(['running', 'pausing', 'paused', 'cancelling', 'cancelled', 'completed', 'failed', 'partial']),
   "trigger": zod.enum(['scheduled', 'manual', 'auto']),
   "industryId": zod.number().nullable().describe('When set, the run was scoped to this industry only'),
+  "engineId": zod.number().nullable().describe('When set, the run was scoped to this AI engine only'),
   "startedAt": zod.string(),
   "completedAt": zod.string().nullable(),
+  "heartbeatAt": zod.string().nullable().describe('Last liveness signal from the run loop; null for historical runs'),
   "error": zod.string().nullable(),
   "totalQueries": zod.number(),
   "succeededQueries": zod.number(),
@@ -405,6 +429,268 @@ export const CancelRunResponse = zod.object({
   "totalInputTokens": zod.number().nullable().describe('Null for runs that predate usage tracking'),
   "totalOutputTokens": zod.number().nullable(),
   "totalCostUsd": zod.number().nullable().describe('Estimated total cost in USD, null for historical runs')
+})
+
+
+/**
+ * Creates a run_issue alert summarizing the run's failures. Refused when the run has no issues or was already reported.
+ * @summary Push a problem run into the alert queue
+ */
+export const ReportRunIssueParams = zod.object({
+  "runId": zod.coerce.number()
+})
+
+export const ReportRunIssueResponse = zod.object({
+  "id": zod.number(),
+  "runId": zod.number(),
+  "brandId": zod.number().nullable(),
+  "brandName": zod.string(),
+  "industryId": zod.number().nullable(),
+  "industryName": zod.string(),
+  "metric": zod.string(),
+  "metricLabel": zod.string(),
+  "kind": zod.enum(['score_drop', 'rank_drop', 'run_issue']),
+  "previousValue": zod.number(),
+  "currentValue": zod.number(),
+  "delta": zod.number(),
+  "threshold": zod.number(),
+  "read": zod.boolean(),
+  "createdAt": zod.string()
+})
+
+
+/**
+ * @summary Public pricing tiers
+ */
+export const GetPricingResponse = zod.object({
+  "tiers": zod.array(zod.object({
+  "key": zod.string(),
+  "name": zod.string(),
+  "blurb": zod.string(),
+  "monthlyPriceUsd": zod.number().nullish().describe('Monthly plan fee; null means custom \/ contact sales'),
+  "costPerTokenUsd": zod.number().describe('Billed rate per token for this tier'),
+  "includedTokens": zod.number().describe('Tokens included with the monthly fee before refills'),
+  "features": zod.array(zod.string()),
+  "highlighted": zod.boolean(),
+  "sortOrder": zod.number(),
+  "updatedAt": zod.coerce.date().optional()
+}))
+})
+
+
+/**
+ * @summary Pricing tiers for the admin editor
+ */
+export const GetAdminPricingResponse = zod.object({
+  "tiers": zod.array(zod.object({
+  "key": zod.string(),
+  "name": zod.string(),
+  "blurb": zod.string(),
+  "monthlyPriceUsd": zod.number().nullish().describe('Monthly plan fee; null means custom \/ contact sales'),
+  "costPerTokenUsd": zod.number().describe('Billed rate per token for this tier'),
+  "includedTokens": zod.number().describe('Tokens included with the monthly fee before refills'),
+  "features": zod.array(zod.string()),
+  "highlighted": zod.boolean(),
+  "sortOrder": zod.number(),
+  "updatedAt": zod.coerce.date().optional()
+}))
+})
+
+
+/**
+ * @summary Update a tier's per-token rate, monthly fee, and included tokens
+ */
+export const UpdatePricingTierParams = zod.object({
+  "key": zod.coerce.string()
+})
+
+export const UpdatePricingTierBody = zod.object({
+  "costPerTokenUsd": zod.number().optional(),
+  "monthlyPriceUsd": zod.number().nullish(),
+  "includedTokens": zod.number().optional()
+})
+
+export const UpdatePricingTierResponse = zod.object({
+  "key": zod.string(),
+  "name": zod.string(),
+  "blurb": zod.string(),
+  "monthlyPriceUsd": zod.number().nullish().describe('Monthly plan fee; null means custom \/ contact sales'),
+  "costPerTokenUsd": zod.number().describe('Billed rate per token for this tier'),
+  "includedTokens": zod.number().describe('Tokens included with the monthly fee before refills'),
+  "features": zod.array(zod.string()),
+  "highlighted": zod.boolean(),
+  "sortOrder": zod.number(),
+  "updatedAt": zod.coerce.date().optional()
+})
+
+
+/**
+ * @summary Cron schedules (recurring and one-time)
+ */
+export const ListSchedulesResponse = zod.object({
+  "schedules": zod.array(zod.object({
+  "id": zod.number(),
+  "mode": zod.enum(['once', 'recurring']),
+  "cadence": zod.union([zod.literal('daily'),zod.literal('weekly'),zod.literal('monthly'),zod.literal(null)]).nullish(),
+  "industryId": zod.number().nullable(),
+  "engineId": zod.number().nullable(),
+  "enabled": zod.boolean(),
+  "nextRunAt": zod.string(),
+  "lastRunAt": zod.string().nullable(),
+  "lastRunId": zod.number().nullable(),
+  "createdAt": zod.string()
+}))
+})
+
+
+/**
+ * @summary Create a recurring or one-time schedule
+ */
+export const CreateScheduleBody = zod.object({
+  "mode": zod.enum(['once', 'recurring']),
+  "cadence": zod.enum(['daily', 'weekly', 'monthly']).optional(),
+  "industryId": zod.number().optional(),
+  "engineId": zod.number().optional(),
+  "runAt": zod.string().optional().describe('ISO datetime — required for once, optional start for recurring')
+})
+
+export const CreateScheduleResponse = zod.object({
+  "id": zod.number(),
+  "mode": zod.enum(['once', 'recurring']),
+  "cadence": zod.union([zod.literal('daily'),zod.literal('weekly'),zod.literal('monthly'),zod.literal(null)]).nullish(),
+  "industryId": zod.number().nullable(),
+  "engineId": zod.number().nullable(),
+  "enabled": zod.boolean(),
+  "nextRunAt": zod.string(),
+  "lastRunAt": zod.string().nullable(),
+  "lastRunId": zod.number().nullable(),
+  "createdAt": zod.string()
+})
+
+
+/**
+ * @summary Edit a schedule — switch mode/cadence, scope, or enable/disable
+ */
+export const UpdateScheduleParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdateScheduleBody = zod.object({
+  "mode": zod.enum(['once', 'recurring']).optional(),
+  "cadence": zod.enum(['daily', 'weekly', 'monthly']).optional(),
+  "industryId": zod.number().nullish(),
+  "engineId": zod.number().nullish(),
+  "enabled": zod.boolean().optional(),
+  "runAt": zod.string().optional()
+})
+
+export const UpdateScheduleResponse = zod.object({
+  "id": zod.number(),
+  "mode": zod.enum(['once', 'recurring']),
+  "cadence": zod.union([zod.literal('daily'),zod.literal('weekly'),zod.literal('monthly'),zod.literal(null)]).nullish(),
+  "industryId": zod.number().nullable(),
+  "engineId": zod.number().nullable(),
+  "enabled": zod.boolean(),
+  "nextRunAt": zod.string(),
+  "lastRunAt": zod.string().nullable(),
+  "lastRunId": zod.number().nullable(),
+  "createdAt": zod.string()
+})
+
+
+/**
+ * @summary Delete a schedule
+ */
+export const DeleteScheduleParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DeleteScheduleResponse = zod.object({
+  "message": zod.string()
+})
+
+
+/**
+ * @summary Ops summary — first run, last run, next scheduled fire, counts
+ */
+export const GetRunsSummaryResponse = zod.object({
+  "totalRuns": zod.number(),
+  "activeRuns": zod.number(),
+  "firstRun": zod.union([zod.object({
+  "id": zod.number(),
+  "status": zod.enum(['running', 'pausing', 'paused', 'cancelling', 'cancelled', 'completed', 'failed', 'partial']),
+  "trigger": zod.enum(['scheduled', 'manual', 'auto']),
+  "industryId": zod.number().nullable().describe('When set, the run was scoped to this industry only'),
+  "engineId": zod.number().nullable().describe('When set, the run was scoped to this AI engine only'),
+  "startedAt": zod.string(),
+  "completedAt": zod.string().nullable(),
+  "heartbeatAt": zod.string().nullable().describe('Last liveness signal from the run loop; null for historical runs'),
+  "error": zod.string().nullable(),
+  "totalQueries": zod.number(),
+  "succeededQueries": zod.number(),
+  "failedQueries": zod.number(),
+  "keyWarnings": zod.array(zod.object({
+  "provider": zod.string(),
+  "source": zod.enum(['stored', 'env', 'none']),
+  "error": zod.string()
+})).nullable().describe('Provider key failures found by the pre-flight check before this run'),
+  "totalInputTokens": zod.number().nullable().describe('Null for runs that predate usage tracking'),
+  "totalOutputTokens": zod.number().nullable(),
+  "totalCostUsd": zod.number().nullable().describe('Estimated total cost in USD, null for historical runs')
+}),zod.null()]),
+  "lastRun": zod.union([zod.object({
+  "id": zod.number(),
+  "status": zod.enum(['running', 'pausing', 'paused', 'cancelling', 'cancelled', 'completed', 'failed', 'partial']),
+  "trigger": zod.enum(['scheduled', 'manual', 'auto']),
+  "industryId": zod.number().nullable().describe('When set, the run was scoped to this industry only'),
+  "engineId": zod.number().nullable().describe('When set, the run was scoped to this AI engine only'),
+  "startedAt": zod.string(),
+  "completedAt": zod.string().nullable(),
+  "heartbeatAt": zod.string().nullable().describe('Last liveness signal from the run loop; null for historical runs'),
+  "error": zod.string().nullable(),
+  "totalQueries": zod.number(),
+  "succeededQueries": zod.number(),
+  "failedQueries": zod.number(),
+  "keyWarnings": zod.array(zod.object({
+  "provider": zod.string(),
+  "source": zod.enum(['stored', 'env', 'none']),
+  "error": zod.string()
+})).nullable().describe('Provider key failures found by the pre-flight check before this run'),
+  "totalInputTokens": zod.number().nullable().describe('Null for runs that predate usage tracking'),
+  "totalOutputTokens": zod.number().nullable(),
+  "totalCostUsd": zod.number().nullable().describe('Estimated total cost in USD, null for historical runs')
+}),zod.null()]),
+  "nextScheduledRun": zod.string().describe('ISO timestamp of the next scheduled daily fire (06:00 UTC)'),
+  "statusCounts": zod.record(zod.string(), zod.number())
+})
+
+
+/**
+ * @summary Finalize runs stuck in an active state with a stale heartbeat
+ */
+export const ReconcileRunsResponse = zod.object({
+  "finalized": zod.number(),
+  "message": zod.string()
+})
+
+
+/**
+ * @summary Delete all failed survey runs and their rows
+ */
+export const ClearFailedRunsResponse = zod.object({
+  "message": zod.string()
+})
+
+
+/**
+ * @summary Delete a survey run and all rows that reference it
+ */
+export const DeleteRunParams = zod.object({
+  "runId": zod.coerce.number()
+})
+
+export const DeleteRunResponse = zod.object({
+  "message": zod.string()
 })
 
 
@@ -656,6 +942,107 @@ export const GetAdminMeResponse = zod.object({
 
 
 /**
+ * @summary Public (magic-link) users with usage stats
+ */
+export const listAdminUsersQueryPageDefault = 1;
+export const listAdminUsersQueryPageSizeDefault = 25;
+
+export const ListAdminUsersQueryParams = zod.object({
+  "page": zod.coerce.number().default(listAdminUsersQueryPageDefault),
+  "pageSize": zod.coerce.number().default(listAdminUsersQueryPageSizeDefault),
+  "search": zod.coerce.string().optional().describe('Case-insensitive match on email or name')
+})
+
+export const ListAdminUsersResponse = zod.object({
+  "users": zod.array(zod.object({
+  "id": zod.number(),
+  "email": zod.string(),
+  "firstName": zod.string(),
+  "lastName": zod.string(),
+  "createdAt": zod.coerce.date(),
+  "disabled": zod.boolean(),
+  "disabledAt": zod.coerce.date().nullish(),
+  "rankRequests": zod.number().describe('Total ad-hoc ranking requests made by this user'),
+  "lastRequestAt": zod.coerce.date().nullish(),
+  "activeSessions": zod.number()
+})),
+  "total": zod.number(),
+  "page": zod.number(),
+  "pageSize": zod.number()
+})
+
+
+/**
+ * Disabling also revokes the user's active sessions.
+ * @summary Disable or re-enable a public user account
+ */
+export const UpdateUserStatusParams = zod.object({
+  "userId": zod.coerce.number()
+})
+
+export const UpdateUserStatusBody = zod.object({
+  "disabled": zod.boolean()
+})
+
+export const UpdateUserStatusResponse = zod.object({
+  "id": zod.number(),
+  "email": zod.string(),
+  "firstName": zod.string(),
+  "lastName": zod.string(),
+  "createdAt": zod.coerce.date(),
+  "disabled": zod.boolean(),
+  "disabledAt": zod.coerce.date().nullish(),
+  "rankRequests": zod.number().describe('Total ad-hoc ranking requests made by this user'),
+  "lastRequestAt": zod.coerce.date().nullish(),
+  "activeSessions": zod.number()
+})
+
+
+/**
+ * @summary Admin accounts and pending email invites
+ */
+export const ListAdminsResponse = zod.object({
+  "admins": zod.array(zod.object({
+  "id": zod.number(),
+  "email": zod.string().nullish(),
+  "pending": zod.boolean().describe('True for an email invite not yet claimed'),
+  "self": zod.boolean().describe('True when this row is the calling admin'),
+  "createdAt": zod.coerce.date()
+}))
+})
+
+
+/**
+ * The invite is claimed automatically when a Clerk user with this email first opens the admin area.
+ * @summary Invite an admin by email
+ */
+export const InviteAdminBody = zod.object({
+  "email": zod.string().describe('Email address of the person to invite')
+})
+
+export const InviteAdminResponse = zod.object({
+  "id": zod.number(),
+  "email": zod.string().nullish(),
+  "pending": zod.boolean().describe('True for an email invite not yet claimed'),
+  "self": zod.boolean().describe('True when this row is the calling admin'),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * You cannot remove yourself, and the last claimed admin cannot be removed.
+ * @summary Remove an admin or revoke a pending invite
+ */
+export const RemoveAdminParams = zod.object({
+  "adminId": zod.coerce.number()
+})
+
+export const RemoveAdminResponse = zod.object({
+  "message": zod.string()
+})
+
+
+/**
  * @summary Verify the active key for a provider with a minimal live call
  */
 export const TestApiKeyParams = zod.object({
@@ -769,7 +1156,7 @@ export const GetModelResultsResponse = zod.object({
  * @summary Read-only paginated rows from a core table
  */
 export const BrowseTableParams = zod.object({
-  "table": zod.enum(['industries', 'brands', 'engines', 'survey_runs', 'survey_responses'])
+  "table": zod.enum(['industries', 'brands', 'engines', 'survey_runs', 'survey_responses', 'users', 'sessions', 'ad_hoc_requests'])
 })
 
 export const browseTableQueryPageDefault = 1;
@@ -806,13 +1193,13 @@ export const ListAlertsResponse = zod.object({
   "alerts": zod.array(zod.object({
   "id": zod.number(),
   "runId": zod.number(),
-  "brandId": zod.number(),
+  "brandId": zod.number().nullable(),
   "brandName": zod.string(),
-  "industryId": zod.number(),
+  "industryId": zod.number().nullable(),
   "industryName": zod.string(),
   "metric": zod.string(),
   "metricLabel": zod.string(),
-  "kind": zod.enum(['score_drop', 'rank_drop']),
+  "kind": zod.enum(['score_drop', 'rank_drop', 'run_issue']),
   "previousValue": zod.number(),
   "currentValue": zod.number(),
   "delta": zod.number(),
@@ -885,9 +1272,12 @@ export const SendTestAlertEmailResponse = zod.object({
  * @summary Current survey prompt template, placeholders, and example values
  */
 export const GetPromptTemplateResponse = zod.object({
-  "template": zod.string().describe('The active template text (custom or default)'),
-  "isCustom": zod.boolean().describe('True when a custom template is stored in the database'),
-  "defaultTemplate": zod.string().describe('The built-in default template text'),
+  "templates": zod.array(zod.object({
+  "kind": zod.enum(['current', 'trend']).describe('current = daily ranking, trend = 13-week trajectory'),
+  "template": zod.string().describe('The active template text for this kind (custom or default)'),
+  "isCustom": zod.boolean().describe('True when a custom template is stored for this kind'),
+  "defaultTemplate": zod.string().describe('The built-in default template text for this kind')
+})).describe('One entry per prompt kind (current, trend)'),
   "placeholders": zod.array(zod.object({
   "name": zod.string().describe('Placeholder token without braces, e.g. metric_label'),
   "description": zod.string(),
@@ -904,13 +1294,17 @@ export const GetPromptTemplateResponse = zod.object({
 
 
 export const UpdatePromptTemplateBody = zod.object({
+  "kind": zod.enum(['current', 'trend']),
   "template": zod.string().min(1)
 })
 
 export const UpdatePromptTemplateResponse = zod.object({
-  "template": zod.string().describe('The active template text (custom or default)'),
-  "isCustom": zod.boolean().describe('True when a custom template is stored in the database'),
-  "defaultTemplate": zod.string().describe('The built-in default template text'),
+  "templates": zod.array(zod.object({
+  "kind": zod.enum(['current', 'trend']).describe('current = daily ranking, trend = 13-week trajectory'),
+  "template": zod.string().describe('The active template text for this kind (custom or default)'),
+  "isCustom": zod.boolean().describe('True when a custom template is stored for this kind'),
+  "defaultTemplate": zod.string().describe('The built-in default template text for this kind')
+})).describe('One entry per prompt kind (current, trend)'),
   "placeholders": zod.array(zod.object({
   "name": zod.string().describe('Placeholder token without braces, e.g. metric_label'),
   "description": zod.string(),
@@ -921,12 +1315,19 @@ export const UpdatePromptTemplateResponse = zod.object({
 
 
 /**
- * @summary Reset the survey prompt template to the built-in default
+ * @summary Reset one survey prompt template to the built-in default
  */
+export const ResetPromptTemplateQueryParams = zod.object({
+  "kind": zod.enum(['current', 'trend'])
+})
+
 export const ResetPromptTemplateResponse = zod.object({
-  "template": zod.string().describe('The active template text (custom or default)'),
-  "isCustom": zod.boolean().describe('True when a custom template is stored in the database'),
-  "defaultTemplate": zod.string().describe('The built-in default template text'),
+  "templates": zod.array(zod.object({
+  "kind": zod.enum(['current', 'trend']).describe('current = daily ranking, trend = 13-week trajectory'),
+  "template": zod.string().describe('The active template text for this kind (custom or default)'),
+  "isCustom": zod.boolean().describe('True when a custom template is stored for this kind'),
+  "defaultTemplate": zod.string().describe('The built-in default template text for this kind')
+})).describe('One entry per prompt kind (current, trend)'),
   "placeholders": zod.array(zod.object({
   "name": zod.string().describe('Placeholder token without braces, e.g. metric_label'),
   "description": zod.string(),
@@ -980,6 +1381,14 @@ export const GetMeResponse = zod.object({
  * @summary Destroy the current session
  */
 export const SignOutResponse = zod.object({
+  "message": zod.string()
+})
+
+
+/**
+ * @summary Destroy the current admin session (Google sign-in)
+ */
+export const AdminSignOutResponse = zod.object({
   "message": zod.string()
 })
 

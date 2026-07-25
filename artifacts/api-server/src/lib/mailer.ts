@@ -1,15 +1,11 @@
-import { ReplitConnectors } from "@replit/connectors-sdk";
+import { sendViaResend, emailFrom } from "./emailTransport";
 import { logger } from "./logger";
-
-const FROM_ADDRESS = "AI Rank <onboarding@resend.dev>";
 
 export async function sendMagicLinkEmail(
   to: string,
   firstName: string,
   magicLink: string,
 ): Promise<void> {
-  const connectors = new ReplitConnectors();
-
   const html = `
 <!DOCTYPE html>
 <html>
@@ -26,20 +22,18 @@ export async function sendMagicLinkEmail(
 </html>
   `.trim();
 
-  const response = await connectors.proxy("resend", "/emails", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      from: FROM_ADDRESS,
-      to: [to],
-      subject: "Your AI Rank sign-in link",
-      html,
-    }),
+  const response = await sendViaResend({
+    from: emailFrom("AI Rank"),
+    to: [to],
+    subject: "Your AI Rank sign-in link",
+    html,
   });
 
   if (!response.ok) {
-    const text = await response.text();
-    logger.error({ status: response.status, body: text }, "Resend email failed");
+    logger.error(
+      { status: response.status, body: response.body },
+      "Resend email failed",
+    );
     throw new Error(`Failed to send email: ${response.status}`);
   }
 

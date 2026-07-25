@@ -1,317 +1,181 @@
-import React, { useMemo } from 'react';
-import { Link, useLocation } from 'wouter';
-import { 
-  useGetOverview, 
-  getGetOverviewQueryKey, 
-  useListRuns, 
+import React from 'react';
+import { Link } from 'wouter';
+import {
+  useGetOverview,
+  getGetOverviewQueryKey,
+  useListRuns,
   getListRunsQueryKey,
-  useTriggerRun,
   useGetCatalog,
   getGetCatalogQueryKey,
   useGetMovers,
-  getGetMoversQueryKey
+  getGetMoversQueryKey,
 } from '@workspace/api-client-react';
-import { useQueryClient } from '@tanstack/react-query';
-import { 
-  BarChart3, 
-  Building2, 
-  Cpu, 
-  MessageSquare, 
-  Play, 
-  AlertCircle,
-  Trophy,
-  ArrowRight,
-  TrendingUp,
-  TrendingDown,
-  Minus
-} from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Skeleton } from '@/components/ui/skeleton';
+import { ArrowRight } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
-import { useToast } from '@/hooks/use-toast';
+import { DI, Eyebrow } from '@/components/brand';
+import { Ticker } from '@/components/home-board';
+
+const MAX_W = '72rem';
 
 export default function Dashboard() {
-  const [, setLocation] = useLocation();
-  const { toast } = useToast();
-  const queryClient = useQueryClient();
-
-  const { data: runs } = useListRuns({
+  const { data: runs } = useListRuns(undefined, {
     query: {
       queryKey: getListRunsQueryKey(),
-      refetchInterval: (query) => {
-        const activeRun = query.state.data?.some(r => ['running', 'pausing', 'cancelling'].includes(r.status));
-        return activeRun ? 3000 : false;
-      }
-    }
+      refetchInterval: (query) =>
+        query.state.data?.some((r) => ['running', 'pausing', 'cancelling'].includes(r.status)) ? 3000 : false,
+    },
   });
+  const isRunning = runs?.some((r) => ['running', 'pausing', 'cancelling'].includes(r.status));
 
-  const isRunning = runs?.some(r => ['running', 'pausing', 'cancelling'].includes(r.status));
-
-  const { data: overview, isLoading: isLoadingOverview } = useGetOverview({
-    query: {
-      queryKey: getGetOverviewQueryKey(),
-      refetchInterval: isRunning ? 3000 : false,
-    }
+  const { data: overview, isLoading } = useGetOverview({
+    query: { queryKey: getGetOverviewQueryKey(), refetchInterval: isRunning ? 3000 : false },
   });
-
   const { data: moversReport } = useGetMovers({
-    query: {
-      queryKey: getGetMoversQueryKey(),
-      refetchInterval: isRunning ? 3000 : false,
-    }
+    query: { queryKey: getGetMoversQueryKey(), refetchInterval: isRunning ? 3000 : false },
   });
-
-  const { data: catalog } = useGetCatalog({
-    query: {
-      queryKey: getGetCatalogQueryKey(),
-    }
-  });
-
-  const triggerRun = useTriggerRun({
-    mutation: {
-      onSuccess: () => {
-        toast({
-          title: "Survey Started",
-          description: "A new AI engine survey is now running in the background.",
-        });
-        queryClient.invalidateQueries({ queryKey: getListRunsQueryKey() });
-        queryClient.invalidateQueries({ queryKey: getGetOverviewQueryKey() });
-      },
-      onError: (error) => {
-        toast({
-          variant: "destructive",
-          title: "Failed to start survey",
-          description: error.message || "An unknown error occurred",
-        });
-      }
-    }
-  });
-
-  const handleTrigger = () => {
-    triggerRun.mutate({});
-  };
+  const { data: catalog } = useGetCatalog({ query: { queryKey: getGetCatalogQueryKey() } });
+  const { data: moversTicker } = useGetMovers({ query: { queryKey: getGetMoversQueryKey() } });
 
   const hasData = overview && overview.responsesCount > 0;
 
-  if (isLoadingOverview) {
-    return (
-      <div className="p-8 space-y-8 max-w-7xl mx-auto">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-          {[1,2,3,4].map(i => <Skeleton key={i} className="h-32 rounded-xl" />)}
-        </div>
-        <Skeleton className="h-[400px] rounded-xl" />
-      </div>
-    );
-  }
-
   return (
-    <div className="p-6 md:p-10 max-w-[1600px] mx-auto space-y-10">
-      
-      {/* Header section */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
-        <div>
-          <h1 className="text-4xl font-sans font-bold tracking-tight text-foreground">Intelligence Overview</h1>
-          <p className="text-muted-foreground mt-2 font-mono text-sm">
-            {overview?.lastRun?.completedAt 
-              ? `Last updated ${formatDistanceToNow(new Date(overview.lastRun.completedAt), { addSuffix: true })}` 
-              : "No completed runs yet"}
-          </p>
-        </div>
-        <Button 
-          onClick={handleTrigger} 
-          disabled={isRunning || triggerRun.isPending}
-          className="gap-2 font-mono"
-          size="lg"
-        >
-          {isRunning ? (
-            <span className="flex items-center gap-2">
-              <span className="relative flex h-3 w-3">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary-foreground opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-3 w-3 bg-primary-foreground"></span>
-              </span>
-              Survey in progress...
-            </span>
-          ) : (
-            <>
-              <Play className="w-4 h-4" />
-              Run Survey Now
-            </>
-          )}
-        </Button>
-      </div>
-
-      {!hasData && !isRunning && (
-        <Alert className="bg-primary/5 border-primary/20 text-primary">
-          <AlertCircle className="h-5 w-5 !text-primary" />
-          <AlertTitle className="text-lg font-bold">Awaiting Intelligence</AlertTitle>
-          <AlertDescription className="text-base mt-2 flex flex-col gap-4">
-            <p>Your database is initialized but empty. Run a survey to query AI engines (GPT, Claude, Gemini, etc.) and gather baseline sentiment data across your catalog.</p>
-            <div>
-              <Button onClick={handleTrigger} variant="default" className="font-mono gap-2">
-                <Play className="w-4 h-4" /> Start Initial Run
-              </Button>
-            </div>
-          </AlertDescription>
-        </Alert>
-      )}
-
-      {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <StatCard title="Industries Tracked" value={overview?.industriesCount || 0} icon={Building2} />
-        <StatCard title="Brands Surveyed" value={overview?.brandsCount || 0} icon={BarChart3} />
-        <StatCard title="AI Engines" value={overview?.enginesCount || 0} icon={Cpu} />
-        <StatCard title="Total Responses" value={overview?.responsesCount || 0} icon={MessageSquare} highlight />
-      </div>
-
-      {/* Biggest Movers since previous run */}
-      {hasData && moversReport && moversReport.movers.length > 0 && (
-        <div className="space-y-6">
-          <div className="flex items-center justify-between">
-            <h2 className="text-2xl font-bold tracking-tight">Biggest Movers</h2>
-            <p className="text-sm text-muted-foreground font-mono">
-              {moversReport.previousRunAt
-                ? `vs. run ${formatDistanceToNow(new Date(moversReport.previousRunAt), { addSuffix: true })}`
-                : 'vs. previous run'}
+    <div style={{ background: DI.paper, minHeight: '100vh' }}>
+      <Ticker movers={moversTicker} />
+      <div className="mx-auto" style={{ maxWidth: MAX_W, padding: '48px 24px 96px' }}>
+        {/* Header */}
+        <div className="flex flex-wrap items-end justify-between" style={{ gap: 16 }}>
+          <div>
+            <Eyebrow>The AI consensus index</Eyebrow>
+            <h1 style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 'clamp(2.25rem,4vw,3rem)', lineHeight: 1.05, letterSpacing: '-0.02em', color: DI.ink, margin: '14px 0 0' }}>
+              Intelligence Overview
+            </h1>
+            <p style={{ fontFamily: 'var(--font-mono)', fontSize: 12, letterSpacing: '0.1em', color: DI.steel, margin: '10px 0 0' }}>
+              {overview?.lastRun?.completedAt
+                ? `Last updated ${formatDistanceToNow(new Date(overview.lastRun.completedAt), { addSuffix: true })}`
+                : 'No completed runs yet'}
             </p>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-            {moversReport.movers.slice(0, 6).map((mover, idx) => {
-              const up = mover.rankDelta > 0 || (mover.rankDelta === 0 && mover.scoreDelta > 0);
-              const flat = mover.rankDelta === 0;
-              return (
-                <Card
-                  key={`${mover.industryId}-${mover.metric}-${mover.brandId}`}
-                  className="border-border animate-in fade-in slide-in-from-bottom-2"
-                  style={{ animationDelay: `${idx * 60}ms`, animationFillMode: 'both' }}
-                >
-                  <CardContent className="p-5 flex items-center justify-between gap-4">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className={`p-2 rounded-lg shrink-0 ${
-                        flat ? 'bg-muted text-muted-foreground'
-                          : up ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
-                          : 'bg-red-500/10 text-red-600 dark:text-red-400'
-                      }`}>
-                        {flat ? <Minus className="w-5 h-5" /> : up ? <TrendingUp className="w-5 h-5" /> : <TrendingDown className="w-5 h-5" />}
-                      </div>
-                      <div className="min-w-0">
-                        <p className="font-bold truncate">{mover.brandName}</p>
-                        <p className="text-xs text-muted-foreground font-mono truncate">
-                          {mover.industryName} • {mover.metricLabel}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="text-right shrink-0">
-                      {mover.rankDelta !== 0 ? (
-                        <p className={`font-mono font-bold ${up ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
-                          {mover.rankDelta > 0 ? '▲' : '▼'} {Math.abs(mover.rankDelta)} {Math.abs(mover.rankDelta) === 1 ? 'spot' : 'spots'}
-                        </p>
-                      ) : (
-                        <p className={`font-mono font-bold ${mover.scoreDelta > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
-                          {mover.scoreDelta > 0 ? '+' : ''}{mover.scoreDelta.toFixed(1)} pts
-                        </p>
-                      )}
-                      <p className="text-xs text-muted-foreground font-mono mt-1">
-                        #{mover.previousRank} → #{mover.currentRank} • {mover.scoreDelta > 0 ? '+' : ''}{mover.scoreDelta.toFixed(1)}
-                      </p>
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
+          {isRunning && (
+            <span className="flex items-center" style={{ gap: 8, fontFamily: 'var(--font-mono)', fontSize: 11, letterSpacing: '0.15em', textTransform: 'uppercase', color: DI.teal }}>
+              <span style={{ width: 8, height: 8, borderRadius: 9999, background: DI.teal, display: 'inline-block' }} />
+              Survey in progress
+            </span>
+          )}
         </div>
-      )}
 
-      {hasData && moversReport && moversReport.previousRunId == null && (
-        <p className="text-sm text-muted-foreground font-mono">
-          Day-over-day movement will appear here once a second survey run completes.
-        </p>
-      )}
-
-      {/* Main Content: Industry Leaders */}
-      {hasData && catalog && overview && (
-        <div className="space-y-6">
-          <div className="flex items-center justify-between">
-            <h2 className="text-2xl font-bold tracking-tight">Industry Leadership</h2>
-            <p className="text-sm text-muted-foreground font-mono">Ranked by average AI sentiment score</p>
+        {isLoading ? (
+          <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit,minmax(200px,1fr))', gap: 16, marginTop: 40 }}>
+            {[1, 2, 3, 4].map((i) => <div key={i} style={{ height: 96, background: '#fff', border: `1px solid ${DI.line}` }} />)}
           </div>
-          
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
-            {catalog.industries.map((industry, iIdx) => {
-              const leaders = overview.leaders.filter(l => l.industryId === industry.id);
-              if (leaders.length === 0) return null;
-              
-              return (
-                <Card 
-                  key={industry.id} 
-                  className="overflow-hidden hover:shadow-lg transition-shadow duration-300 border-border animate-in fade-in slide-in-from-bottom-4"
-                  style={{ animationDelay: `${iIdx * 100}ms`, animationFillMode: 'both' }}
-                >
-                  <CardHeader className="bg-muted/30 border-b border-border pb-4 flex flex-row items-center justify-between space-y-0">
-                    <div>
-                      <CardTitle className="text-xl flex items-center gap-2">
-                        {industry.name}
-                      </CardTitle>
-                      <CardDescription className="font-mono text-xs mt-1 uppercase tracking-wider">{industry.country}</CardDescription>
-                    </div>
-                    <Button variant="outline" size="sm" asChild className="font-mono text-xs">
-                      <Link href={`/industry/${industry.id}`}>
-                        Analyze <ArrowRight className="w-3 h-3 ml-2" />
-                      </Link>
-                    </Button>
-                  </CardHeader>
-                  <CardContent className="p-0">
-                    <div className="divide-y border-border">
-                      {leaders.map((leader, idx) => (
-                        <div 
-                          key={leader.metric} 
-                          className="flex items-center justify-between p-4 hover:bg-muted/20 transition-colors animate-in fade-in slide-in-from-bottom-2"
-                          style={{ animationDelay: `${idx * 50}ms`, animationFillMode: 'both' }}
-                        >
-                          <div className="flex items-center gap-3">
-                            <div className="bg-primary/10 text-primary p-2 rounded-lg">
-                              <Trophy className="w-4 h-4" />
-                            </div>
-                            <div>
-                              <p className="font-medium text-sm text-muted-foreground">{leader.metricLabel}</p>
-                              <p className="font-bold text-lg">{leader.brandName}</p>
-                            </div>
+        ) : (
+          <>
+            {/* Stat row */}
+            <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit,minmax(200px,1fr))', gap: 16, marginTop: 40 }}>
+              <Stat label="Industries tracked" value={overview?.industriesCount ?? 0} />
+              <Stat label="Brands surveyed" value={overview?.brandsCount ?? 0} />
+              <Stat label="AI engines" value={overview?.enginesCount ?? 0} />
+              <Stat label="Total responses" value={overview?.responsesCount ?? 0} highlight />
+            </div>
+
+            {!hasData && !isRunning && (
+              <div style={{ marginTop: 40, background: '#fff', border: `1px solid ${DI.line}`, padding: '28px 24px' }}>
+                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '0.2em', textTransform: 'uppercase', color: DI.teal, marginBottom: 8 }}>Awaiting intelligence</div>
+                <p style={{ fontSize: 14, color: DI.body, margin: 0 }}>No survey data yet. Rankings appear here after the first scheduled AI engine survey completes.</p>
+              </div>
+            )}
+
+            {/* Biggest movers */}
+            {hasData && moversReport && moversReport.movers.length > 0 && (
+              <section style={{ marginTop: 64 }}>
+                <div className="flex flex-wrap items-baseline justify-between" style={{ gap: 12 }}>
+                  <h2 style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 24, color: DI.ink, margin: 0 }}>Biggest movers</h2>
+                  <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '0.15em', textTransform: 'uppercase', color: DI.faint }}>
+                    {moversReport.previousRunAt ? `vs. run ${formatDistanceToNow(new Date(moversReport.previousRunAt), { addSuffix: true })}` : 'vs. previous run'}
+                  </span>
+                </div>
+                <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fill,minmax(300px,1fr))', gap: 16, marginTop: 24 }}>
+                  {moversReport.movers.slice(0, 6).map((m) => {
+                    const up = m.rankDelta > 0 || (m.rankDelta === 0 && m.scoreDelta > 0);
+                    const flat = m.rankDelta === 0 && m.scoreDelta === 0;
+                    const col = flat ? DI.faint : up ? DI.teal : DI.danger;
+                    return (
+                      <div key={`${m.industryId}-${m.metric}-${m.brandId}`} style={{ background: '#fff', border: `1px solid ${DI.line}`, padding: 20 }}>
+                        <div className="flex items-baseline justify-between" style={{ gap: 12 }}>
+                          <div style={{ minWidth: 0 }}>
+                            <div style={{ fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: 16, color: DI.ink }}>{m.brandName}</div>
+                            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: DI.faint, marginTop: 3 }}>{m.industryName} &middot; {m.metricLabel}</div>
                           </div>
-                          <div className="text-right">
-                            <div className="inline-flex items-baseline px-3 py-1 rounded-full bg-accent/20 text-accent-foreground font-mono font-bold text-lg">
-                              {leader.score.toFixed(1)}
+                          <div style={{ textAlign: 'right' }}>
+                            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 700, color: col }}>
+                              {m.rankDelta !== 0 ? `${up ? '▲' : '▼'} ${Math.abs(m.rankDelta)} ${Math.abs(m.rankDelta) === 1 ? 'spot' : 'spots'}` : `${m.scoreDelta > 0 ? '+' : ''}${m.scoreDelta.toFixed(1)} pts`}
                             </div>
+                            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: DI.faint, marginTop: 3 }}>#{m.previousRank} → #{m.currentRank} &middot; {m.scoreDelta > 0 ? '+' : ''}{m.scoreDelta.toFixed(1)}</div>
                           </div>
                         </div>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
-        </div>
-      )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </section>
+            )}
+
+            {hasData && moversReport && moversReport.previousRunId == null && (
+              <p style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: DI.faint, marginTop: 24 }}>
+                Day-over-day movement appears here once a second survey run completes.
+              </p>
+            )}
+
+            {/* Industry leadership */}
+            {hasData && catalog && overview && (
+              <section style={{ marginTop: 64 }}>
+                <div className="flex flex-wrap items-baseline justify-between" style={{ gap: 12 }}>
+                  <h2 style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 24, color: DI.ink, margin: 0 }}>Industry leadership</h2>
+                  <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '0.15em', textTransform: 'uppercase', color: DI.faint }}>Leader per metric</span>
+                </div>
+                <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fill,minmax(420px,1fr))', gap: 20, marginTop: 24 }}>
+                  {catalog.industries.map((industry) => {
+                    const leaders = overview.leaders.filter((l) => l.industryId === industry.id);
+                    if (leaders.length === 0) return null;
+                    return (
+                      <div key={industry.id} style={{ background: '#fff', border: `1px solid ${DI.line}`, boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
+                        <div className="flex items-center justify-between" style={{ padding: '18px 24px', borderBottom: `1px solid ${DI.line}`, background: DI.surface }}>
+                          <div>
+                            <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 18, color: DI.ink }}>{industry.name}</div>
+                            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '0.15em', textTransform: 'uppercase', color: DI.faint, marginTop: 2 }}>{industry.country}</div>
+                          </div>
+                          <Link href={`/industry/${industry.id}`} className="inline-flex items-center" style={{ gap: 6, fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: DI.teal, border: `1px solid rgba(14,168,142,0.35)`, padding: '7px 12px' }}>
+                            Analyze <ArrowRight className="w-3 h-3" />
+                          </Link>
+                        </div>
+                        <div>
+                          {leaders.map((leader) => (
+                            <div key={leader.metric} className="flex items-center justify-between" style={{ padding: '13px 24px', borderBottom: `1px solid ${DI.line}` }}>
+                              <div>
+                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: DI.faint }}>{leader.metricLabel}</div>
+                                <div style={{ fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: 15, color: DI.ink, marginTop: 2 }}>{leader.brandName}</div>
+                              </div>
+                              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 15, fontWeight: 700, color: DI.teal }}>{leader.score.toFixed(1)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </section>
+            )}
+          </>
+        )}
+      </div>
     </div>
   );
 }
 
-function StatCard({ title, value, icon: Icon, highlight = false }: { title: string, value: number, icon: any, highlight?: boolean }) {
+function Stat({ label, value, highlight = false }: { label: string; value: number; highlight?: boolean }) {
   return (
-    <Card className={`overflow-hidden border-border ${highlight ? 'bg-primary text-primary-foreground border-primary' : 'bg-card text-card-foreground'}`}>
-      <CardContent className="p-6 flex items-center gap-4">
-        <div className={`p-4 rounded-xl ${highlight ? 'bg-primary-foreground/20' : 'bg-primary/10 text-primary'}`}>
-          <Icon className="w-6 h-6" />
-        </div>
-        <div>
-          <p className={`text-sm font-medium ${highlight ? 'text-primary-foreground/80' : 'text-muted-foreground'}`}>{title}</p>
-          <h3 className="text-3xl font-bold font-mono tracking-tight mt-1">
-            {value.toLocaleString()}
-          </h3>
-        </div>
-      </CardContent>
-    </Card>
+    <div style={{ position: 'relative', background: highlight ? DI.teal : '#fff', border: `1px solid ${highlight ? DI.teal : DI.line}`, padding: '20px 22px' }}>
+      <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '0.2em', textTransform: 'uppercase', color: highlight ? 'rgba(255,255,255,0.85)' : DI.faint }}>{label}</div>
+      <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 34, letterSpacing: '-0.02em', color: highlight ? '#fff' : DI.ink, marginTop: 8 }}>{value.toLocaleString()}</div>
+    </div>
   );
 }

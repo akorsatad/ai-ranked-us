@@ -2,8 +2,15 @@ import app from "./app";
 import { logger } from "./lib/logger";
 import { ensureSeeded } from "./lib/seed";
 import { startScheduler } from "./lib/scheduler";
-import { failInterruptedRuns, recoverPendingAutoRuns } from "./lib/survey";
+import {
+  failInterruptedRuns,
+  recoverPendingAutoRuns,
+  reconcileStaleRuns,
+} from "./lib/survey";
 import { backfillSeries } from "./lib/series";
+
+/** How often the long-lived server sweeps for dead runs to finalize. */
+const WATCHDOG_INTERVAL_MS = 60_000;
 
 const rawPort = process.env["PORT"];
 
@@ -32,6 +39,14 @@ app.listen(port, (err) => {
     .then(() => backfillSeries())
     .then(() => {
       startScheduler();
+      // Periodic watchdog: finalize any run whose heartbeat has gone stale, so
+      // a wedged run can never sit in "running" indefinitely.
+      const watchdog = setInterval(() => {
+        reconcileStaleRuns().catch((err) =>
+          logger.error({ err }, "Stale-run watchdog failed"),
+        );
+      }, WATCHDOG_INTERVAL_MS);
+      watchdog.unref();
       return recoverPendingAutoRuns();
     })
     .catch((startupErr) => {

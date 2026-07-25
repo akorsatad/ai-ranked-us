@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { and, desc, eq, gte, ilike, or, sql, type SQL } from "drizzle-orm";
+import { and, desc, eq, gte, ilike, isNotNull, or, sql, type SQL } from "drizzle-orm";
 import {
   db,
   industriesTable,
@@ -7,6 +7,10 @@ import {
   enginesTable,
   surveyRunsTable,
   surveyResponsesTable,
+  usersTable,
+  sessionsTable,
+  adHocRequestsTable,
+  adminUsersTable,
 } from "@workspace/db";
 import {
   CreateIndustryBody,
@@ -18,6 +22,9 @@ import {
   SetApiKeyBody,
   BrowseTableQueryParams,
   UpdatePromptTemplateBody,
+  ListAdminUsersQueryParams,
+  UpdateUserStatusBody,
+  InviteAdminBody,
 } from "@workspace/api-zod";
 import {
   isProvider,
@@ -30,13 +37,14 @@ import {
   setKeyPreflightMode,
   isKeyPreflightMode,
 } from "../lib/apiKeys";
-import { getAuth } from "@clerk/express";
-import { ensureAdmin, requireAdmin } from "../middlewares/requireAdmin";
+import { requireAdmin, resolveAdminSession } from "../middlewares/requireAdmin";
+import { isGoogleAuthConfigured } from "../lib/authConfig";
 import {
   promptTemplateInfo,
   setStoredPromptTemplate,
   clearStoredPromptTemplate,
   missingRequiredPlaceholders,
+  isPromptKind,
 } from "../lib/promptTemplate";
 import { requestAutoScopedRun } from "../lib/survey";
 import { getMetric } from "../lib/metrics";
@@ -51,16 +59,29 @@ const router: IRouter = Router();
 // Everything on this router requires an authenticated admin,
 // except /admin/me which reports the caller's admin status.
 router.get("/admin/me", async (req, res): Promise<void> => {
-  const auth = getAuth(req);
-  const userId = auth?.userId;
-  if (!userId) {
+  if (!isGoogleAuthConfigured()) {
+    res.status(503).json({
+      message:
+        "Admin authentication is not configured on this deployment (set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET).",
+    });
+    return;
+  }
+  const identity = await resolveAdminSession(req);
+  if (!identity) {
     res.status(401).json({ message: "Authentication required" });
     return;
   }
-  res.status(200).json(await ensureAdmin(userId));
+  res.status(200).json({ isAdmin: true, email: identity.email });
 });
 
-router.use(requireAdmin);
+// Gate ONLY this router's own path prefixes. A bare router.use(requireAdmin)
+// would also intercept every router mounted after this one in routes/index.ts
+// (alerts, og, auth, rank), admin-gating the entire public API — requests
+// flow through unprefixed sub-routers even when no route here matches.
+router.use(
+  ["/admin", "/industries", "/brands", "/engines", "/settings"],
+  requireAdmin,
+);
 
 /** True when the error is a Postgres unique-constraint violation (23505). */
 function isUniqueViolation(err: unknown): boolean {
@@ -462,6 +483,11 @@ router.put("/admin/prompt-template", async (req, res): Promise<void> => {
     res.status(400).json({ message: "Template text is required" });
     return;
   }
+  const kind = body.data.kind;
+  if (!isPromptKind(kind)) {
+    res.status(400).json({ message: "kind must be 'current' or 'trend'" });
+    return;
+  }
   const missing = missingRequiredPlaceholders(body.data.template);
   if (missing.length > 0) {
     res.status(400).json({
@@ -471,17 +497,241 @@ router.put("/admin/prompt-template", async (req, res): Promise<void> => {
     });
     return;
   }
-  await setStoredPromptTemplate(body.data.template);
-  req.log.info("Survey prompt template updated");
+  await setStoredPromptTemplate(kind, body.data.template);
+  req.log.info({ kind }, "Survey prompt template updated");
   res.status(200).json(await promptTemplateInfo());
   return;
 });
 
 router.delete("/admin/prompt-template", async (req, res): Promise<void> => {
-  await clearStoredPromptTemplate();
-  req.log.info("Survey prompt template reset to default");
+  const rawKind = req.query.kind;
+  if (typeof rawKind !== "string" || !isPromptKind(rawKind)) {
+    res.status(400).json({ message: "kind must be 'current' or 'trend'" });
+    return;
+  }
+  await clearStoredPromptTemplate(rawKind);
+  req.log.info({ kind: rawKind }, "Survey prompt template reset to default");
   res.status(200).json(await promptTemplateInfo());
   return;
+});
+
+// ---------- User management ----------
+
+interface AdminAppUserOut {
+  id: number;
+  email: string;
+  firstName: string;
+  lastName: string;
+  createdAt: Date;
+  disabled: boolean;
+  disabledAt: Date | null;
+  rankRequests: number;
+  lastRequestAt: Date | null;
+  activeSessions: number;
+}
+
+async function userWithStats(userId: number): Promise<AdminAppUserOut | null> {
+  const now = new Date();
+  const [row] = await db
+    .select({
+      id: usersTable.id,
+      email: usersTable.email,
+      firstName: usersTable.firstName,
+      lastName: usersTable.lastName,
+      createdAt: usersTable.createdAt,
+      disabledAt: usersTable.disabledAt,
+      rankRequests: sql<number>`count(distinct ${adHocRequestsTable.id})::int`,
+      lastRequestAt: sql<Date | null>`max(${adHocRequestsTable.createdAt})`,
+      activeSessions: sql<number>`(count(distinct ${sessionsTable.id}) filter (where ${sessionsTable.expiresAt} > ${now}))::int`,
+    })
+    .from(usersTable)
+    .leftJoin(adHocRequestsTable, eq(adHocRequestsTable.userId, usersTable.id))
+    .leftJoin(sessionsTable, eq(sessionsTable.userId, usersTable.id))
+    .where(eq(usersTable.id, userId))
+    .groupBy(usersTable.id);
+  if (!row) return null;
+  return { ...row, disabled: row.disabledAt != null };
+}
+
+router.get("/admin/users", async (req, res): Promise<void> => {
+  const query = ListAdminUsersQueryParams.safeParse(req.query);
+  const page = Math.max(1, query.success ? (query.data.page ?? 1) : 1);
+  const pageSize = Math.min(
+    100,
+    Math.max(1, query.success ? (query.data.pageSize ?? 25) : 25),
+  );
+  const search = query.success ? query.data.search : undefined;
+  const offset = (page - 1) * pageSize;
+
+  const where = search
+    ? or(
+        ilike(usersTable.email, `%${search}%`),
+        ilike(usersTable.firstName, `%${search}%`),
+        ilike(usersTable.lastName, `%${search}%`),
+      )
+    : undefined;
+
+  const [countRow] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(usersTable)
+    .where(where);
+  const total = countRow?.count ?? 0;
+
+  const now = new Date();
+  const data = await db
+    .select({
+      id: usersTable.id,
+      email: usersTable.email,
+      firstName: usersTable.firstName,
+      lastName: usersTable.lastName,
+      createdAt: usersTable.createdAt,
+      disabledAt: usersTable.disabledAt,
+      rankRequests: sql<number>`count(distinct ${adHocRequestsTable.id})::int`,
+      lastRequestAt: sql<Date | null>`max(${adHocRequestsTable.createdAt})`,
+      activeSessions: sql<number>`(count(distinct ${sessionsTable.id}) filter (where ${sessionsTable.expiresAt} > ${now}))::int`,
+    })
+    .from(usersTable)
+    .leftJoin(adHocRequestsTable, eq(adHocRequestsTable.userId, usersTable.id))
+    .leftJoin(sessionsTable, eq(sessionsTable.userId, usersTable.id))
+    .where(where)
+    .groupBy(usersTable.id)
+    .orderBy(desc(usersTable.createdAt))
+    .limit(pageSize)
+    .offset(offset);
+
+  res.status(200).json({
+    users: data.map((r) => ({ ...r, disabled: r.disabledAt != null })),
+    total,
+    page,
+    pageSize,
+  });
+});
+
+router.patch("/admin/users/:userId", async (req, res): Promise<void> => {
+  const userId = Number(req.params.userId);
+  if (!Number.isInteger(userId) || userId <= 0) {
+    res.status(404).json({ message: "User not found" });
+    return;
+  }
+  const body = UpdateUserStatusBody.safeParse(req.body);
+  if (!body.success) {
+    res.status(400).json({ message: "disabled (boolean) is required" });
+    return;
+  }
+  const [updated] = await db
+    .update(usersTable)
+    .set({ disabledAt: body.data.disabled ? new Date() : null })
+    .where(eq(usersTable.id, userId))
+    .returning({ id: usersTable.id });
+  if (!updated) {
+    res.status(404).json({ message: "User not found" });
+    return;
+  }
+  if (body.data.disabled) {
+    // Revoke every active session so the block takes effect immediately.
+    await db.delete(sessionsTable).where(eq(sessionsTable.userId, userId));
+  }
+  req.log.info(
+    { userId, disabled: body.data.disabled },
+    "User account status updated",
+  );
+  res.status(200).json(await userWithStats(userId));
+});
+
+// ---------- Admin management ----------
+
+router.get("/admin/admins", async (req, res): Promise<void> => {
+  const caller = (req as typeof req & { admin?: { adminUserId: number } })
+    .admin;
+  const rows = await db
+    .select()
+    .from(adminUsersTable)
+    .orderBy(adminUsersTable.id);
+  res.status(200).json({
+    admins: rows.map((r) => ({
+      id: r.id,
+      email: r.email,
+      pending: r.externalId == null,
+      self: r.id === caller?.adminUserId,
+      createdAt: r.createdAt,
+    })),
+  });
+});
+
+router.post("/admin/admins", async (req, res): Promise<void> => {
+  const body = InviteAdminBody.safeParse(req.body);
+  const email = body.success ? body.data.email.trim().toLowerCase() : "";
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    res.status(400).json({ message: "A valid email address is required" });
+    return;
+  }
+  const existing = await db
+    .select()
+    .from(adminUsersTable)
+    .where(sql`lower(${adminUsersTable.email}) = ${email}`);
+  if (existing[0]) {
+    res.status(409).json({
+      message: existing[0].externalId
+        ? "This email already belongs to an admin"
+        : "This email already has a pending invite",
+    });
+    return;
+  }
+  const [row] = await db
+    .insert(adminUsersTable)
+    .values({ email })
+    .returning();
+  if (!row) {
+    res.status(500).json({ message: "Failed to create invite" });
+    return;
+  }
+  req.log.info({ email }, "Admin invited");
+  res.status(201).json({
+    id: row.id,
+    email: row.email,
+    pending: true,
+    self: false,
+    createdAt: row.createdAt,
+  });
+});
+
+router.delete("/admin/admins/:adminId", async (req, res): Promise<void> => {
+  const adminId = Number(req.params.adminId);
+  if (!Number.isInteger(adminId) || adminId <= 0) {
+    res.status(404).json({ message: "Admin not found" });
+    return;
+  }
+  const caller = (req as typeof req & { admin?: { adminUserId: number } })
+    .admin;
+  const [target] = await db
+    .select()
+    .from(adminUsersTable)
+    .where(eq(adminUsersTable.id, adminId));
+  if (!target) {
+    res.status(404).json({ message: "Admin not found" });
+    return;
+  }
+  if (target.id === caller?.adminUserId) {
+    res.status(400).json({ message: "You cannot remove yourself" });
+    return;
+  }
+  if (target.externalId != null) {
+    const [claimedCount] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(adminUsersTable)
+      .where(isNotNull(adminUsersTable.externalId));
+    if ((claimedCount?.count ?? 0) <= 1) {
+      res.status(400).json({ message: "The last admin cannot be removed" });
+      return;
+    }
+  }
+  // Removing an admin also revokes their sessions via ON DELETE CASCADE.
+  await db.delete(adminUsersTable).where(eq(adminUsersTable.id, adminId));
+  req.log.info(
+    { adminId, pending: target.externalId == null },
+    "Admin removed",
+  );
+  res.status(200).json({ message: "Removed" });
 });
 
 // ---------- Data browser ----------
@@ -492,6 +742,9 @@ const BROWSABLE_TABLES = [
   "engines",
   "survey_runs",
   "survey_responses",
+  "users",
+  "sessions",
+  "ad_hoc_requests",
 ] as const;
 type BrowsableTable = (typeof BROWSABLE_TABLES)[number];
 
@@ -656,6 +909,7 @@ router.get("/admin/tables/:table", async (req, res): Promise<void> => {
           industryId: surveyResponsesTable.industryId,
           industryName: industriesTable.name,
           metricKey: surveyResponsesTable.metricKey,
+          queryType: surveyResponsesTable.queryType,
           status: surveyResponsesTable.status,
           error: surveyResponsesTable.error,
           prompt: surveyResponsesTable.prompt,
@@ -683,6 +937,7 @@ router.get("/admin/tables/:table", async (req, res): Promise<void> => {
         "engineName",
         "industryName",
         "metricKey",
+        "queryType",
         "status",
         "error",
         "prompt",
@@ -694,6 +949,118 @@ router.get("/admin/tables/:table", async (req, res): Promise<void> => {
       rows = data.map((r) => ({
         ...r,
         createdAt: r.createdAt.toISOString(),
+      }));
+      break;
+    }
+    case "users": {
+      const where = search
+        ? or(
+            ilike(usersTable.email, `%${search}%`),
+            ilike(usersTable.firstName, `%${search}%`),
+            ilike(usersTable.lastName, `%${search}%`),
+          )
+        : undefined;
+      const [countRow] = await db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(usersTable)
+        .where(where);
+      total = countRow?.count ?? 0;
+      const data = await db
+        .select()
+        .from(usersTable)
+        .where(where)
+        .orderBy(desc(usersTable.createdAt))
+        .limit(pageSize)
+        .offset(offset);
+      columns = ["id", "email", "firstName", "lastName", "createdAt", "disabledAt"];
+      rows = data.map((r) => ({
+        id: r.id,
+        email: r.email,
+        firstName: r.firstName,
+        lastName: r.lastName,
+        createdAt: r.createdAt.toISOString(),
+        disabledAt: r.disabledAt ? r.disabledAt.toISOString() : null,
+      }));
+      break;
+    }
+    case "sessions": {
+      // Session tokens are credentials — never expose them here.
+      const where = search
+        ? ilike(usersTable.email, `%${search}%`)
+        : undefined;
+      const [countRow] = await db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(sessionsTable)
+        .leftJoin(usersTable, eq(sessionsTable.userId, usersTable.id))
+        .where(where);
+      total = countRow?.count ?? 0;
+      const data = await db
+        .select({
+          id: sessionsTable.id,
+          userId: sessionsTable.userId,
+          userEmail: usersTable.email,
+          createdAt: sessionsTable.createdAt,
+          expiresAt: sessionsTable.expiresAt,
+        })
+        .from(sessionsTable)
+        .leftJoin(usersTable, eq(sessionsTable.userId, usersTable.id))
+        .where(where)
+        .orderBy(desc(sessionsTable.createdAt))
+        .limit(pageSize)
+        .offset(offset);
+      columns = ["id", "userId", "userEmail", "createdAt", "expiresAt"];
+      rows = data.map((r) => ({
+        ...r,
+        createdAt: r.createdAt.toISOString(),
+        expiresAt: r.expiresAt.toISOString(),
+      }));
+      break;
+    }
+    case "ad_hoc_requests": {
+      const conditions: SQL[] = [];
+      if (search) conditions.push(ilike(adHocRequestsTable.brand, `%${search}%`));
+      if (status) conditions.push(eq(adHocRequestsTable.status, status));
+      const where = conditions.length ? and(...conditions) : undefined;
+      const [countRow] = await db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(adHocRequestsTable)
+        .where(where);
+      total = countRow?.count ?? 0;
+      const data = await db
+        .select({
+          id: adHocRequestsTable.id,
+          userId: adHocRequestsTable.userId,
+          userEmail: usersTable.email,
+          brand: adHocRequestsTable.brand,
+          competitors: adHocRequestsTable.competitors,
+          country: adHocRequestsTable.country,
+          status: adHocRequestsTable.status,
+          error: adHocRequestsTable.error,
+          createdAt: adHocRequestsTable.createdAt,
+          completedAt: adHocRequestsTable.completedAt,
+        })
+        .from(adHocRequestsTable)
+        .leftJoin(usersTable, eq(adHocRequestsTable.userId, usersTable.id))
+        .where(where)
+        .orderBy(desc(adHocRequestsTable.createdAt))
+        .limit(pageSize)
+        .offset(offset);
+      columns = [
+        "id",
+        "userId",
+        "userEmail",
+        "brand",
+        "competitors",
+        "country",
+        "status",
+        "error",
+        "createdAt",
+        "completedAt",
+      ];
+      rows = data.map((r) => ({
+        ...r,
+        createdAt: r.createdAt.toISOString(),
+        completedAt: r.completedAt ? r.completedAt.toISOString() : null,
       }));
       break;
     }
