@@ -139,6 +139,29 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/MoversReport"
+  /brands/{brandId}/analytics:
+    get:
+      operationId: getBrandAnalytics
+      tags: [rankings]
+      summary: Per-brand analytics — standing on every metric + peer ranking
+      parameters:
+        - name: brandId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Brand analytics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrandAnalytics"
+        "404":
+          description: Brand not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
   /industries/{industryId}/history:
     get:
       operationId: getIndustryHistory
@@ -2359,6 +2382,48 @@ components:
       required:
         [industryId, industryName, metric, metricLabel, brandId, brandName,
          previousRank, currentRank, rankDelta, previousScore, currentScore, scoreDelta]
+    BrandAnalyticsMetric:
+      type: object
+      properties:
+        key: { type: string }
+        label: { type: string }
+        higherIsBetter: { type: boolean }
+        score: { type: ["number", "null"] }
+        rank: { type: ["integer", "null"] }
+        totalBrands: { type: integer }
+        previousRank: { type: ["integer", "null"] }
+      required: [key, label, higherIsBetter, score, rank, totalBrands, previousRank]
+    BrandAnalyticsPeer:
+      type: object
+      properties:
+        brandId: { type: integer }
+        brandName: { type: string }
+        overallScore: { type: number }
+        rank: { type: integer }
+      required: [brandId, brandName, overallScore, rank]
+    BrandAnalytics:
+      type: object
+      properties:
+        brand:
+          type: object
+          properties:
+            id: { type: integer }
+            name: { type: string }
+            industryId: { type: integer }
+            industryName: { type: string }
+          required: [id, name, industryId, industryName]
+        overallScore: { type: ["number", "null"] }
+        overallRank: { type: ["integer", "null"] }
+        peerCount: { type: integer }
+        metrics:
+          type: array
+          items:
+            $ref: "#/components/schemas/BrandAnalyticsMetric"
+        peers:
+          type: array
+          items:
+            $ref: "#/components/schemas/BrandAnalyticsPeer"
+      required: [brand, overallScore, overallRank, peerCount, metrics, peers]
     MoversReport:
       type: object
       properties:

@@ -185,6 +185,41 @@ export const GetMoversResponse = zod.object({
 
 
 /**
+ * @summary Per-brand analytics — standing on every metric + peer ranking
+ */
+export const GetBrandAnalyticsParams = zod.object({
+  "brandId": zod.coerce.number()
+})
+
+export const GetBrandAnalyticsResponse = zod.object({
+  "brand": zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "industryId": zod.number(),
+  "industryName": zod.string()
+}),
+  "overallScore": zod.number().nullable(),
+  "overallRank": zod.number().nullable(),
+  "peerCount": zod.number(),
+  "metrics": zod.array(zod.object({
+  "key": zod.string(),
+  "label": zod.string(),
+  "higherIsBetter": zod.boolean(),
+  "score": zod.number().nullable(),
+  "rank": zod.number().nullable(),
+  "totalBrands": zod.number(),
+  "previousRank": zod.number().nullable()
+})),
+  "peers": zod.array(zod.object({
+  "brandId": zod.number(),
+  "brandName": zod.string(),
+  "overallScore": zod.number(),
+  "rank": zod.number()
+}))
+})
+
+
+/**
  * @summary Real measured per-run historical score series for an industry metric
  */
 export const GetIndustryHistoryParams = zod.object({

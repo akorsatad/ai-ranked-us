@@ -12,13 +12,12 @@ import {
   useGetMovers,
   getGetMoversQueryKey,
 } from '@workspace/api-client-react';
-import { DI } from '@/components/brand';
+import { DI, brandColor } from '@/components/brand';
 import { Ticker, sy, sx, niceDomain, axisTicks, CHART as CH } from '@/components/home-board';
-
-const SERIES_COLORS = [DI.teal, DI.ink, DI.warn, DI.danger, DI.steel];
 
 const MAX_W = '72rem';
 const DAY = 24 * 60 * 60 * 1000;
+const MAX_LINES = 6;
 
 export default function Industry() {
   const [, params] = useRoute('/industry/:id');
@@ -46,7 +45,24 @@ export default function Industry() {
   const metricInfo = catalog?.metrics.find((m) => m.key === activeMetric);
   const rows = rankings?.average ?? [];
   const engineCount = rankings?.byEngine.length ?? 0;
-  const top5 = rows.slice(0, 5);
+
+  // Which brands are plotted. Defaults to the top 5 for each metric, but any
+  // brand can be swapped in/out from the ranking list (up to MAX_LINES).
+  const [shown, setShown] = useState<Set<number>>(new Set());
+  React.useEffect(() => {
+    setShown(new Set(rows.slice(0, 5).map((r) => r.brandId)));
+    // Reset the selection whenever the metric/industry data changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeMetric, industryId, rankings?.average?.length]);
+  const shownBrands = rows.filter((r) => shown.has(r.brandId));
+  const toggleShown = (brandId: number) => {
+    setShown((prev) => {
+      const next = new Set(prev);
+      if (next.has(brandId)) next.delete(brandId);
+      else if (next.size < MAX_LINES) next.add(brandId);
+      return next;
+    });
+  };
 
   // Scale the y-axis to the top-5 brands' measured + estimated scores so no
   // line clips below the plot floor.
@@ -54,15 +70,16 @@ export default function Industry() {
     const scores: number[] = [];
     const estByBrand = new Map(trends?.brands.map((b) => [b.brandId, b.points]) ?? []);
     const histByBrand = new Map(history?.brands.map((b) => [b.brandId, b.points]) ?? []);
-    for (const entry of top5) {
+    for (const entry of shownBrands) {
       for (const p of estByBrand.get(entry.brandId) ?? []) scores.push(p.score);
       for (const p of histByBrand.get(entry.brandId) ?? []) scores.push(p.score);
     }
     return niceDomain(scores);
-  }, [top5, trends, history]);
+  }, [shownBrands, trends, history]);
   const ticks = axisTicks(domain.lo, domain.hi);
 
-  // Build the top-5 chart series: dashed 13-week estimate + solid measured.
+  // Build the chart series for the shown brands: dashed 13-week estimate +
+  // solid measured. Each brand keeps its consistent color across the site.
   const series = useMemo(() => {
     const estByBrand = new Map(trends?.brands.map((b) => [b.brandId, b.points]) ?? []);
     const histByBrand = new Map(history?.brands.map((b) => [b.brandId, b.points]) ?? []);
@@ -72,8 +89,9 @@ export default function Industry() {
     if (!end) end = Date.now();
     const start = end - 12 * 7 * DAY;
 
-    return top5.map((entry, idx) => {
-      const color = SERIES_COLORS[idx % SERIES_COLORS.length]!;
+    return shownBrands.map((entry) => {
+      const color = brandColor(entry.brandId);
+      const emphasis = entry.rank === 1;
       const est = estByBrand.get(entry.brandId) ?? [];
       const estN = est.length;
       const estPoly = est.map((p, i) => `${sx(i, estN).toFixed(1)},${sy(p.score, domain.lo, domain.hi).toFixed(1)}`).join(' ');
@@ -88,9 +106,9 @@ export default function Industry() {
       // Estimate score by week index, for the hover readout table.
       const estByWeek: (number | null)[] = [];
       for (const p of est) estByWeek[p.weekIndex] = p.score;
-      return { brandId: entry.brandId, name: entry.brandName, color, estPoly, measPoly, last: lastMeas, legendScore, estByWeek };
+      return { brandId: entry.brandId, name: entry.brandName, color, emphasis, estPoly, measPoly, last: lastMeas, legendScore, estByWeek };
     });
-  }, [top5, trends, history, domain]);
+  }, [shownBrands, trends, history, domain]);
 
   const weekLabels = (trends?.brands?.[0]?.points ?? []).map((p) => p.weekLabel);
   const hasChart = series.some((s) => (showEstimate && s.estPoly) || (showMeasured && s.measPoly));
@@ -211,7 +229,7 @@ export default function Industry() {
                   <polyline key={`e${s.brandId}`} points={s.estPoly} fill="none" stroke={s.color} strokeWidth="1.5" strokeDasharray="5 4" opacity={dim(s.brandId) ? 0.15 : 0.75} />
                 ))}
                 {showMeasured && series.map((s) => s.measPoly && (
-                  <polyline key={`m${s.brandId}`} points={s.measPoly} fill="none" stroke={s.color} strokeWidth={s.color === DI.teal ? 2.5 : 2} opacity={dim(s.brandId) ? 0.15 : 1} />
+                  <polyline key={`m${s.brandId}`} points={s.measPoly} fill="none" stroke={s.color} strokeWidth={s.emphasis ? 2.5 : 2} opacity={dim(s.brandId) ? 0.15 : 1} />
                 ))}
                 {/* Markers at the hovered week (estimate value). */}
                 {hoverWk != null && series.map((s) =>
@@ -221,8 +239,8 @@ export default function Industry() {
                 )}
                 {showMeasured && series.map((s) => s.last && (
                   <g key={`d${s.brandId}`} opacity={dim(s.brandId) ? 0.15 : 1}>
-                    <circle cx={s.last.x} cy={s.last.y} r={s.color === DI.teal ? 4 : 3} fill={s.color} />
-                    <text x={s.last.x + 6} y={s.last.y + 3} fill={s.color} fontFamily="JetBrains Mono, monospace" fontSize="11" fontWeight={s.color === DI.teal ? 700 : 400}>{s.name}</text>
+                    <circle cx={s.last.x} cy={s.last.y} r={s.emphasis ? 4 : 3} fill={s.color} />
+                    <text x={s.last.x + 6} y={s.last.y + 3} fill={s.color} fontFamily="JetBrains Mono, monospace" fontSize="11" fontWeight={s.emphasis ? 700 : 400}>{s.name}</text>
                   </g>
                 ))}
                 <line x1="0" y1="272" x2="530" y2="272" stroke={DI.faint} strokeWidth="1" />
@@ -309,9 +327,14 @@ export default function Industry() {
                 return (
                   <div key={entry.brandId} style={{ padding: '16px 24px', borderBottom: `1px solid ${DI.line}` }}>
                     <div className="flex items-baseline justify-between" style={{ gap: 12 }}>
-                      <div className="flex items-baseline" style={{ gap: 12, minWidth: 0 }}>
+                      <div className="flex items-baseline" style={{ gap: 10, minWidth: 0 }}>
+                        <button
+                          onClick={() => toggleShown(entry.brandId)}
+                          title={shown.has(entry.brandId) ? 'Hide from chart' : 'Show on chart'}
+                          style={{ alignSelf: 'center', width: 12, height: 12, borderRadius: 3, border: `1.5px solid ${brandColor(entry.brandId)}`, background: shown.has(entry.brandId) ? brandColor(entry.brandId) : 'transparent', cursor: 'pointer', flexShrink: 0, padding: 0 }}
+                        />
                         <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: DI.faint }}>{String(entry.rank).padStart(2, '0')}</span>
-                        <span style={{ fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: 15, color: DI.ink }}>{entry.brandName}</span>
+                        <Link href={`/brand/${entry.brandId}`} style={{ fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: 15, color: DI.ink, textDecoration: 'none' }}>{entry.brandName}</Link>
                       </div>
                       <div className="flex items-baseline" style={{ gap: 10 }}>
                         <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: wk === 0 ? DI.faint : up ? DI.teal : DI.danger }}>

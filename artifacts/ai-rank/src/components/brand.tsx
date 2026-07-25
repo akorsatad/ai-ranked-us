@@ -20,6 +20,33 @@ export const DI = {
   warn: '#D97706',
 } as const;
 
+/**
+ * A distinct, reasonably color-blind-friendly palette for per-brand series.
+ * Teal (the brand accent) leads so the top brand reads as "ours". Colors are
+ * assigned deterministically by brand id via `brandColor`, so a brand keeps the
+ * same color across every chart and list on the site.
+ */
+export const BRAND_PALETTE = [
+  '#0EA88E', // teal
+  '#2563EB', // blue
+  '#D97706', // amber
+  '#7C3AED', // violet
+  '#DB2777', // pink
+  '#0891B2', // cyan
+  '#65A30D', // lime
+  '#E5484D', // red
+  '#4F46E5', // indigo
+  '#CA8A04', // gold
+  '#0D9488', // deep teal
+  '#9333EA', // purple
+] as const;
+
+/** Deterministic, stable color for a brand id — consistent across all charts. */
+export function brandColor(brandId: number): string {
+  const idx = ((brandId % BRAND_PALETTE.length) + BRAND_PALETTE.length) % BRAND_PALETTE.length;
+  return BRAND_PALETTE[idx]!;
+}
+
 /** Black square glyph "A¹" + AI RANKED.US wordmark. */
 export function Logo({ size = 32 }: { size?: number }) {
   const glyph = Math.round(size * 0.56);

@@ -1,6 +1,7 @@
 import { Router, type IRouter } from "express";
 import { eq } from "drizzle-orm";
-import { db, industriesTable, enginesTable } from "@workspace/db";
+import { db, industriesTable, enginesTable, brandsTable } from "@workspace/db";
+import { METRICS } from "../lib/metrics";
 import {
   GetIndustryRankingsParams,
   GetIndustryRankingsQueryParams,
@@ -354,5 +355,110 @@ router.get(
     return;
   },
 );
+
+/**
+ * Per-brand analytics: the brand's standing on every metric plus a peer
+ * ranking within its industry, in one call. Public (read-only), like the rest
+ * of the industry endpoints. Mounted before the admin /brands gate.
+ */
+router.get("/brands/:brandId/analytics", async (req, res): Promise<void> => {
+  const brandId = Number(req.params.brandId);
+  if (!Number.isInteger(brandId) || brandId <= 0) {
+    res.status(400).json({ message: "Invalid brand id" });
+    return;
+  }
+  const [brand] = await db
+    .select()
+    .from(brandsTable)
+    .where(eq(brandsTable.id, brandId));
+  if (!brand) {
+    res.status(404).json({ message: "Brand not found" });
+    return;
+  }
+  const [industry] = await db
+    .select()
+    .from(industriesTable)
+    .where(eq(industriesTable.id, brand.industryId));
+  if (!industry) {
+    res.status(404).json({ message: "Industry not found" });
+    return;
+  }
+
+  const weights = await loadModelWeights();
+  const metrics: {
+    key: string;
+    label: string;
+    higherIsBetter: boolean;
+    score: number | null;
+    rank: number | null;
+    totalBrands: number;
+    previousRank: number | null;
+  }[] = [];
+  // Overall = average of a brand's metric scores across all metrics.
+  const overall = new Map<number, { name: string; sum: number; count: number }>();
+
+  for (const metric of METRICS) {
+    const responses = await latestResponsesByEngine(industry.id, metric.key);
+    const avg = averageEntries(
+      responses.map((r) => r.response),
+      metric.higherIsBetter,
+      weights,
+    );
+    const snapshots = await runSnapshots(
+      industry.id,
+      metric.key,
+      metric.higherIsBetter,
+    );
+    const prevSnap =
+      snapshots.length >= 2 ? snapshots[snapshots.length - 2] : null;
+    const prevRank = new Map(
+      (prevSnap?.entries ?? []).map((e) => [e.brandId, e.rank]),
+    );
+    const mine = avg.find((e) => e.brandId === brandId);
+    metrics.push({
+      key: metric.key,
+      label: metric.label,
+      higherIsBetter: metric.higherIsBetter,
+      score: mine?.score ?? null,
+      rank: mine?.rank ?? null,
+      totalBrands: avg.length,
+      previousRank: prevRank.get(brandId) ?? null,
+    });
+    for (const e of avg) {
+      const acc = overall.get(e.brandId);
+      if (acc) {
+        acc.sum += e.score;
+        acc.count += 1;
+      } else {
+        overall.set(e.brandId, { name: e.brandName, sum: e.score, count: 1 });
+      }
+    }
+  }
+
+  const peers = [...overall.entries()]
+    .map(([id, v]) => ({
+      brandId: id,
+      brandName: v.name,
+      overallScore: Math.round((v.sum / v.count) * 10) / 10,
+    }))
+    .sort((a, b) => b.overallScore - a.overallScore)
+    .map((p, i) => ({ ...p, rank: i + 1 }));
+  const mineOverall = peers.find((p) => p.brandId === brandId);
+
+  res.status(200).json({
+    brand: {
+      id: brand.id,
+      name: brand.name,
+      industryId: industry.id,
+      industryName: industry.name,
+    },
+    overallScore: mineOverall?.overallScore ?? null,
+    overallRank: mineOverall?.rank ?? null,
+    peerCount: peers.length,
+    metrics,
+    peers,
+  });
+  return;
+});
 
 export default router;

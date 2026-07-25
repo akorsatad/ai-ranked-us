@@ -8,15 +8,16 @@ import {
   getGetIndustryTrendsQueryKey,
   MoversReport,
 } from '@workspace/api-client-react';
-import { DI } from './brand';
+import { Link } from 'wouter';
+import { DI, brandColor } from './brand';
 
-const SERIES_COLORS = [DI.teal, DI.ink, DI.warn, DI.danger, DI.steel];
 const BOARD_METRIC = 'positive_sentiment';
 
 /* ── Scrolling brand ticker ──────────────────────────────────────── */
 
 export function Ticker({ movers }: { movers: MoversReport | undefined }) {
   const items = (movers?.movers ?? []).map((m) => ({
+    brandId: m.brandId,
     name: m.brandName,
     score: m.currentScore,
     delta: m.rankDelta !== 0 ? m.rankDelta : m.scoreDelta,
@@ -31,7 +32,13 @@ export function Ticker({ movers }: { movers: MoversReport | undefined }) {
     <div style={{ borderBottom: `1px solid ${DI.line}`, background: '#fff', overflow: 'hidden' }}>
       <div className="di-ticker-track" style={{ padding: '9px 0' }}>
         {loop.map((it, i) => (
-          <span key={i} className="flex items-center" style={{ padding: '0 20px', borderRight: `1px solid ${DI.line}` }}>
+          <Link
+            key={i}
+            href={`/brand/${it.brandId}`}
+            className="flex items-center di-ticker-item"
+            style={{ padding: '0 20px', borderRight: `1px solid ${DI.line}`, textDecoration: 'none', cursor: 'pointer' }}
+            title={`View ${it.name} analytics`}
+          >
             <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, letterSpacing: '0.08em', textTransform: 'uppercase', color: DI.ink, fontWeight: 500 }}>
               {it.name}
             </span>
@@ -41,7 +48,7 @@ export function Ticker({ movers }: { movers: MoversReport | undefined }) {
             <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, marginLeft: 6, color: it.flat ? DI.faint : it.up ? DI.teal : DI.danger }}>
               {it.flat ? '▪' : it.up ? '▲' : '▼'}{Math.abs(it.delta).toFixed(1)}
             </span>
-          </span>
+          </Link>
         ))}
       </div>
     </div>
@@ -204,7 +211,8 @@ export function LiveIndexBoard({ onOpenIndustry }: { onOpenIndustry: (id: number
     return {
       brandId: entry.brandId,
       name: entry.brandName,
-      color: SERIES_COLORS[idx % SERIES_COLORS.length]!,
+      color: brandColor(entry.brandId),
+      emphasis: idx === 0,
       poly,
       scores,
       lx: last ? sx(last.i, nWeeks) : null,
@@ -312,7 +320,7 @@ export function LiveIndexBoard({ onOpenIndustry }: { onOpenIndustry: (id: number
                 <line x1={hoverX} y1="16" x2={hoverX} y2="272" stroke={DI.ink} strokeWidth="1" strokeDasharray="3 3" opacity={0.5} />
               )}
               {series.map((s) =>
-                s.poly ? <polyline key={s.brandId} points={s.poly} fill="none" stroke={s.color} strokeWidth={s.color === DI.teal ? 2.5 : 2} /> : null,
+                s.poly ? <polyline key={s.brandId} points={s.poly} fill="none" stroke={s.color} strokeWidth={s.emphasis ? 2.5 : 2} /> : null,
               )}
               {hoverWk != null && series.map((s) =>
                 s.scores[hoverWk] != null ? (
@@ -322,8 +330,8 @@ export function LiveIndexBoard({ onOpenIndustry }: { onOpenIndustry: (id: number
               {series.map((s) =>
                 s.lx != null && s.ly != null ? (
                   <g key={`d${s.brandId}`}>
-                    <circle cx={s.lx} cy={s.ly} r={s.color === DI.teal ? 4 : 3} fill={s.color} />
-                    <text x={s.lx + 6} y={s.ly + 3} fill={s.color} fontFamily="JetBrains Mono, monospace" fontSize="11" fontWeight={s.color === DI.teal ? 700 : 400}>{s.name}</text>
+                    <circle cx={s.lx} cy={s.ly} r={s.emphasis ? 4 : 3} fill={s.color} />
+                    <text x={s.lx + 6} y={s.ly + 3} fill={s.color} fontFamily="JetBrains Mono, monospace" fontSize="11" fontWeight={s.emphasis ? 700 : 400}>{s.name}</text>
                   </g>
                 ) : null,
               )}

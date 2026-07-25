@@ -38,6 +38,7 @@ import type {
   AuthUser,
   Brand,
   BrandAlert,
+  BrandAnalytics,
   BrandInput,
   BrandUpdate,
   BrowseTableParams,
@@ -600,6 +601,83 @@ export function useGetMovers<TData = Awaited<ReturnType<typeof getMovers>>, TErr
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetMoversQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetBrandAnalyticsUrl = (brandId: number,) => {
+
+
+
+
+  return `/api/brands/${brandId}/analytics`
+}
+
+/**
+ * @summary Per-brand analytics — standing on every metric + peer ranking
+ */
+export const getBrandAnalytics = async (brandId: number, options?: RequestInit): Promise<BrandAnalytics> => {
+
+  return customFetch<BrandAnalytics>(getGetBrandAnalyticsUrl(brandId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetBrandAnalyticsQueryKey = (brandId: number,) => {
+    return [
+    `/api/brands/${brandId}/analytics`
+    ] as const;
+    }
+
+
+export const getGetBrandAnalyticsQueryOptions = <TData = Awaited<ReturnType<typeof getBrandAnalytics>>, TError = ErrorType<ApiMessage>>(brandId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getBrandAnalytics>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetBrandAnalyticsQueryKey(brandId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getBrandAnalytics>>> = ({ signal }) => getBrandAnalytics(brandId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: brandId !== null && brandId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getBrandAnalytics>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetBrandAnalyticsQueryResult = NonNullable<Awaited<ReturnType<typeof getBrandAnalytics>>>
+export type GetBrandAnalyticsQueryError = ErrorType<ApiMessage>
+
+
+/**
+ * @summary Per-brand analytics — standing on every metric + peer ranking
+ */
+
+export function useGetBrandAnalytics<TData = Awaited<ReturnType<typeof getBrandAnalytics>>, TError = ErrorType<ApiMessage>>(
+ brandId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getBrandAnalytics>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetBrandAnalyticsQueryOptions(brandId,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

@@ -49,6 +49,7 @@ function holdNextBatch(): void {
 
 vi.mock("@workspace/db", () => {
   const enginesTable = { __t: "engines" };
+  const engineModelsTable = { __t: "engine_models" };
   const industriesTable = { __t: "industries" };
   const brandsTable = { __t: "brands" };
   const surveyRunsTable = { __t: "survey_runs" };
@@ -109,6 +110,7 @@ vi.mock("@workspace/db", () => {
   return {
     db,
     enginesTable,
+    engineModelsTable,
     industriesTable,
     brandsTable,
     surveyRunsTable,

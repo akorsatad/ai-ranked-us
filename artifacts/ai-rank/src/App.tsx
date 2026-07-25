@@ -7,6 +7,7 @@ import { Redirect, Route, Switch, Router as WouterRouter } from 'wouter';
 import { Layout } from './components/layout';
 import Explore from './pages/explore';
 import Industry from './pages/industry';
+import BrandAnalytics from './pages/brand';
 import Runs from './pages/runs';
 import { AdminLayout } from './pages/admin/layout';
 import { AdminGuard } from './pages/admin/guard';
@@ -85,6 +86,7 @@ function Router() {
             <Route path="/" component={Home} />
             <Route path="/explore" component={Explore} />
             <Route path="/industry/:id" component={Industry} />
+            <Route path="/brand/:id" component={BrandAnalytics} />
             <Route path="/runs">
               <Redirect to="/admin/runs" />
             </Route>

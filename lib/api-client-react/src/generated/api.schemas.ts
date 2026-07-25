@@ -554,6 +554,44 @@ export interface Mover {
   scoreDelta: number;
 }
 
+export interface BrandAnalyticsMetric {
+  key: string;
+  label: string;
+  higherIsBetter: boolean;
+  /** @nullable */
+  score: number | null;
+  /** @nullable */
+  rank: number | null;
+  totalBrands: number;
+  /** @nullable */
+  previousRank: number | null;
+}
+
+export interface BrandAnalyticsPeer {
+  brandId: number;
+  brandName: string;
+  overallScore: number;
+  rank: number;
+}
+
+export type BrandAnalyticsBrand = {
+  id: number;
+  name: string;
+  industryId: number;
+  industryName: string;
+};
+
+export interface BrandAnalytics {
+  brand: BrandAnalyticsBrand;
+  /** @nullable */
+  overallScore: number | null;
+  /** @nullable */
+  overallRank: number | null;
+  peerCount: number;
+  metrics: BrandAnalyticsMetric[];
+  peers: BrandAnalyticsPeer[];
+}
+
 export interface MoversReport {
   /** @nullable */
   latestRunId: number | null;
