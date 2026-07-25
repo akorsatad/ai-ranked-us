@@ -117,9 +117,42 @@ export const enginesTable = pgTable("engines", {
   name: text("name").notNull(),
   vendor: text("vendor").notNull(),
   provider: text("provider").notNull(), // openai | anthropic | gemini | openrouter
+  // Primary/fallback model for this engine. Model-level querying fans out over
+  // engine_models rows; this stays the default used by the ad-hoc survey path
+  // and as the seed for an engine's first engine_models row.
   model: text("model").notNull(),
   enabled: boolean("enabled").notNull().default(true),
 });
+
+/**
+ * The concrete models a single engine queries. Each survey query fans out over
+ * an engine's *enabled* models, and each model's per-brand scores are combined
+ * into the engine-level score using `weight` (normalized to sum 1.0 across the
+ * engine's enabled models at read time — so admins can retune weights and all
+ * history recomputes without re-surveying). Equal weights = simple mean.
+ */
+export const engineModelsTable = pgTable(
+  "engine_models",
+  {
+    id: serial("id").primaryKey(),
+    engineId: integer("engine_id")
+      .notNull()
+      .references(() => enginesTable.id),
+    model: text("model").notNull(), // e.g. "gpt-5-mini"
+    label: text("label"), // optional display name; defaults to the model id
+    weight: doublePrecision("weight").notNull().default(1),
+    enabled: boolean("enabled").notNull().default(true),
+    sortOrder: integer("sort_order").notNull().default(0),
+  },
+  (table) => [
+    uniqueIndex("engine_models_engine_model_unique").on(
+      table.engineId,
+      table.model,
+    ),
+  ],
+);
+
+export type EngineModelRow = typeof engineModelsTable.$inferSelect;
 
 export const appSettingsTable = pgTable("app_settings", {
   key: text("key").primaryKey(),
@@ -189,6 +222,11 @@ export const surveyResponsesTable = pgTable("survey_responses", {
   engineId: integer("engine_id")
     .notNull()
     .references(() => enginesTable.id),
+  // Which specific model produced this response. Null for legacy rows, which are
+  // treated as the engine's single implicit model (weight 1) when aggregating.
+  engineModelId: integer("engine_model_id").references(
+    () => engineModelsTable.id,
+  ),
   industryId: integer("industry_id")
     .notNull()
     .references(() => industriesTable.id),
@@ -230,6 +268,9 @@ export const dailyMeasurementsTable = pgTable(
     engineId: integer("engine_id")
       .notNull()
       .references(() => enginesTable.id),
+    engineModelId: integer("engine_model_id").references(
+      () => engineModelsTable.id,
+    ),
     industryId: integer("industry_id")
       .notNull()
       .references(() => industriesTable.id),
@@ -267,6 +308,9 @@ export const trendSnapshotsTable = pgTable(
     engineId: integer("engine_id")
       .notNull()
       .references(() => enginesTable.id),
+    engineModelId: integer("engine_model_id").references(
+      () => engineModelsTable.id,
+    ),
     industryId: integer("industry_id")
       .notNull()
       .references(() => industriesTable.id),

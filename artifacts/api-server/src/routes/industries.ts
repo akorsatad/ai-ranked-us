@@ -20,6 +20,7 @@ import {
   averageTrends,
   rankEntries,
   runSnapshots,
+  loadModelWeights,
 } from "../lib/aggregate";
 import {
   measuredSeries,
@@ -52,6 +53,7 @@ router.get(
       return;
     }
 
+    const weights = await loadModelWeights();
     const responses = await latestResponsesByEngine(industry.id, metric.key);
     const snapshots = await runSnapshots(
       industry.id,
@@ -64,6 +66,29 @@ router.get(
     const previousRankByBrand = new Map(
       (previousSnapshot?.entries ?? []).map((e) => [e.brandId, e.rank]),
     );
+
+    // Group the per-(engine,model) responses back to one row per engine for the
+    // "by engine" breakdown, blending the engine's models by weight.
+    const byEngineGroups = new Map<
+      number,
+      {
+        engine: (typeof responses)[number]["engine"];
+        latest: typeof responses;
+        previous: typeof responses;
+        surveyedAt: Date;
+      }
+    >();
+    for (const r of responses) {
+      let g = byEngineGroups.get(r.engine.id);
+      if (!g) {
+        g = { engine: r.engine, latest: [], previous: [], surveyedAt: r.response.createdAt };
+        byEngineGroups.set(r.engine.id, g);
+      }
+      g.latest.push(r);
+      if (r.response.createdAt > g.surveyedAt) g.surveyedAt = r.response.createdAt;
+      if (r.previousResponse) g.previous.push(r);
+    }
+
     res.status(200).json({
       industryId: industry.id,
       industryName: industry.name,
@@ -71,29 +96,32 @@ router.get(
       average: averageEntries(
         responses.map((r) => r.response),
         metric.higherIsBetter,
+        weights,
       ).map((entry) => ({
         ...entry,
         previousRank: previousRankByBrand.get(entry.brandId) ?? null,
       })),
-      byEngine: responses.map(({ engine, response, previousResponse }) => {
-        // Per-engine previous-run ranks (this engine's own prior response,
-        // not the averaged snapshot).
+      byEngine: [...byEngineGroups.values()].map((g) => {
+        // This engine's own prior ranks, blended across its models.
         const enginePrevRankByBrand = new Map(
-          rankEntries(
-            previousResponse?.entries ?? [],
+          averageEntries(
+            g.previous.map((r) => r.previousResponse!),
             metric.higherIsBetter,
+            weights,
           ).map((e) => [e.brandId, e.rank]),
         );
         return {
-          engineKey: engine.key,
-          engineName: engine.name,
-          entries: rankEntries(response.entries ?? [], metric.higherIsBetter).map(
-            (entry) => ({
-              ...entry,
-              previousRank: enginePrevRankByBrand.get(entry.brandId) ?? null,
-            }),
-          ),
-          surveyedAt: response.createdAt.toISOString(),
+          engineKey: g.engine.key,
+          engineName: g.engine.name,
+          entries: averageEntries(
+            g.latest.map((r) => r.response),
+            metric.higherIsBetter,
+            weights,
+          ).map((entry) => ({
+            ...entry,
+            previousRank: enginePrevRankByBrand.get(entry.brandId) ?? null,
+          })),
+          surveyedAt: g.surveyedAt.toISOString(),
         };
       }),
     });
@@ -124,6 +152,7 @@ router.get(
       return;
     }
 
+    const weights = await loadModelWeights();
     let responses = await latestResponsesByEngine(
       industry.id,
       metric.key,
@@ -139,7 +168,10 @@ router.get(
       industryName: industry.name,
       metric: metric.key,
       engine: engineKey,
-      brands: averageTrends(responses.map((r) => r.response)),
+      brands: averageTrends(
+        responses.map((r) => r.response),
+        weights,
+      ),
     });
     return;
   },
@@ -310,13 +342,14 @@ router.get(
       return;
     }
 
+    const weights = await loadModelWeights();
     res.status(200).json({
       industryId: industry.id,
       industryName: industry.name,
       metric: metric.key,
       date: params.data.date,
       engine: engineKey,
-      brands: averageTrends(rows),
+      brands: averageTrends(rows, weights),
     });
     return;
   },

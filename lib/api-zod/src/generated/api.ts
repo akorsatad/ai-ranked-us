@@ -859,6 +859,98 @@ export const UpdateEngineResponse = zod.object({
 
 
 /**
+ * @summary List the models an engine queries (with weights)
+ */
+export const ListEngineModelsParams = zod.object({
+  "engineId": zod.coerce.number()
+})
+
+export const ListEngineModelsResponseItem = zod.object({
+  "id": zod.number(),
+  "engineId": zod.number(),
+  "model": zod.string(),
+  "label": zod.string().nullable(),
+  "weight": zod.number(),
+  "enabled": zod.boolean(),
+  "sortOrder": zod.number()
+})
+export const ListEngineModelsResponse = zod.array(ListEngineModelsResponseItem)
+
+
+/**
+ * @summary Add a model to an engine
+ */
+export const CreateEngineModelParams = zod.object({
+  "engineId": zod.coerce.number()
+})
+
+
+export const createEngineModelBodyWeightMin = 0;
+
+
+
+export const CreateEngineModelBody = zod.object({
+  "model": zod.string().min(1),
+  "label": zod.string().optional(),
+  "weight": zod.number().min(createEngineModelBodyWeightMin).optional(),
+  "enabled": zod.boolean().optional()
+})
+
+export const CreateEngineModelResponse = zod.object({
+  "id": zod.number(),
+  "engineId": zod.number(),
+  "model": zod.string(),
+  "label": zod.string().nullable(),
+  "weight": zod.number(),
+  "enabled": zod.boolean(),
+  "sortOrder": zod.number()
+})
+
+
+/**
+ * @summary Update a model's weight, enabled state, id or label
+ */
+export const UpdateEngineModelParams = zod.object({
+  "modelId": zod.coerce.number()
+})
+
+
+export const updateEngineModelBodyWeightMin = 0;
+
+
+
+export const UpdateEngineModelBody = zod.object({
+  "model": zod.string().min(1).optional(),
+  "label": zod.string().nullish(),
+  "weight": zod.number().min(updateEngineModelBodyWeightMin).optional(),
+  "enabled": zod.boolean().optional(),
+  "sortOrder": zod.number().optional()
+})
+
+export const UpdateEngineModelResponse = zod.object({
+  "id": zod.number(),
+  "engineId": zod.number(),
+  "model": zod.string(),
+  "label": zod.string().nullable(),
+  "weight": zod.number(),
+  "enabled": zod.boolean(),
+  "sortOrder": zod.number()
+})
+
+
+/**
+ * @summary Remove a model from an engine
+ */
+export const DeleteEngineModelParams = zod.object({
+  "modelId": zod.coerce.number()
+})
+
+export const DeleteEngineModelResponse = zod.object({
+  "message": zod.string()
+})
+
+
+/**
  * @summary List per-provider API key status (masked)
  */
 export const ListApiKeysResponseItem = zod.object({
@@ -1134,7 +1226,10 @@ export const GetModelResultsResponse = zod.object({
   "engineKey": zod.string(),
   "engineName": zod.string(),
   "provider": zod.string(),
+  "engineModelId": zod.number().nullable(),
   "model": zod.string(),
+  "weight": zod.number().describe('Configured weight of this model within its engine'),
+  "normalizedWeight": zod.number().describe('This model\'s share of its engine\'s blended score (0-1)'),
   "resolvedModel": zod.string().nullable(),
   "surveyedAt": zod.string(),
   "runId": zod.number(),

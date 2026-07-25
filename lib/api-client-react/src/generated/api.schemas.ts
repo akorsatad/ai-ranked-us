@@ -268,6 +268,37 @@ export interface EngineUpdate {
   enabled?: boolean;
 }
 
+export interface EngineModel {
+  id: number;
+  engineId: number;
+  model: string;
+  /** @nullable */
+  label: string | null;
+  weight: number;
+  enabled: boolean;
+  sortOrder: number;
+}
+
+export interface EngineModelInput {
+  /** @minLength 1 */
+  model: string;
+  label?: string;
+  /** @minimum 0 */
+  weight?: number;
+  enabled?: boolean;
+}
+
+export interface EngineModelUpdate {
+  /** @minLength 1 */
+  model?: string;
+  /** @nullable */
+  label?: string | null;
+  /** @minimum 0 */
+  weight?: number;
+  enabled?: boolean;
+  sortOrder?: number;
+}
+
 export type ProviderKeyStatusProvider = typeof ProviderKeyStatusProvider[keyof typeof ProviderKeyStatusProvider];
 
 
@@ -955,7 +986,13 @@ export interface ModelResult {
   engineKey: string;
   engineName: string;
   provider: string;
+  /** @nullable */
+  engineModelId: number | null;
   model: string;
+  /** Configured weight of this model within its engine */
+  weight: number;
+  /** This model's share of its engine's blended score (0-1) */
+  normalizedWeight: number;
   /** @nullable */
   resolvedModel: string | null;
   surveyedAt: string;

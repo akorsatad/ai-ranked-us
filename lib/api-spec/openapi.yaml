@@ -884,6 +884,98 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiMessage"
+  /engines/{engineId}/models:
+    get:
+      operationId: listEngineModels
+      tags: [admin]
+      summary: List the models an engine queries (with weights)
+      parameters:
+        - name: engineId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Engine models
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/EngineModel"
+    post:
+      operationId: createEngineModel
+      tags: [admin]
+      summary: Add a model to an engine
+      parameters:
+        - name: engineId
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EngineModelInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EngineModel"
+        "409":
+          description: Model already exists for this engine
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+  /engine-models/{modelId}:
+    patch:
+      operationId: updateEngineModel
+      tags: [admin]
+      summary: Update a model's weight, enabled state, id or label
+      parameters:
+        - name: modelId
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EngineModelUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EngineModel"
+        "404":
+          description: Model not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+    delete:
+      operationId: deleteEngineModel
+      tags: [admin]
+      summary: Remove a model from an engine
+      parameters:
+        - name: modelId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
   /settings/api-keys:
     get:
       operationId: listApiKeys
@@ -1960,6 +2052,33 @@ components:
           enum: [openai, anthropic, gemini, openrouter]
         model: { type: string, minLength: 1 }
         enabled: { type: boolean }
+    EngineModel:
+      type: object
+      properties:
+        id: { type: integer }
+        engineId: { type: integer }
+        model: { type: string }
+        label: { type: ["string", "null"] }
+        weight: { type: number }
+        enabled: { type: boolean }
+        sortOrder: { type: integer }
+      required: [id, engineId, model, label, weight, enabled, sortOrder]
+    EngineModelInput:
+      type: object
+      properties:
+        model: { type: string, minLength: 1 }
+        label: { type: string }
+        weight: { type: number, minimum: 0 }
+        enabled: { type: boolean }
+      required: [model]
+    EngineModelUpdate:
+      type: object
+      properties:
+        model: { type: string, minLength: 1 }
+        label: { type: ["string", "null"] }
+        weight: { type: number, minimum: 0 }
+        enabled: { type: boolean }
+        sortOrder: { type: integer }
     ProviderKeyStatus:
       type: object
       properties:
@@ -2666,7 +2785,10 @@ components:
         engineKey: { type: string }
         engineName: { type: string }
         provider: { type: string }
+        engineModelId: { type: ["integer", "null"] }
         model: { type: string }
+        weight: { type: number, description: "Configured weight of this model within its engine" }
+        normalizedWeight: { type: number, description: "This model's share of its engine's blended score (0-1)" }
         resolvedModel: { type: ["string", "null"] }
         surveyedAt: { type: string }
         runId: { type: integer }
@@ -2677,7 +2799,7 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/ModelRankingEntry"
-      required: [engineId, engineKey, engineName, provider, model, resolvedModel, surveyedAt, runId, inputTokens, outputTokens, costUsd, entries]
+      required: [engineId, engineKey, engineName, provider, engineModelId, model, weight, normalizedWeight, resolvedModel, surveyedAt, runId, inputTokens, outputTokens, costUsd, entries]
     ModelResults:
       type: object
       properties:

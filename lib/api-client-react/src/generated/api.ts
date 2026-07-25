@@ -45,6 +45,9 @@ import type {
   CompetitorSuggestions,
   CostSummary,
   EngineInput,
+  EngineModel,
+  EngineModelInput,
+  EngineModelUpdate,
   EngineUpdate,
   GetCostSummaryParams,
   GetIndustryHistoryParams,
@@ -2632,6 +2635,298 @@ export const useUpdateEngine = <TError = ErrorType<ApiMessage>,
         TContext
       > => {
       return useMutation(getUpdateEngineMutationOptions(options));
+    }
+
+export const getListEngineModelsUrl = (engineId: number,) => {
+
+
+
+
+  return `/api/engines/${engineId}/models`
+}
+
+/**
+ * @summary List the models an engine queries (with weights)
+ */
+export const listEngineModels = async (engineId: number, options?: RequestInit): Promise<EngineModel[]> => {
+
+  return customFetch<EngineModel[]>(getListEngineModelsUrl(engineId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListEngineModelsQueryKey = (engineId: number,) => {
+    return [
+    `/api/engines/${engineId}/models`
+    ] as const;
+    }
+
+
+export const getListEngineModelsQueryOptions = <TData = Awaited<ReturnType<typeof listEngineModels>>, TError = ErrorType<unknown>>(engineId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listEngineModels>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListEngineModelsQueryKey(engineId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listEngineModels>>> = ({ signal }) => listEngineModels(engineId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: engineId !== null && engineId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listEngineModels>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListEngineModelsQueryResult = NonNullable<Awaited<ReturnType<typeof listEngineModels>>>
+export type ListEngineModelsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List the models an engine queries (with weights)
+ */
+
+export function useListEngineModels<TData = Awaited<ReturnType<typeof listEngineModels>>, TError = ErrorType<unknown>>(
+ engineId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listEngineModels>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListEngineModelsQueryOptions(engineId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateEngineModelUrl = (engineId: number,) => {
+
+
+
+
+  return `/api/engines/${engineId}/models`
+}
+
+/**
+ * @summary Add a model to an engine
+ */
+export const createEngineModel = async (engineId: number,
+    engineModelInput: EngineModelInput, options?: RequestInit): Promise<EngineModel> => {
+
+  return customFetch<EngineModel>(getCreateEngineModelUrl(engineId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(engineModelInput)
+  }
+);}
+
+
+
+
+
+export const getCreateEngineModelMutationOptions = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createEngineModel>>, TError,{engineId: number;data: BodyType<EngineModelInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createEngineModel>>, TError,{engineId: number;data: BodyType<EngineModelInput>}, TContext> => {
+
+const mutationKey = ['createEngineModel'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createEngineModel>>, {engineId: number;data: BodyType<EngineModelInput>}> = (props) => {
+          const {engineId,data} = props ?? {};
+
+          return  createEngineModel(engineId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateEngineModelMutationResult = NonNullable<Awaited<ReturnType<typeof createEngineModel>>>
+    export type CreateEngineModelMutationBody = BodyType<EngineModelInput>
+    export type CreateEngineModelMutationError = ErrorType<ApiMessage>
+
+    /**
+ * @summary Add a model to an engine
+ */
+export const useCreateEngineModel = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createEngineModel>>, TError,{engineId: number;data: BodyType<EngineModelInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createEngineModel>>,
+        TError,
+        {engineId: number;data: BodyType<EngineModelInput>},
+        TContext
+      > => {
+      return useMutation(getCreateEngineModelMutationOptions(options));
+    }
+
+export const getUpdateEngineModelUrl = (modelId: number,) => {
+
+
+
+
+  return `/api/engine-models/${modelId}`
+}
+
+/**
+ * @summary Update a model's weight, enabled state, id or label
+ */
+export const updateEngineModel = async (modelId: number,
+    engineModelUpdate: EngineModelUpdate, options?: RequestInit): Promise<EngineModel> => {
+
+  return customFetch<EngineModel>(getUpdateEngineModelUrl(modelId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(engineModelUpdate)
+  }
+);}
+
+
+
+
+
+export const getUpdateEngineModelMutationOptions = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateEngineModel>>, TError,{modelId: number;data: BodyType<EngineModelUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateEngineModel>>, TError,{modelId: number;data: BodyType<EngineModelUpdate>}, TContext> => {
+
+const mutationKey = ['updateEngineModel'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateEngineModel>>, {modelId: number;data: BodyType<EngineModelUpdate>}> = (props) => {
+          const {modelId,data} = props ?? {};
+
+          return  updateEngineModel(modelId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateEngineModelMutationResult = NonNullable<Awaited<ReturnType<typeof updateEngineModel>>>
+    export type UpdateEngineModelMutationBody = BodyType<EngineModelUpdate>
+    export type UpdateEngineModelMutationError = ErrorType<ApiMessage>
+
+    /**
+ * @summary Update a model's weight, enabled state, id or label
+ */
+export const useUpdateEngineModel = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateEngineModel>>, TError,{modelId: number;data: BodyType<EngineModelUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateEngineModel>>,
+        TError,
+        {modelId: number;data: BodyType<EngineModelUpdate>},
+        TContext
+      > => {
+      return useMutation(getUpdateEngineModelMutationOptions(options));
+    }
+
+export const getDeleteEngineModelUrl = (modelId: number,) => {
+
+
+
+
+  return `/api/engine-models/${modelId}`
+}
+
+/**
+ * @summary Remove a model from an engine
+ */
+export const deleteEngineModel = async (modelId: number, options?: RequestInit): Promise<ApiMessage> => {
+
+  return customFetch<ApiMessage>(getDeleteEngineModelUrl(modelId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteEngineModelMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteEngineModel>>, TError,{modelId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteEngineModel>>, TError,{modelId: number}, TContext> => {
+
+const mutationKey = ['deleteEngineModel'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteEngineModel>>, {modelId: number}> = (props) => {
+          const {modelId} = props ?? {};
+
+          return  deleteEngineModel(modelId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteEngineModelMutationResult = NonNullable<Awaited<ReturnType<typeof deleteEngineModel>>>
+
+    export type DeleteEngineModelMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Remove a model from an engine
+ */
+export const useDeleteEngineModel = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteEngineModel>>, TError,{modelId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteEngineModel>>,
+        TError,
+        {modelId: number},
+        TContext
+      > => {
+      return useMutation(getDeleteEngineModelMutationOptions(options));
     }
 
 export const getListApiKeysUrl = () => {

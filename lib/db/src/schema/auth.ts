@@ -3,6 +3,7 @@ import {
   text,
   serial,
   integer,
+  doublePrecision,
   timestamp,
   jsonb,
 } from "drizzle-orm/pg-core";
@@ -91,6 +92,11 @@ export const adHocRequestsTable = pgTable("ad_hoc_requests", {
   status: text("status").notNull().default("pending"), // pending | running | completed | failed
   results: jsonb("results").$type<AdHocResults>(),
   error: text("error"),
+  // Token/cost usage for this custom query (null for older rows). Drives
+  // per-run token charges and margin analysis.
+  inputTokens: integer("input_tokens"),
+  outputTokens: integer("output_tokens"),
+  costUsd: doublePrecision("cost_usd"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

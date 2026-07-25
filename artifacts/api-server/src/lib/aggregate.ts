@@ -2,6 +2,7 @@ import { and, eq, desc, inArray } from "drizzle-orm";
 import {
   db,
   enginesTable,
+  engineModelsTable,
   surveyResponsesTable,
   surveyRunsTable,
   type EngineRow,
@@ -9,6 +10,38 @@ import {
   type StoredRankingEntry,
   type StoredBrandTrend,
 } from "@workspace/db";
+
+/** engineModelId → configured weight. Enabled models only. */
+export type ModelWeights = Map<number, number>;
+
+/**
+ * Load per-model weights so aggregation can blend an engine's models. Read at
+ * query time, so retuning weights in admin recomputes all history without a
+ * re-survey. Missing/legacy (null) model ids default to weight 1.
+ */
+export async function loadModelWeights(): Promise<ModelWeights> {
+  const rows = await db
+    .select({
+      id: engineModelsTable.id,
+      weight: engineModelsTable.weight,
+      enabled: engineModelsTable.enabled,
+    })
+    .from(engineModelsTable);
+  const map: ModelWeights = new Map();
+  for (const r of rows) {
+    if (!r.enabled) continue;
+    map.set(r.id, r.weight > 0 ? r.weight : 0);
+  }
+  return map;
+}
+
+function weightOf(
+  engineModelId: number | null,
+  weights?: ModelWeights,
+): number {
+  if (engineModelId == null) return 1; // legacy/single implicit model
+  return weights?.get(engineModelId) ?? 1;
+}
 
 /**
  * The two survey queries are stored as separate rows tagged by query_type.
@@ -19,9 +52,11 @@ export const RANKING_QUERY_TYPES = ["current", "combined"];
 export const TREND_QUERY_TYPES = ["trend", "combined"];
 
 /**
- * Latest successful response per engine for an (industry, metric) pair.
- * Also returns that engine's previous successful response (from the prior
- * run), or null when the engine has only one successful response.
+ * Latest successful response per (engine, model) for an (industry, metric)
+ * pair, plus that group's previous successful response. With model-level
+ * querying there can be several rows per engine (one per model); callers that
+ * want engine-level numbers pass these through `averageEntries`/`averageTrends`
+ * (or `mergePerEngine`), which blend an engine's models by weight.
  */
 export async function latestResponsesByEngine(
   industryId: number,
@@ -30,6 +65,7 @@ export async function latestResponsesByEngine(
 ): Promise<
   {
     engine: EngineRow;
+    engineModelId: number | null;
     response: SurveyResponseRow;
     previousResponse: SurveyResponseRow | null;
   }[]
@@ -37,30 +73,47 @@ export async function latestResponsesByEngine(
   const queryTypes =
     carrying === "trend" ? TREND_QUERY_TYPES : RANKING_QUERY_TYPES;
   const engines = await db.select().from(enginesTable);
+  const engineById = new Map(engines.map((e) => [e.id, e]));
+  const rows = await db
+    .select()
+    .from(surveyResponsesTable)
+    .where(
+      and(
+        eq(surveyResponsesTable.industryId, industryId),
+        eq(surveyResponsesTable.metricKey, metricKey),
+        eq(surveyResponsesTable.status, "ok"),
+        inArray(surveyResponsesTable.queryType, queryTypes),
+      ),
+    )
+    .orderBy(desc(surveyResponsesTable.createdAt));
+
+  // Group by (engine, model); rows are newest-first so [0]=latest, [1]=previous.
+  const byGroup = new Map<
+    string,
+    { latest: SurveyResponseRow; previous: SurveyResponseRow | null }
+  >();
+  for (const r of rows) {
+    const key = `${r.engineId}:${r.engineModelId ?? ""}`;
+    const g = byGroup.get(key);
+    if (!g) byGroup.set(key, { latest: r, previous: null });
+    else if (!g.previous) g.previous = r;
+  }
+
   const results: {
     engine: EngineRow;
+    engineModelId: number | null;
     response: SurveyResponseRow;
     previousResponse: SurveyResponseRow | null;
   }[] = [];
-  for (const engine of engines) {
-    const responses = await db
-      .select()
-      .from(surveyResponsesTable)
-      .where(
-        and(
-          eq(surveyResponsesTable.industryId, industryId),
-          eq(surveyResponsesTable.metricKey, metricKey),
-          eq(surveyResponsesTable.engineId, engine.id),
-          eq(surveyResponsesTable.status, "ok"),
-          inArray(surveyResponsesTable.queryType, queryTypes),
-        ),
-      )
-      .orderBy(desc(surveyResponsesTable.createdAt))
-      .limit(2);
-    const [response, previousResponse] = responses;
-    if (response) {
-      results.push({ engine, response, previousResponse: previousResponse ?? null });
-    }
+  for (const g of byGroup.values()) {
+    const engine = engineById.get(g.latest.engineId);
+    if (!engine) continue;
+    results.push({
+      engine,
+      engineModelId: g.latest.engineModelId ?? null,
+      response: g.latest,
+      previousResponse: g.previous,
+    });
   }
   return results;
 }
@@ -81,32 +134,71 @@ export function rankEntries(
 }
 
 /**
- * Average per-brand scores across engine responses and re-rank so that
- * rank 1 = best brand on the metric (see rankEntries).
+ * Two-level per-brand average with model weighting:
+ *   1. within each engine, blend its models by weight (normalized to the models
+ *      actually present), so an engine querying 2 models still counts as one
+ *      "voice" — not double;
+ *   2. average those engine-level scores equally across engines.
+ * Re-ranks so rank 1 = best brand on the metric (see rankEntries). Passing no
+ * weights (or legacy null model ids) makes every model weight 1.
  */
 export function averageEntries(
   responses: SurveyResponseRow[],
   higherIsBetter: boolean,
+  weights?: ModelWeights,
 ): StoredRankingEntry[] {
+  // engineId → brandId → weighted accumulation across that engine's models
+  const byEngine = new Map<
+    number,
+    Map<
+      number,
+      { brandName: string; wScore: number; wSum: number; rationale: string | null }
+    >
+  >();
+  for (const response of responses) {
+    const w = weightOf(response.engineModelId, weights);
+    if (w <= 0) continue;
+    let brands = byEngine.get(response.engineId);
+    if (!brands) {
+      brands = new Map();
+      byEngine.set(response.engineId, brands);
+    }
+    for (const entry of response.entries ?? []) {
+      const acc = brands.get(entry.brandId);
+      if (acc) {
+        acc.wScore += entry.score * w;
+        acc.wSum += w;
+        if (!acc.rationale && entry.rationale) acc.rationale = entry.rationale;
+      } else {
+        brands.set(entry.brandId, {
+          brandName: entry.brandName,
+          wScore: entry.score * w,
+          wSum: w,
+          rationale: entry.rationale,
+        });
+      }
+    }
+  }
+
   const byBrand = new Map<
     number,
     { brandName: string; total: number; count: number; rationale: string | null }
   >();
-  for (const response of responses) {
-    for (const entry of response.entries ?? []) {
-      const existing = byBrand.get(entry.brandId);
-      if (existing) {
-        existing.total += entry.score;
-        existing.count += 1;
-        if (!existing.rationale && entry.rationale) {
-          existing.rationale = entry.rationale;
-        }
+  for (const brands of byEngine.values()) {
+    for (const [brandId, acc] of brands) {
+      if (acc.wSum <= 0) continue;
+      const engineScore = acc.wScore / acc.wSum;
+      const b = byBrand.get(brandId);
+      if (b) {
+        b.total += engineScore;
+        b.count += 1;
+        if (!b.rationale && acc.rationale) b.rationale = acc.rationale;
       } else {
-        byBrand.set(entry.brandId, {
-          brandName: entry.brandName,
-          total: entry.score,
+        byBrand.set(brandId, {
+          brandName: acc.brandName,
+          total: engineScore,
           count: 1,
-          rationale: entry.rationale,
+          rationale: acc.rationale,
         });
       }
     }
@@ -219,38 +311,78 @@ export function computeMovers(
 }
 
 /**
- * Average trend points across engine responses per brand.
+ * Two-level per-brand trend average with model weighting: within each engine,
+ * blend its models by weight per week; then average engine-level weekly scores
+ * across engines. Mirrors `averageEntries` so measured and estimated series sit
+ * on the same weighting.
  */
 export function averageTrends(
-  responses: { trend: StoredBrandTrend[] | null }[],
+  responses: {
+    engineId: number;
+    engineModelId: number | null;
+    trend: StoredBrandTrend[] | null;
+  }[],
+  weights?: ModelWeights,
 ): StoredBrandTrend[] {
-  const byBrand = new Map<
+  // engineId → brandId → weighted weekly accumulation across the engine's models
+  const byEngine = new Map<
     number,
-    {
-      brandName: string;
-      totals: number[];
-      counts: number[];
-      labels: string[];
-    }
+    Map<
+      number,
+      { brandName: string; wTotals: number[]; wSums: number[]; labels: string[] }
+    >
   >();
   for (const response of responses) {
+    const w = weightOf(response.engineModelId, weights);
+    if (w <= 0) continue;
+    let brands = byEngine.get(response.engineId);
+    if (!brands) {
+      brands = new Map();
+      byEngine.set(response.engineId, brands);
+    }
     for (const brandTrend of response.trend ?? []) {
-      let acc = byBrand.get(brandTrend.brandId);
+      let acc = brands.get(brandTrend.brandId);
       if (!acc) {
         acc = {
           brandName: brandTrend.brandName,
+          wTotals: new Array(13).fill(0),
+          wSums: new Array(13).fill(0),
+          labels: new Array(13).fill(""),
+        };
+        brands.set(brandTrend.brandId, acc);
+      }
+      for (const point of brandTrend.points) {
+        if (point.weekIndex < 0 || point.weekIndex > 12) continue;
+        acc.wTotals[point.weekIndex]! += point.score * w;
+        acc.wSums[point.weekIndex]! += w;
+        if (!acc.labels[point.weekIndex]) {
+          acc.labels[point.weekIndex] = point.weekLabel;
+        }
+      }
+    }
+  }
+
+  const byBrand = new Map<
+    number,
+    { brandName: string; totals: number[]; counts: number[]; labels: string[] }
+  >();
+  for (const brands of byEngine.values()) {
+    for (const [brandId, acc] of brands) {
+      let b = byBrand.get(brandId);
+      if (!b) {
+        b = {
+          brandName: acc.brandName,
           totals: new Array(13).fill(0),
           counts: new Array(13).fill(0),
           labels: new Array(13).fill(""),
         };
-        byBrand.set(brandTrend.brandId, acc);
+        byBrand.set(brandId, b);
       }
-      for (const point of brandTrend.points) {
-        if (point.weekIndex < 0 || point.weekIndex > 12) continue;
-        acc.totals[point.weekIndex]! += point.score;
-        acc.counts[point.weekIndex]! += 1;
-        if (!acc.labels[point.weekIndex]) {
-          acc.labels[point.weekIndex] = point.weekLabel;
+      for (let i = 0; i < 13; i++) {
+        if (acc.wSums[i]! > 0) {
+          b.totals[i]! += acc.wTotals[i]! / acc.wSums[i]!;
+          b.counts[i]! += 1;
+          if (!b.labels[i]) b.labels[i] = acc.labels[i]!;
         }
       }
     }

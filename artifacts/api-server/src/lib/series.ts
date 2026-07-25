@@ -6,7 +6,16 @@ import {
   surveyResponsesTable,
   type SurveyResponseRow,
 } from "@workspace/db";
+import { loadModelWeights, type ModelWeights } from "./aggregate";
 import { logger } from "./logger";
+
+function modelWeight(
+  engineModelId: number | null,
+  weights: ModelWeights,
+): number {
+  if (engineModelId == null) return 1;
+  return weights.get(engineModelId) ?? 1;
+}
 
 function toDateKey(date: Date): string {
   return date.toISOString().slice(0, 10);
@@ -30,6 +39,7 @@ export async function recordSeriesForResponse(
           responseId: response.id,
           runId: response.runId,
           engineId: response.engineId,
+          engineModelId: response.engineModelId,
           industryId: response.industryId,
           metricKey: response.metricKey,
           brandId: entry.brandId,
@@ -50,6 +60,7 @@ export async function recordSeriesForResponse(
         responseId: response.id,
         runId: response.runId,
         engineId: response.engineId,
+        engineModelId: response.engineModelId,
         industryId: response.industryId,
         metricKey: response.metricKey,
         snapshotDate: toDateKey(response.createdAt),
@@ -133,15 +144,25 @@ export async function measuredSeries(
     .select()
     .from(dailyMeasurementsTable)
     .where(and(...conditions));
+  const weights = await loadModelWeights();
 
-  // Group by run, then brand: average score and best rank across engines.
+  // Two-level per run: within each engine blend its models by weight, then
+  // average engines equally — the same weighting the estimated/ranking series
+  // use, so measured and 12-week estimate stay comparable.
+  // run → brand → engine → weighted accumulation
   const byRun = new Map<
     number,
     {
       date: Date;
       brands: Map<
         number,
-        { brandName: string; total: number; count: number; rankTotal: number }
+        {
+          brandName: string;
+          engines: Map<
+            number,
+            { wScore: number; wSum: number; wRank: number }
+          >;
+        }
       >;
     }
   >();
@@ -152,17 +173,23 @@ export async function measuredSeries(
       byRun.set(row.runId, run);
     }
     if (row.measuredAt > run.date) run.date = row.measuredAt;
-    const acc = run.brands.get(row.brandId);
-    if (acc) {
-      acc.total += row.scoreX10 / 10;
-      acc.rankTotal += row.rank;
-      acc.count += 1;
+    let brand = run.brands.get(row.brandId);
+    if (!brand) {
+      brand = { brandName: row.brandName, engines: new Map() };
+      run.brands.set(row.brandId, brand);
+    }
+    const w = modelWeight(row.engineModelId, weights);
+    if (w <= 0) continue;
+    const eng = brand.engines.get(row.engineId);
+    if (eng) {
+      eng.wScore += (row.scoreX10 / 10) * w;
+      eng.wRank += row.rank * w;
+      eng.wSum += w;
     } else {
-      run.brands.set(row.brandId, {
-        brandName: row.brandName,
-        total: row.scoreX10 / 10,
-        rankTotal: row.rank,
-        count: 1,
+      brand.engines.set(row.engineId, {
+        wScore: (row.scoreX10 / 10) * w,
+        wRank: row.rank * w,
+        wSum: w,
       });
     }
   }
@@ -173,17 +200,28 @@ export async function measuredSeries(
   const byBrand = new Map<number, MeasuredBrandSeries>();
   for (const runId of runIds) {
     const run = byRun.get(runId)!;
-    for (const [brandId, acc] of run.brands) {
+    for (const [brandId, brand] of run.brands) {
+      // Collapse each engine's models (weighted), then average engines equally.
+      let scoreSum = 0;
+      let rankSum = 0;
+      let engineCount = 0;
+      for (const eng of brand.engines.values()) {
+        if (eng.wSum <= 0) continue;
+        scoreSum += eng.wScore / eng.wSum;
+        rankSum += eng.wRank / eng.wSum;
+        engineCount += 1;
+      }
+      if (engineCount === 0) continue;
       let series = byBrand.get(brandId);
       if (!series) {
-        series = { brandId, brandName: acc.brandName, points: [] };
+        series = { brandId, brandName: brand.brandName, points: [] };
         byBrand.set(brandId, series);
       }
       series.points.push({
         runId,
         date: run.date.toISOString(),
-        score: Math.round((acc.total / acc.count) * 10) / 10,
-        rank: Math.round(acc.rankTotal / acc.count),
+        score: Math.round((scoreSum / engineCount) * 10) / 10,
+        rank: Math.round(rankSum / engineCount),
       });
     }
   }
@@ -256,13 +294,15 @@ export async function snapshotsForDate(
     .from(trendSnapshotsTable)
     .where(and(...conditions));
 
-  // Keep only the latest snapshot per engine for the date.
-  const byEngine = new Map<number, (typeof rows)[number]>();
+  // Keep only the latest snapshot per (engine, model) for the date, so every
+  // model feeds the weighted trend blend.
+  const byGroup = new Map<string, (typeof rows)[number]>();
   for (const row of rows) {
-    const existing = byEngine.get(row.engineId);
+    const key = `${row.engineId}:${row.engineModelId ?? ""}`;
+    const existing = byGroup.get(key);
     if (!existing || row.createdAt > existing.createdAt) {
-      byEngine.set(row.engineId, row);
+      byGroup.set(key, row);
     }
   }
-  return [...byEngine.values()];
+  return [...byGroup.values()];
 }

@@ -3,9 +3,11 @@ import {
   industriesTable,
   brandsTable,
   enginesTable,
+  engineModelsTable,
   pricingTiersTable,
   surveySchedulesTable,
 } from "@workspace/db";
+import { eq } from "drizzle-orm";
 import { logger } from "./logger";
 
 // Default commercial pricing tiers. Token rates are placeholders admins edit
@@ -267,6 +269,77 @@ const ENGINES: {
 ];
 
 /**
+ * Default per-provider model line-up for model-level querying. The first two
+ * are enabled ("2 top models per engine"); the third ships disabled so admins
+ * can turn it on without hunting for the id. Every id has a pricing-table entry
+ * so cost tracking works out of the box. All of this is admin-editable in
+ * Admin → Engines. Verify ids against each provider's current docs.
+ */
+const MODELS_BY_PROVIDER: Record<
+  string,
+  { model: string; enabled: boolean }[]
+> = {
+  openai: [
+    { model: "gpt-5-mini", enabled: true },
+    { model: "gpt-5", enabled: true },
+    { model: "gpt-4.1", enabled: false },
+  ],
+  anthropic: [
+    { model: "claude-sonnet-4-6", enabled: true },
+    { model: "claude-opus-4", enabled: true },
+    { model: "claude-haiku-4", enabled: false },
+  ],
+  gemini: [
+    { model: "gemini-3-flash-preview", enabled: true },
+    { model: "gemini-3-pro", enabled: true },
+    { model: "gemini-2.5-pro", enabled: false },
+  ],
+  openrouter: [
+    { model: "x-ai/grok-4.5", enabled: true },
+    { model: "x-ai/grok-4", enabled: true },
+    { model: "deepseek/deepseek-chat", enabled: false },
+  ],
+};
+
+/**
+ * Backfill engine_models for any engine that has none yet: seed the provider's
+ * default line-up, always guaranteeing the engine's own primary model is
+ * present and enabled. Idempotent — engines that already have models are left
+ * untouched, preserving admin edits.
+ */
+export async function ensureEngineModelsSeeded(): Promise<void> {
+  const engines = await db.select().from(enginesTable);
+  let seeded = 0;
+  for (const engine of engines) {
+    const existing = await db
+      .select({ id: engineModelsTable.id })
+      .from(engineModelsTable)
+      .where(eq(engineModelsTable.engineId, engine.id));
+    if (existing.length > 0) continue;
+    const defaults = MODELS_BY_PROVIDER[engine.provider] ?? [];
+    const list = [...defaults];
+    if (!list.some((m) => m.model === engine.model)) {
+      // Unknown provider or a custom primary model — make sure it's covered.
+      list.unshift({ model: engine.model, enabled: true });
+    }
+    await db
+      .insert(engineModelsTable)
+      .values(
+        list.map((m, i) => ({
+          engineId: engine.id,
+          model: m.model,
+          enabled: m.enabled,
+          weight: 1,
+          sortOrder: i,
+        })),
+      )
+      .onConflictDoNothing();
+    seeded++;
+  }
+  if (seeded > 0) logger.info({ engines: seeded }, "Seeded engine models");
+}
+
+/**
  * Idempotent catalog sync: inserts any industries or brands from CATALOG
  * that are missing in the database. Never deletes or modifies existing rows,
  * so admin-made changes (renames, disables, additions) are preserved.
@@ -326,6 +399,9 @@ export async function ensureSeeded(): Promise<void> {
     await db.insert(enginesTable).values(ENGINES);
     logger.info("Seeded engines");
   }
+
+  // Ensure every engine has its model line-up (2 enabled top models by default).
+  await ensureEngineModelsSeeded();
 
   const existingTiers = await db.select().from(pricingTiersTable);
   if (existingTiers.length === 0) {

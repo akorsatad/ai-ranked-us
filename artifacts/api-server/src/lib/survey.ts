@@ -4,10 +4,12 @@ import {
   industriesTable,
   brandsTable,
   enginesTable,
+  engineModelsTable,
   surveyRunsTable,
   surveyResponsesTable,
   type BrandRow,
   type EngineRow,
+  type EngineModelRow,
   type IndustryRow,
   type SurveyRunRow,
   type StoredRankingEntry,
@@ -251,10 +253,50 @@ type QueryType = "current" | "trend";
 
 interface SurveyQuery {
   engine: EngineRow;
+  engineModel: EngineModelRow;
   industry: IndustryRow;
   brands: BrandRow[];
   metric: MetricDef;
   queryType: QueryType;
+}
+
+/**
+ * Loads the enabled models for the given engines, keyed by engineId. Engines
+ * with no engine_models rows yet (e.g. before the backfill runs) fall back to a
+ * synthetic row wrapping the engine's own primary model, so a run always has at
+ * least one model to query.
+ */
+async function loadEnabledModelsByEngine(
+  engines: EngineRow[],
+): Promise<Map<number, EngineModelRow[]>> {
+  const all = await db.select().from(engineModelsTable);
+  const byEngine = new Map<number, EngineModelRow[]>();
+  for (const m of all) {
+    if (!m.enabled) continue;
+    const list = byEngine.get(m.engineId) ?? [];
+    list.push(m);
+    byEngine.set(m.engineId, list);
+  }
+  for (const engine of engines) {
+    const list = byEngine.get(engine.id);
+    if (list && list.length > 0) {
+      list.sort((a, b) => a.sortOrder - b.sortOrder);
+      continue;
+    }
+    // Fallback synthetic model so the engine still runs on its primary model.
+    byEngine.set(engine.id, [
+      {
+        id: -engine.id, // negative sentinel: not a real row, stored as null
+        engineId: engine.id,
+        model: engine.model,
+        label: null,
+        weight: 1,
+        enabled: true,
+        sortOrder: 0,
+      },
+    ]);
+  }
+  return byEngine;
 }
 
 import {
@@ -456,8 +498,15 @@ async function beginSurveyRun(
 
   const industries = await db.select().from(industriesTable);
   const brands = await db.select().from(brandsTable);
+  const modelsByEngine = await loadEnabledModelsByEngine(engines);
   // engines is already filtered to the scoped engine (if any) above.
-  const queries = buildAllQueries(engines, industries, brands, industryId);
+  const queries = buildAllQueries(
+    engines,
+    modelsByEngine,
+    industries,
+    brands,
+    industryId,
+  );
 
   // Auto-triggered scoped runs with nothing to survey (e.g. industry has no
   // enabled brands yet) are skipped silently rather than recorded as empty runs.
@@ -503,37 +552,43 @@ async function beginSurveyRun(
 
 function buildAllQueries(
   engines: EngineRow[],
+  modelsByEngine: Map<number, EngineModelRow[]>,
   industries: IndustryRow[],
   brands: BrandRow[],
   industryId?: number | null,
 ): SurveyQuery[] {
   const queries: SurveyQuery[] = [];
   for (const engine of engines.filter((e) => e.enabled)) {
-    for (const industry of industries.filter(
-      (i) => i.enabled && (industryId == null || i.id === industryId),
-    )) {
-      const industryBrands = brands.filter(
-        (b) => b.enabled && b.industryId === industry.id,
-      );
-      if (industryBrands.length === 0) continue;
-      for (const metric of METRICS) {
-        // Two fully isolated engine calls per (engine, industry, metric):
-        // one for today's ranking, one for the 13-week trajectory, so
-        // neither answer anchors the other.
-        queries.push({
-          engine,
-          industry,
-          brands: industryBrands,
-          metric,
-          queryType: "current",
-        });
-        queries.push({
-          engine,
-          industry,
-          brands: industryBrands,
-          metric,
-          queryType: "trend",
-        });
+    const models = modelsByEngine.get(engine.id) ?? [];
+    for (const engineModel of models) {
+      for (const industry of industries.filter(
+        (i) => i.enabled && (industryId == null || i.id === industryId),
+      )) {
+        const industryBrands = brands.filter(
+          (b) => b.enabled && b.industryId === industry.id,
+        );
+        if (industryBrands.length === 0) continue;
+        for (const metric of METRICS) {
+          // Two fully isolated calls per (engine, model, industry, metric):
+          // one for today's ranking, one for the 13-week trajectory, so
+          // neither answer anchors the other.
+          queries.push({
+            engine,
+            engineModel,
+            industry,
+            brands: industryBrands,
+            metric,
+            queryType: "current",
+          });
+          queries.push({
+            engine,
+            engineModel,
+            industry,
+            brands: industryBrands,
+            metric,
+            queryType: "trend",
+          });
+        }
       }
     }
   }
@@ -556,17 +611,25 @@ export async function resumeSurveyRun(
         : allEngines.filter((e) => e.id === run.engineId);
     const industries = await db.select().from(industriesTable);
     const brands = await db.select().from(brandsTable);
+    const modelsByEngine = await loadEnabledModelsByEngine(engines);
     const allQueries = buildAllQueries(
       engines,
+      modelsByEngine,
       industries,
       brands,
       run.industryId,
     );
 
+    // A synthetic fallback model (id < 0) is stored as a null engineModelId, so
+    // normalize both sides of the dedup key to "" for that case.
+    const modelPart = (id: number | null): string =>
+      id != null && id > 0 ? String(id) : "";
+
     // Skip queries that already have a stored response (succeeded or failed).
     const existing = await db
       .select({
         engineId: surveyResponsesTable.engineId,
+        engineModelId: surveyResponsesTable.engineModelId,
         industryId: surveyResponsesTable.industryId,
         metricKey: surveyResponsesTable.metricKey,
         queryType: surveyResponsesTable.queryType,
@@ -576,13 +639,14 @@ export async function resumeSurveyRun(
       .where(eq(surveyResponsesTable.runId, run.id));
     const done = new Set(
       existing.map(
-        (r) => `${r.engineId}:${r.industryId}:${r.metricKey}:${r.queryType}`,
+        (r) =>
+          `${r.engineId}:${modelPart(r.engineModelId)}:${r.industryId}:${r.metricKey}:${r.queryType}`,
       ),
     );
     const remaining = allQueries.filter(
       (q) =>
         !done.has(
-          `${q.engine.id}:${q.industry.id}:${q.metric.key}:${q.queryType}`,
+          `${q.engine.id}:${modelPart(q.engineModel.id)}:${q.industry.id}:${q.metric.key}:${q.queryType}`,
         ),
     );
     const succeededSoFar = existing.filter((r) => r.status === "ok").length;
@@ -711,9 +775,16 @@ async function executeRun(
       // Every query is an entirely new, isolated request to the engine, for
       // exactly one of the two asks (current ranking OR 13-week trend).
       const prompt = buildPrompt(query, templateFor(query.queryType));
+      // Synthetic fallback models use a negative sentinel id — store null.
+      const engineModelId =
+        query.engineModel.id > 0 ? query.engineModel.id : null;
       let raw: string | null = null;
       try {
-        const result = await callEngine(query.engine, prompt);
+        const result = await callEngine(
+          query.engine,
+          query.engineModel.model,
+          prompt,
+        );
         raw = result.text;
         const entries =
           query.queryType === "current" ? parseRankings(query, result.text) : null;
@@ -735,6 +806,7 @@ async function executeRun(
           .values({
             runId: run.id,
             engineId: query.engine.id,
+            engineModelId,
             industryId: query.industry.id,
             metricKey: query.metric.key,
             queryType: query.queryType,
@@ -771,6 +843,7 @@ async function executeRun(
         await db.insert(surveyResponsesTable).values({
           runId: run.id,
           engineId: query.engine.id,
+          engineModelId,
           industryId: query.industry.id,
           metricKey: query.metric.key,
           queryType: query.queryType,

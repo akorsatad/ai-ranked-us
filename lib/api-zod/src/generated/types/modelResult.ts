@@ -15,7 +15,13 @@ export interface ModelResult {
   engineKey: string;
   engineName: string;
   provider: string;
+  /** @nullable */
+  engineModelId: number | null;
   model: string;
+  /** Configured weight of this model within its engine */
+  weight: number;
+  /** This model's share of its engine's blended score (0-1) */
+  normalizedWeight: number;
   /** @nullable */
   resolvedModel: string | null;
   surveyedAt: string;

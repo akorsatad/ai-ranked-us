@@ -9,6 +9,7 @@ import {
 } from "@workspace/db";
 import { METRICS } from "./metrics";
 import { callEngine } from "./engineClients";
+import { estimateCostUsd } from "./pricing";
 import { logger } from "./logger";
 
 interface TempBrand {
@@ -132,13 +133,24 @@ export async function runAdHocSurvey(
     .where(eq(adHocRequestsTable.id, requestId));
 
   const engineResults: { engineKey: string; engineName: string; metrics: AdHocMetricResult[] }[] = [];
+  // Token/cost accounting so a custom query has a measurable spend (used for
+  // per-run token charges and margin). Summed across every engine×metric call.
+  let inputTokens = 0;
+  let outputTokens = 0;
+  let costUsd = 0;
 
   for (const engine of engines) {
     const metrics: AdHocMetricResult[] = [];
     for (const metric of METRICS) {
       try {
         const prompt = buildAdHocPrompt(brands, metric.label, metric.description, metric.higherIsBetter, country);
-        const result = await callEngine(engine, prompt);
+        const result = await callEngine(engine, engine.model, prompt);
+        inputTokens += result.inputTokens ?? 0;
+        outputTokens += result.outputTokens ?? 0;
+        costUsd +=
+          result.inputTokens != null && result.outputTokens != null
+            ? (estimateCostUsd(result.resolvedModel, result.inputTokens, result.outputTokens) ?? 0)
+            : 0;
         const parsed = parseJsonBlock(result.text) as {
           rankings?: { brand?: string; rank?: number; score?: number; rationale?: string }[];
         };
@@ -189,10 +201,20 @@ export async function runAdHocSurvey(
 
   await db
     .update(adHocRequestsTable)
-    .set({ status: "completed", results, completedAt: new Date() })
+    .set({
+      status: "completed",
+      results,
+      completedAt: new Date(),
+      inputTokens,
+      outputTokens,
+      costUsd: Math.round(costUsd * 1_000_000) / 1_000_000,
+    })
     .where(eq(adHocRequestsTable.id, requestId));
 
-  logger.info({ requestId }, "Ad-hoc survey completed");
+  logger.info(
+    { requestId, inputTokens, outputTokens, costUsd },
+    "Ad-hoc survey completed",
+  );
 }
 
 export async function suggestCompetitors(brand: string, country: string): Promise<string[]> {
@@ -208,7 +230,7 @@ export async function suggestCompetitors(brand: string, country: string): Promis
     `{"competitors":["Brand A","Brand B","Brand C","Brand D"]}`,
   ].join("\n");
 
-  const result = await callEngine(engine, prompt);
+  const result = await callEngine(engine, engine.model, prompt);
   const parsed = parseJsonBlock(result.text) as { competitors?: unknown[] };
   if (!Array.isArray(parsed.competitors)) throw new Error("Invalid competitor response");
   return parsed.competitors

@@ -5,6 +5,7 @@ import {
   industriesTable,
   brandsTable,
   enginesTable,
+  engineModelsTable,
   surveyRunsTable,
   surveyResponsesTable,
   usersTable,
@@ -19,6 +20,8 @@ import {
   UpdateBrandBody,
   CreateEngineBody,
   UpdateEngineBody,
+  CreateEngineModelBody,
+  UpdateEngineModelBody,
   SetApiKeyBody,
   BrowseTableQueryParams,
   UpdatePromptTemplateBody,
@@ -79,7 +82,7 @@ router.get("/admin/me", async (req, res): Promise<void> => {
 // (alerts, og, auth, rank), admin-gating the entire public API — requests
 // flow through unprefixed sub-routers even when no route here matches.
 router.use(
-  ["/admin", "/industries", "/brands", "/engines", "/settings"],
+  ["/admin", "/industries", "/brands", "/engines", "/engine-models", "/settings"],
   requireAdmin,
 );
 
@@ -387,6 +390,115 @@ router.patch("/engines/:id", async (req, res): Promise<void> => {
     return;
   }
   res.status(200).json(row);
+});
+
+// ---------- Engine models (model-level querying + weighting) ----------
+
+router.get("/engines/:id/models", async (req, res): Promise<void> => {
+  const id = parseId(req.params.id);
+  if (id === null) {
+    res.status(400).json({ message: "Invalid engine id" });
+    return;
+  }
+  const models = await db
+    .select()
+    .from(engineModelsTable)
+    .where(eq(engineModelsTable.engineId, id))
+    .orderBy(engineModelsTable.sortOrder, engineModelsTable.id);
+  res.status(200).json(models);
+});
+
+router.post("/engines/:id/models", async (req, res): Promise<void> => {
+  const id = parseId(req.params.id);
+  if (id === null) {
+    res.status(400).json({ message: "Invalid engine id" });
+    return;
+  }
+  const parsed = CreateEngineModelBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ message: parsed.error.message });
+    return;
+  }
+  const [engine] = await db
+    .select()
+    .from(enginesTable)
+    .where(eq(enginesTable.id, id));
+  if (!engine) {
+    res.status(404).json({ message: "Engine not found" });
+    return;
+  }
+  const model = parsed.data.model.trim();
+  const [existing] = await db
+    .select()
+    .from(engineModelsTable)
+    .where(
+      and(
+        eq(engineModelsTable.engineId, id),
+        eq(engineModelsTable.model, model),
+      ),
+    );
+  if (existing) {
+    res
+      .status(409)
+      .json({ message: `Model "${model}" already exists for this engine` });
+    return;
+  }
+  const [maxOrder] = await db
+    .select({ max: sql<number>`coalesce(max(${engineModelsTable.sortOrder}), -1)::int` })
+    .from(engineModelsTable)
+    .where(eq(engineModelsTable.engineId, id));
+  const [row] = await db
+    .insert(engineModelsTable)
+    .values({
+      engineId: id,
+      model,
+      label: parsed.data.label?.trim() || null,
+      weight: parsed.data.weight ?? 1,
+      enabled: parsed.data.enabled ?? true,
+      sortOrder: (maxOrder?.max ?? -1) + 1,
+    })
+    .returning();
+  res.status(201).json(row);
+});
+
+router.patch("/engine-models/:modelId", async (req, res): Promise<void> => {
+  const modelId = parseId(req.params.modelId);
+  if (modelId === null) {
+    res.status(400).json({ message: "Invalid model id" });
+    return;
+  }
+  const parsed = UpdateEngineModelBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ message: parsed.error.message });
+    return;
+  }
+  const patch: Record<string, unknown> = {};
+  if (parsed.data.model != null) patch.model = parsed.data.model.trim();
+  if (parsed.data.label !== undefined)
+    patch.label = parsed.data.label?.trim() || null;
+  if (parsed.data.weight != null) patch.weight = parsed.data.weight;
+  if (parsed.data.enabled != null) patch.enabled = parsed.data.enabled;
+  if (parsed.data.sortOrder != null) patch.sortOrder = parsed.data.sortOrder;
+  const [row] = await db
+    .update(engineModelsTable)
+    .set(patch)
+    .where(eq(engineModelsTable.id, modelId))
+    .returning();
+  if (!row) {
+    res.status(404).json({ message: "Model not found" });
+    return;
+  }
+  res.status(200).json(row);
+});
+
+router.delete("/engine-models/:modelId", async (req, res): Promise<void> => {
+  const modelId = parseId(req.params.modelId);
+  if (modelId === null) {
+    res.status(400).json({ message: "Invalid model id" });
+    return;
+  }
+  await db.delete(engineModelsTable).where(eq(engineModelsTable.id, modelId));
+  res.status(200).json({ message: "Model deleted" });
 });
 
 // ---------- API keys ----------
@@ -1218,7 +1330,22 @@ router.get("/admin/model-results", async (req, res): Promise<void> => {
     return;
   }
 
+  const weights = await loadModelWeights();
   const responses = await latestResponsesByEngine(industry.id, metric.key);
+  const emRows = await db.select().from(engineModelsTable);
+  const emById = new Map(emRows.map((m) => [m.id, m]));
+
+  // Normalized weight = this model's weight ÷ sum of present models' weights for
+  // its engine (so the numbers read as "% of the engine's blended score").
+  const engineWeightSum = new Map<number, number>();
+  for (const { engine, engineModelId } of responses) {
+    const w = engineModelId == null ? 1 : (weights.get(engineModelId) ?? 1);
+    engineWeightSum.set(
+      engine.id,
+      (engineWeightSum.get(engine.id) ?? 0) + w,
+    );
+  }
+
   res.status(200).json({
     industryId: industry.id,
     industryName: industry.name,
@@ -1227,21 +1354,30 @@ router.get("/admin/model-results", async (req, res): Promise<void> => {
     aggregated: averageEntries(
       responses.map((r) => r.response),
       metric.higherIsBetter,
+      weights,
     ),
-    byModel: responses.map(({ engine, response }) => ({
-      engineId: engine.id,
-      engineKey: engine.key,
-      engineName: engine.name,
-      provider: engine.provider,
-      model: engine.model,
-      resolvedModel: response.resolvedModel,
-      surveyedAt: response.createdAt.toISOString(),
-      runId: response.runId,
-      inputTokens: response.inputTokens,
-      outputTokens: response.outputTokens,
-      costUsd: response.costUsd,
-      entries: rankEntries(response.entries ?? [], metric.higherIsBetter),
-    })),
+    byModel: responses.map(({ engine, engineModelId, response }) => {
+      const em = engineModelId != null ? emById.get(engineModelId) : null;
+      const weight = engineModelId == null ? 1 : (weights.get(engineModelId) ?? 1);
+      const sum = engineWeightSum.get(engine.id) ?? 1;
+      return {
+        engineId: engine.id,
+        engineKey: engine.key,
+        engineName: engine.name,
+        provider: engine.provider,
+        engineModelId: engineModelId,
+        model: em?.model ?? response.resolvedModel ?? engine.model,
+        weight,
+        normalizedWeight: sum > 0 ? Math.round((weight / sum) * 1000) / 1000 : 0,
+        resolvedModel: response.resolvedModel,
+        surveyedAt: response.createdAt.toISOString(),
+        runId: response.runId,
+        inputTokens: response.inputTokens,
+        outputTokens: response.outputTokens,
+        costUsd: response.costUsd,
+        entries: rankEntries(response.entries ?? [], metric.higherIsBetter),
+      };
+    }),
   });
   return;
 });

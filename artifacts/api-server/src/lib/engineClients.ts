@@ -68,6 +68,7 @@ async function withTimeout<T>(
  */
 export async function callEngine(
   engine: EngineRow,
+  model: string,
   prompt: string,
 ): Promise<EngineCallResult> {
   const storedKey = isProvider(engine.provider)
@@ -84,10 +85,10 @@ export async function callEngine(
         client = (await import("@workspace/integrations-openai-ai-server"))
           .openai;
       }
-      const response = await withTimeout(`openai:${engine.model}`, (signal) =>
+      const response = await withTimeout(`openai:${model}`, (signal) =>
         client.chat.completions.create(
           {
-            model: engine.model,
+            model: model,
             max_completion_tokens: 8192,
             messages: [{ role: "user", content: prompt }],
             response_format: { type: "json_object" },
@@ -97,7 +98,7 @@ export async function callEngine(
       );
       return {
         text: response.choices[0]?.message?.content ?? "",
-        resolvedModel: response.model || engine.model,
+        resolvedModel: response.model || model,
         inputTokens: response.usage?.prompt_tokens ?? null,
         outputTokens: response.usage?.completion_tokens ?? null,
       };
@@ -111,10 +112,10 @@ export async function callEngine(
         client = (await import("@workspace/integrations-anthropic-ai"))
           .anthropic;
       }
-      const message = await withTimeout(`anthropic:${engine.model}`, (signal) =>
+      const message = await withTimeout(`anthropic:${model}`, (signal) =>
         client.messages.create(
           {
-            model: engine.model,
+            model: model,
             max_tokens: 8192,
             messages: [{ role: "user", content: prompt }],
           },
@@ -124,7 +125,7 @@ export async function callEngine(
       const block = message.content[0];
       return {
         text: block && block.type === "text" ? block.text : "",
-        resolvedModel: message.model || engine.model,
+        resolvedModel: message.model || model,
         inputTokens: message.usage?.input_tokens ?? null,
         outputTokens: message.usage?.output_tokens ?? null,
       };
@@ -137,9 +138,9 @@ export async function callEngine(
       } else {
         client = (await import("@workspace/integrations-gemini-ai")).ai;
       }
-      const response = await withTimeout(`gemini:${engine.model}`, (signal) =>
+      const response = await withTimeout(`gemini:${model}`, (signal) =>
         client.models.generateContent({
-          model: engine.model,
+          model: model,
           contents: [{ role: "user", parts: [{ text: prompt }] }],
           config: {
             maxOutputTokens: 8192,
@@ -155,7 +156,7 @@ export async function callEngine(
           : null;
       return {
         text: response.text ?? "",
-        resolvedModel: response.modelVersion || engine.model,
+        resolvedModel: response.modelVersion || model,
         inputTokens: usage?.promptTokenCount ?? null,
         outputTokens,
       };
@@ -172,10 +173,10 @@ export async function callEngine(
         client = (await import("@workspace/integrations-openrouter-ai"))
           .openrouter;
       }
-      const response = await withTimeout(`openrouter:${engine.model}`, (signal) =>
+      const response = await withTimeout(`openrouter:${model}`, (signal) =>
         client.chat.completions.create(
           {
-            model: engine.model,
+            model: model,
             max_tokens: 8192,
             messages: [{ role: "user", content: prompt }],
           },
@@ -184,7 +185,7 @@ export async function callEngine(
       );
       return {
         text: response.choices[0]?.message?.content ?? "",
-        resolvedModel: response.model || engine.model,
+        resolvedModel: response.model || model,
         inputTokens: response.usage?.prompt_tokens ?? null,
         outputTokens: response.usage?.completion_tokens ?? null,
       };
