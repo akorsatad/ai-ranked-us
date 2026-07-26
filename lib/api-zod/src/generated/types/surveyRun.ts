@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { KeyWarning } from './keyWarning';
+import type { SurveyRunQueryScope } from './surveyRunQueryScope';
 import type { SurveyRunStatus } from './surveyRunStatus';
 import type { SurveyRunTrigger } from './surveyRunTrigger';
 
@@ -13,6 +14,8 @@ export interface SurveyRun {
   id: number;
   status: SurveyRunStatus;
   trigger: SurveyRunTrigger;
+  /** Which query types the run covers (daily current / weekly 13-week trend / both) */
+  queryScope: SurveyRunQueryScope;
   /**
      * When set, the run was scoped to this industry only
      * @nullable

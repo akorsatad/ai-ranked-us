@@ -173,6 +173,9 @@ export const surveyRunsTable = pgTable("survey_runs", {
   id: serial("id").primaryKey(),
   status: text("status").notNull().default("running"), // running | pausing | paused | cancelling | cancelled | completed | failed | partial
   trigger: text("trigger").notNull().default("manual"), // scheduled | manual
+  // Which query types this run covers: "current" (daily ranking only), "trend"
+  // (13-week lookback only), or "both" (legacy/manual full run).
+  queryScope: text("query_scope").notNull().default("both"),
   industryId: integer("industry_id").references(() => industriesTable.id), // null = full run, set = scoped to one industry
   engineId: integer("engine_id").references(() => enginesTable.id), // null = all engines, set = scoped to one AI engine
   startedAt: timestamp("started_at", { withTimezone: true })
@@ -358,6 +361,9 @@ export const surveySchedulesTable = pgTable("survey_schedules", {
   id: serial("id").primaryKey(),
   mode: text("mode").notNull().default("recurring"), // once | recurring
   cadence: text("cadence"), // daily | weekly | monthly (recurring only)
+  // Which query types this schedule fires: "current" (daily), "trend" (13-week
+  // weekly lookback), or "both".
+  queryScope: text("query_scope").notNull().default("both"),
   industryId: integer("industry_id").references(() => industriesTable.id),
   engineId: integer("engine_id").references(() => enginesTable.id),
   enabled: boolean("enabled").notNull().default(true),
@@ -380,6 +386,25 @@ export type SurveyScheduleRow = typeof surveySchedulesTable.$inferSelect;
 export const insertIndustrySchema = createInsertSchema(industriesTable).omit({
   id: true,
 });
+/**
+ * Stored analysis reports (e.g. the weekly Claude Fable analysis of the
+ * 13-week lookback overlap). The rendered PDF is kept inline as base64 so it
+ * survives on serverless (no persistent filesystem) and downloads directly.
+ */
+export const analysisReportsTable = pgTable("analysis_reports", {
+  id: serial("id").primaryKey(),
+  kind: text("kind").notNull().default("weekly_trend_overlap"),
+  title: text("title").notNull(),
+  summary: text("summary"), // short executive summary (also shown in the list)
+  model: text("model"), // model that produced the analysis, e.g. claude-fable-5
+  industryId: integer("industry_id").references(() => industriesTable.id), // null = all
+  pdfBase64: text("pdf_base64").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+export type AnalysisReportRow = typeof analysisReportsTable.$inferSelect;
+
 export type InsertIndustry = z.infer<typeof insertIndustrySchema>;
 export type IndustryRow = typeof industriesTable.$inferSelect;
 export type BrandRow = typeof brandsTable.$inferSelect;

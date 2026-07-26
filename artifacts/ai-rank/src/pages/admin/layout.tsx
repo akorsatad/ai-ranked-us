@@ -5,7 +5,7 @@ import {
   getGetAdminMeQueryKey,
   useAdminSignOut,
 } from '@workspace/api-client-react';
-import { History, Building2, Cpu, KeyRound, Database, FileText, LogOut, Microscope, Users, ShieldCheck, DollarSign, Receipt } from 'lucide-react';
+import { History, Building2, Cpu, KeyRound, Database, FileText, LogOut, Microscope, Users, ShieldCheck, DollarSign, Receipt, LineChart } from 'lucide-react';
 
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, '');
 
@@ -14,6 +14,7 @@ const NAV = [
   { href: '/admin/catalog', label: 'Brands & Industries', icon: Building2 },
   { href: '/admin/engines', label: 'Engines', icon: Cpu },
   { href: '/admin/model-results', label: 'Model Results', icon: Microscope },
+  { href: '/admin/analysis', label: 'Analysis', icon: LineChart },
   { href: '/admin/api-keys', label: 'API Keys', icon: KeyRound },
   { href: '/admin/costs', label: 'API Costs', icon: Receipt },
   { href: '/admin/pricing', label: 'Pricing', icon: DollarSign },

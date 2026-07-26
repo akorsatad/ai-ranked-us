@@ -57,6 +57,7 @@ export const GetOverviewResponse = zod.object({
   "id": zod.number(),
   "status": zod.enum(['running', 'pausing', 'paused', 'cancelling', 'cancelled', 'completed', 'failed', 'partial']),
   "trigger": zod.enum(['scheduled', 'manual', 'auto']),
+  "queryScope": zod.enum(['current', 'trend', 'both']).describe('Which query types the run covers (daily current \/ weekly 13-week trend \/ both)'),
   "industryId": zod.number().nullable().describe('When set, the run was scoped to this industry only'),
   "engineId": zod.number().nullable().describe('When set, the run was scoped to this AI engine only'),
   "startedAt": zod.string(),
@@ -321,6 +322,7 @@ export const ListRunsResponseItem = zod.object({
   "id": zod.number(),
   "status": zod.enum(['running', 'pausing', 'paused', 'cancelling', 'cancelled', 'completed', 'failed', 'partial']),
   "trigger": zod.enum(['scheduled', 'manual', 'auto']),
+  "queryScope": zod.enum(['current', 'trend', 'both']).describe('Which query types the run covers (daily current \/ weekly 13-week trend \/ both)'),
   "industryId": zod.number().nullable().describe('When set, the run was scoped to this industry only'),
   "engineId": zod.number().nullable().describe('When set, the run was scoped to this AI engine only'),
   "startedAt": zod.string(),
@@ -354,6 +356,7 @@ export const TriggerRunResponse = zod.object({
   "id": zod.number(),
   "status": zod.enum(['running', 'pausing', 'paused', 'cancelling', 'cancelled', 'completed', 'failed', 'partial']),
   "trigger": zod.enum(['scheduled', 'manual', 'auto']),
+  "queryScope": zod.enum(['current', 'trend', 'both']).describe('Which query types the run covers (daily current \/ weekly 13-week trend \/ both)'),
   "industryId": zod.number().nullable().describe('When set, the run was scoped to this industry only'),
   "engineId": zod.number().nullable().describe('When set, the run was scoped to this AI engine only'),
   "startedAt": zod.string(),
@@ -385,6 +388,7 @@ export const PauseRunResponse = zod.object({
   "id": zod.number(),
   "status": zod.enum(['running', 'pausing', 'paused', 'cancelling', 'cancelled', 'completed', 'failed', 'partial']),
   "trigger": zod.enum(['scheduled', 'manual', 'auto']),
+  "queryScope": zod.enum(['current', 'trend', 'both']).describe('Which query types the run covers (daily current \/ weekly 13-week trend \/ both)'),
   "industryId": zod.number().nullable().describe('When set, the run was scoped to this industry only'),
   "engineId": zod.number().nullable().describe('When set, the run was scoped to this AI engine only'),
   "startedAt": zod.string(),
@@ -416,6 +420,7 @@ export const ResumeRunResponse = zod.object({
   "id": zod.number(),
   "status": zod.enum(['running', 'pausing', 'paused', 'cancelling', 'cancelled', 'completed', 'failed', 'partial']),
   "trigger": zod.enum(['scheduled', 'manual', 'auto']),
+  "queryScope": zod.enum(['current', 'trend', 'both']).describe('Which query types the run covers (daily current \/ weekly 13-week trend \/ both)'),
   "industryId": zod.number().nullable().describe('When set, the run was scoped to this industry only'),
   "engineId": zod.number().nullable().describe('When set, the run was scoped to this AI engine only'),
   "startedAt": zod.string(),
@@ -447,6 +452,7 @@ export const CancelRunResponse = zod.object({
   "id": zod.number(),
   "status": zod.enum(['running', 'pausing', 'paused', 'cancelling', 'cancelled', 'completed', 'failed', 'partial']),
   "trigger": zod.enum(['scheduled', 'manual', 'auto']),
+  "queryScope": zod.enum(['current', 'trend', 'both']).describe('Which query types the run covers (daily current \/ weekly 13-week trend \/ both)'),
   "industryId": zod.number().nullable().describe('When set, the run was scoped to this industry only'),
   "engineId": zod.number().nullable().describe('When set, the run was scoped to this AI engine only'),
   "startedAt": zod.string(),
@@ -567,6 +573,7 @@ export const ListSchedulesResponse = zod.object({
   "id": zod.number(),
   "mode": zod.enum(['once', 'recurring']),
   "cadence": zod.union([zod.literal('daily'),zod.literal('weekly'),zod.literal('monthly'),zod.literal(null)]).nullish(),
+  "queryScope": zod.enum(['current', 'trend', 'both']),
   "industryId": zod.number().nullable(),
   "engineId": zod.number().nullable(),
   "enabled": zod.boolean(),
@@ -593,6 +600,7 @@ export const CreateScheduleResponse = zod.object({
   "id": zod.number(),
   "mode": zod.enum(['once', 'recurring']),
   "cadence": zod.union([zod.literal('daily'),zod.literal('weekly'),zod.literal('monthly'),zod.literal(null)]).nullish(),
+  "queryScope": zod.enum(['current', 'trend', 'both']),
   "industryId": zod.number().nullable(),
   "engineId": zod.number().nullable(),
   "enabled": zod.boolean(),
@@ -623,6 +631,7 @@ export const UpdateScheduleResponse = zod.object({
   "id": zod.number(),
   "mode": zod.enum(['once', 'recurring']),
   "cadence": zod.union([zod.literal('daily'),zod.literal('weekly'),zod.literal('monthly'),zod.literal(null)]).nullish(),
+  "queryScope": zod.enum(['current', 'trend', 'both']),
   "industryId": zod.number().nullable(),
   "engineId": zod.number().nullable(),
   "enabled": zod.boolean(),
@@ -655,6 +664,7 @@ export const GetRunsSummaryResponse = zod.object({
   "id": zod.number(),
   "status": zod.enum(['running', 'pausing', 'paused', 'cancelling', 'cancelled', 'completed', 'failed', 'partial']),
   "trigger": zod.enum(['scheduled', 'manual', 'auto']),
+  "queryScope": zod.enum(['current', 'trend', 'both']).describe('Which query types the run covers (daily current \/ weekly 13-week trend \/ both)'),
   "industryId": zod.number().nullable().describe('When set, the run was scoped to this industry only'),
   "engineId": zod.number().nullable().describe('When set, the run was scoped to this AI engine only'),
   "startedAt": zod.string(),
@@ -677,6 +687,7 @@ export const GetRunsSummaryResponse = zod.object({
   "id": zod.number(),
   "status": zod.enum(['running', 'pausing', 'paused', 'cancelling', 'cancelled', 'completed', 'failed', 'partial']),
   "trigger": zod.enum(['scheduled', 'manual', 'auto']),
+  "queryScope": zod.enum(['current', 'trend', 'both']).describe('Which query types the run covers (daily current \/ weekly 13-week trend \/ both)'),
   "industryId": zod.number().nullable().describe('When set, the run was scoped to this industry only'),
   "engineId": zod.number().nullable().describe('When set, the run was scoped to this AI engine only'),
   "startedAt": zod.string(),
@@ -1233,6 +1244,36 @@ export const GetCostSummaryResponse = zod.object({
   "outputTokens": zod.number(),
   "costUsd": zod.number()
 }))
+})
+
+
+/**
+ * @summary List stored analysis reports (weekly Fable 13-week overlap, etc.)
+ */
+export const ListAnalysisReportsResponse = zod.object({
+  "reports": zod.array(zod.object({
+  "id": zod.number(),
+  "kind": zod.string(),
+  "title": zod.string(),
+  "summary": zod.string().nullable(),
+  "model": zod.string().nullable(),
+  "industryId": zod.number().nullable(),
+  "createdAt": zod.string()
+}))
+})
+
+
+/**
+ * @summary Generate the weekly 13-week-lookback overlap analysis now
+ */
+export const GenerateAnalysisResponse = zod.object({
+  "id": zod.number(),
+  "kind": zod.string(),
+  "title": zod.string(),
+  "summary": zod.string().nullable(),
+  "model": zod.string().nullable(),
+  "industryId": zod.number().nullable(),
+  "createdAt": zod.string()
 })
 
 

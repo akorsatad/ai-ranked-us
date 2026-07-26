@@ -20,6 +20,7 @@ function serialize(s: SurveyScheduleRow) {
     id: s.id,
     mode: s.mode,
     cadence: s.cadence,
+    queryScope: s.queryScope,
     industryId: s.industryId ?? null,
     engineId: s.engineId ?? null,
     enabled: s.enabled,

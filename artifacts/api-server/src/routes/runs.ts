@@ -51,6 +51,7 @@ export function serializeRun(run: SurveyRunRow) {
     id: run.id,
     status: run.status,
     trigger: run.trigger,
+    queryScope: run.queryScope,
     industryId: run.industryId ?? null,
     engineId: run.engineId ?? null,
     startedAt: run.startedAt.toISOString(),

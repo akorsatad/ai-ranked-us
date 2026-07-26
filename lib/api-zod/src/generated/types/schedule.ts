@@ -7,12 +7,14 @@
  */
 import type { ScheduleCadence } from './scheduleCadence';
 import type { ScheduleMode } from './scheduleMode';
+import type { ScheduleQueryScope } from './scheduleQueryScope';
 
 export interface Schedule {
   id: number;
   mode: ScheduleMode;
   /** @nullable */
   cadence?: ScheduleCadence;
+  queryScope: ScheduleQueryScope;
   /** @nullable */
   industryId: number | null;
   /** @nullable */

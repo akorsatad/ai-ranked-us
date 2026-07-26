@@ -7,6 +7,7 @@ import {
   isRunInProgress,
 } from "../lib/survey";
 import { dueSchedules, markScheduleFired } from "../lib/schedules";
+import { maybeGenerateWeeklyAnalysis } from "../lib/analysis";
 import { logger } from "../lib/logger";
 
 /**
@@ -76,6 +77,21 @@ router.get("/internal/cron/daily-survey", async (req, res): Promise<void> => {
 
   const deadline = Date.now() + timeBudgetMs();
 
+  // 0. Weekly Fable analysis of the 13-week lookback overlap (throttled to once
+  // per ~7 days internally, so it's safe to attempt every invocation). Only
+  // when no run is in progress, so it doesn't compete for the time budget.
+  if (!isRunInProgress()) {
+    try {
+      const report = await maybeGenerateWeeklyAnalysis(new Date());
+      if (report) {
+        res.status(200).json({ action: "weekly_analysis", reportId: report.id });
+        return;
+      }
+    } catch (err) {
+      logger.error({ err }, "Weekly analysis generation failed");
+    }
+  }
+
   // 1. Resume a run orphaned by a previous timed-out invocation. Skip when
   // this instance is already processing one (fresh warm invocation).
   if (!isRunInProgress()) {
@@ -119,6 +135,7 @@ router.get("/internal/cron/daily-survey", async (req, res): Promise<void> => {
       "scheduled",
       schedule.industryId ?? undefined,
       schedule.engineId ?? undefined,
+      (schedule.queryScope as "current" | "trend" | "both") ?? "both",
     );
     if (result.kind === "started") {
       await markScheduleFired(schedule, result.run.id, now);

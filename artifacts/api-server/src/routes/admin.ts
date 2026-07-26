@@ -12,6 +12,7 @@ import {
   sessionsTable,
   adHocRequestsTable,
   adminUsersTable,
+  analysisReportsTable,
 } from "@workspace/db";
 import {
   CreateIndustryBody,
@@ -50,6 +51,8 @@ import {
   isPromptKind,
 } from "../lib/promptTemplate";
 import { requestAutoScopedRun } from "../lib/survey";
+import { ensurePerIndustrySchedules } from "../lib/schedules";
+import { generateWeeklyTrendAnalysis } from "../lib/analysis";
 import { getMetric } from "../lib/metrics";
 import {
   latestResponsesByEngine,
@@ -136,6 +139,13 @@ router.post("/industries", async (req, res): Promise<void> => {
       .insert(industriesTable)
       .values({ name: name.trim(), slug: finalSlug, country: country ?? "US" })
       .returning();
+    // Put the new industry on the normal cron cadence (daily current + weekly
+    // trend). Its first scoped run fires once it gets its first brand.
+    try {
+      await ensurePerIndustrySchedules();
+    } catch (err) {
+      req.log.info({ industryId: row?.id, err }, "Could not ensure schedules for new industry");
+    }
     res.status(201).json(row);
   } catch (err) {
     if (isUniqueViolation(err)) {
@@ -203,11 +213,13 @@ router.patch("/industries/:id", async (req, res): Promise<void> => {
 // ---------- Brands ----------
 
 /**
- * If the given (enabled) brand is now the ONLY enabled brand of an enabled
- * industry, request an automatic survey run scoped to that industry so it
- * populates with data right away.
+ * When a brand (peer) is added to an enabled industry, immediately request an
+ * automatic scoped run so the new peer group is scored right away — including
+ * the 13-week lookback (the auto run covers both current + trend). Also makes
+ * sure the industry has its daily-current + weekly-trend schedules so it enters
+ * the normal cron cadence going forward.
  */
-async function maybeAutoSurveyFirstEnabledBrand(
+async function maybeAutoSurveyOnBrandAdd(
   req: { log: { info: (obj: object, msg: string) => void } },
   industryId: number,
   brandId: number,
@@ -217,16 +229,15 @@ async function maybeAutoSurveyFirstEnabledBrand(
     .from(industriesTable)
     .where(eq(industriesTable.id, industryId));
   if (!industry?.enabled) return;
-  const [countRow] = await db
-    .select({ count: sql<number>`count(*)::int` })
-    .from(brandsTable)
-    .where(
-      and(eq(brandsTable.industryId, industryId), eq(brandsTable.enabled, true)),
-    );
-  if ((countRow?.count ?? 0) !== 1) return;
+  // Ensure this industry is on the normal cron cadence (idempotent).
+  try {
+    await ensurePerIndustrySchedules();
+  } catch (err) {
+    req.log.info({ industryId, err }, "Could not ensure per-industry schedules");
+  }
   req.log.info(
     { industryId, brandId },
-    "Industry got its first enabled brand — requesting automatic scoped survey run",
+    "Brand added to enabled industry — requesting immediate scoped survey run (current + 13-week lookback)",
   );
   requestAutoScopedRun(industryId);
 }
@@ -253,14 +264,10 @@ router.post("/brands", async (req, res): Promise<void> => {
         name: parsed.data.name.trim(),
       })
       .returning();
-    // If this is the industry's first enabled brand, kick off an automatic
-    // survey run scoped to this industry so it populates with data right away.
+    // Newly added peer → immediate scoped run (current + 13-week lookback) and
+    // ensure the industry is on the normal cron cadence.
     if (row && row.enabled) {
-      await maybeAutoSurveyFirstEnabledBrand(
-        req,
-        parsed.data.industryId,
-        row.id,
-      );
+      await maybeAutoSurveyOnBrandAdd(req, parsed.data.industryId, row.id);
     }
     res.status(201).json(row);
   } catch (err) {
@@ -315,7 +322,7 @@ router.patch("/brands/:id", async (req, res): Promise<void> => {
       row.enabled &&
       (!previous?.enabled || previous.industryId !== row.industryId);
     if (becameEnabledHere) {
-      await maybeAutoSurveyFirstEnabledBrand(req, row.industryId, row.id);
+      await maybeAutoSurveyOnBrandAdd(req, row.industryId, row.id);
     }
     res.status(200).json(row);
   } catch (err) {
@@ -1382,5 +1389,71 @@ router.get("/admin/model-results", async (req, res): Promise<void> => {
   return;
 });
 
+// ---------- Analysis reports (weekly Fable 13-week-lookback overlap) ----------
+
+router.get("/admin/analysis", async (_req, res): Promise<void> => {
+  const rows = await db
+    .select({
+      id: analysisReportsTable.id,
+      kind: analysisReportsTable.kind,
+      title: analysisReportsTable.title,
+      summary: analysisReportsTable.summary,
+      model: analysisReportsTable.model,
+      industryId: analysisReportsTable.industryId,
+      createdAt: analysisReportsTable.createdAt,
+    })
+    .from(analysisReportsTable)
+    .orderBy(desc(analysisReportsTable.createdAt))
+    .limit(100);
+  res.status(200).json({
+    reports: rows.map((r) => ({
+      ...r,
+      createdAt: r.createdAt.toISOString(),
+    })),
+  });
+});
+
+router.get("/admin/analysis/:id/pdf", async (req, res): Promise<void> => {
+  const id = parseId(req.params.id);
+  if (id === null) {
+    res.status(400).json({ message: "Invalid report id" });
+    return;
+  }
+  const [row] = await db
+    .select()
+    .from(analysisReportsTable)
+    .where(eq(analysisReportsTable.id, id));
+  if (!row) {
+    res.status(404).json({ message: "Report not found" });
+    return;
+  }
+  const buf = Buffer.from(row.pdfBase64, "base64");
+  res.setHeader("Content-Type", "application/pdf");
+  res.setHeader(
+    "Content-Disposition",
+    `inline; filename="analysis-${row.id}.pdf"`,
+  );
+  res.status(200).send(buf);
+});
+
+router.post("/admin/analysis/generate", async (req, res): Promise<void> => {
+  const report = await generateWeeklyTrendAnalysis(
+    new Date().toISOString().slice(0, 10),
+  );
+  if (!report) {
+    res.status(400).json({ message: "No trend data available to analyze yet" });
+    return;
+  }
+  req.log.info({ reportId: report.id }, "Manual weekly analysis generated");
+  res.status(201).json({
+    id: report.id,
+    kind: report.kind,
+    title: report.title,
+    summary: report.summary,
+    model: report.model,
+    industryId: report.industryId,
+    createdAt: report.createdAt.toISOString(),
+  });
+});
 
 export default router;

@@ -29,17 +29,25 @@ export function nextDailyRun(from: Date = new Date()): Date {
   return next;
 }
 
+/** Next occurrence of RUN_HOUR_UTC on the given UTC weekday (0=Sun), after now. */
+function nextWeekly(weekday: number, from: Date = new Date()): Date {
+  const d = nextDailyRun(from);
+  while (d.getUTCDay() !== weekday) d.setUTCDate(d.getUTCDate() + 1);
+  return d;
+}
+
 /**
- * Split the daily survey into one recurring per-industry schedule each, so a
- * run finishes inside a single cron invocation instead of stalling mid-way.
- * Disables any full-scope (industryId null) recurring schedule, and creates a
- * daily schedule per enabled industry that lacks one, staggering next_run_at so
- * a frequent cron picks them up spread across the run window. Idempotent.
+ * Split the survey into per-industry schedules on a cadence that matches cost:
+ * a DAILY "current" (ranking) schedule per industry, plus a WEEKLY "trend"
+ * (13-week lookback) schedule per industry. Full runs are expensive and stall,
+ * so any full-scope recurring schedule is disabled. next_run_at is staggered so
+ * a frequent cron picks runs up spread across the window. Idempotent —
+ * dedupes on (industryId, queryScope).
  */
 export async function ensurePerIndustrySchedules(
-  staggerMinutes = 20,
+  staggerMinutes = 15,
 ): Promise<{ created: number; disabledFullRuns: number }> {
-  // Retire full-scope recurring schedules — they're what stalls.
+  // Retire full-scope / "both" recurring schedules — they're what stalls.
   const disabled = await db
     .update(surveySchedulesTable)
     .set({ enabled: false })
@@ -59,26 +67,41 @@ export async function ensurePerIndustrySchedules(
     .select()
     .from(surveySchedulesTable)
     .where(eq(surveySchedulesTable.mode, "recurring"));
-  const haveIndustry = new Set(
+  const have = new Set(
     existing
       .filter((s) => s.enabled && s.industryId != null)
-      .map((s) => s.industryId),
+      .map((s) => `${s.industryId}:${s.queryScope}`),
   );
 
-  const base = nextDailyRun();
+  const dailyBase = nextDailyRun();
+  const weeklyBase = nextWeekly(0); // Sundays 06:00 UTC for the 13-week lookback
   let created = 0;
   let i = 0;
   for (const industry of industries) {
-    if (haveIndustry.has(industry.id)) continue;
-    const nextRunAt = new Date(base.getTime() + i * staggerMinutes * 60_000);
-    await db.insert(surveySchedulesTable).values({
-      mode: "recurring",
-      cadence: "daily",
-      industryId: industry.id,
-      enabled: true,
-      nextRunAt,
-    });
-    created++;
+    // Daily current-ranking schedule.
+    if (!have.has(`${industry.id}:current`)) {
+      await db.insert(surveySchedulesTable).values({
+        mode: "recurring",
+        cadence: "daily",
+        queryScope: "current",
+        industryId: industry.id,
+        enabled: true,
+        nextRunAt: new Date(dailyBase.getTime() + i * staggerMinutes * 60_000),
+      });
+      created++;
+    }
+    // Weekly 13-week-lookback schedule.
+    if (!have.has(`${industry.id}:trend`)) {
+      await db.insert(surveySchedulesTable).values({
+        mode: "recurring",
+        cadence: "weekly",
+        queryScope: "trend",
+        industryId: industry.id,
+        enabled: true,
+        nextRunAt: new Date(weeklyBase.getTime() + i * staggerMinutes * 60_000),
+      });
+      created++;
+    }
     i++;
   }
   return { created, disabledFullRuns: disabled.length };

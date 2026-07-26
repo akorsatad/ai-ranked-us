@@ -275,28 +275,31 @@ const ENGINES: {
  * so cost tracking works out of the box. All of this is admin-editable in
  * Admin → Engines. Verify ids against each provider's current docs.
  */
+// One best-value model per engine (engine-level runs for now), always within
+// the latest two generations. The extra models ship disabled so an admin can
+// turn model-level blending back on later without hunting for ids.
 const MODELS_BY_PROVIDER: Record<
   string,
   { model: string; enabled: boolean }[]
 > = {
   openai: [
-    { model: "gpt-5-mini", enabled: true },
-    { model: "gpt-5", enabled: true },
+    { model: "gpt-5-mini", enabled: true }, // best value in gen 5
+    { model: "gpt-5", enabled: false },
     { model: "gpt-4.1", enabled: false },
   ],
   anthropic: [
-    { model: "claude-sonnet-4-6", enabled: true },
-    { model: "claude-opus-4", enabled: true },
+    { model: "claude-sonnet-4-6", enabled: true }, // balanced workhorse
+    { model: "claude-opus-4", enabled: false },
     { model: "claude-haiku-4", enabled: false },
   ],
   gemini: [
-    { model: "gemini-3-flash-preview", enabled: true },
-    { model: "gemini-3-pro", enabled: true },
+    { model: "gemini-3-flash-preview", enabled: true }, // best value in gen 3
+    { model: "gemini-3-pro", enabled: false },
     { model: "gemini-2.5-pro", enabled: false },
   ],
   openrouter: [
     { model: "x-ai/grok-4.5", enabled: true },
-    { model: "x-ai/grok-4", enabled: true },
+    { model: "x-ai/grok-4", enabled: false },
     { model: "deepseek/deepseek-chat", enabled: false },
   ],
 };

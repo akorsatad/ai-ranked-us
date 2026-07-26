@@ -1295,6 +1295,36 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/CostSummary"
+  /admin/analysis:
+    get:
+      operationId: listAnalysisReports
+      tags: [admin]
+      summary: List stored analysis reports (weekly Fable 13-week overlap, etc.)
+      responses:
+        "200":
+          description: Reports
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnalysisReportList"
+  /admin/analysis/generate:
+    post:
+      operationId: generateAnalysis
+      tags: [admin]
+      summary: Generate the weekly 13-week-lookback overlap analysis now
+      responses:
+        "201":
+          description: Report generated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnalysisReportMeta"
+        "400":
+          description: No trend data to analyze yet
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
   /admin/model-results:
     get:
       operationId: getModelResults
@@ -2651,6 +2681,10 @@ components:
         trigger:
           type: string
           enum: [scheduled, manual, auto]
+        queryScope:
+          type: string
+          enum: [current, trend, both]
+          description: Which query types the run covers (daily current / weekly 13-week trend / both)
         industryId:
           type: ["integer", "null"]
           description: When set, the run was scoped to this industry only
@@ -2679,7 +2713,26 @@ components:
         totalCostUsd:
           type: ["number", "null"]
           description: Estimated total cost in USD, null for historical runs
-      required: [id, status, trigger, industryId, engineId, startedAt, completedAt, heartbeatAt, error, totalQueries, succeededQueries, failedQueries, keyWarnings, totalInputTokens, totalOutputTokens, totalCostUsd]
+      required: [id, status, trigger, queryScope, industryId, engineId, startedAt, completedAt, heartbeatAt, error, totalQueries, succeededQueries, failedQueries, keyWarnings, totalInputTokens, totalOutputTokens, totalCostUsd]
+    AnalysisReportMeta:
+      type: object
+      required: [id, kind, title, summary, model, industryId, createdAt]
+      properties:
+        id: { type: integer }
+        kind: { type: string }
+        title: { type: string }
+        summary: { type: ["string", "null"] }
+        model: { type: ["string", "null"] }
+        industryId: { type: ["integer", "null"] }
+        createdAt: { type: string }
+    AnalysisReportList:
+      type: object
+      required: [reports]
+      properties:
+        reports:
+          type: array
+          items:
+            $ref: "#/components/schemas/AnalysisReportMeta"
     ReconcileResult:
       type: object
       required: [finalized, message]
@@ -2688,7 +2741,7 @@ components:
         message: { type: string }
     Schedule:
       type: object
-      required: [id, mode, industryId, engineId, enabled, nextRunAt, lastRunAt, lastRunId, createdAt]
+      required: [id, mode, queryScope, industryId, engineId, enabled, nextRunAt, lastRunAt, lastRunId, createdAt]
       properties:
         id: { type: integer }
         mode:
@@ -2697,6 +2750,9 @@ components:
         cadence:
           type: ["string", "null"]
           enum: [daily, weekly, monthly, null]
+        queryScope:
+          type: string
+          enum: [current, trend, both]
         industryId: { type: ["integer", "null"] }
         engineId: { type: ["integer", "null"] }
         enabled: { type: boolean }

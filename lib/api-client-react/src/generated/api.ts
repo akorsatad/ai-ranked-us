@@ -32,6 +32,8 @@ import type {
   AlertFeed,
   AlertSettings,
   AlertSettingsInput,
+  AnalysisReportList,
+  AnalysisReportMeta,
   ApiKeyInput,
   ApiKeyTestResult,
   ApiMessage,
@@ -3985,6 +3987,154 @@ export function useGetCostSummary<TData = Awaited<ReturnType<typeof getCostSumma
 
 
 
+
+export const getListAnalysisReportsUrl = () => {
+
+
+
+
+  return `/api/admin/analysis`
+}
+
+/**
+ * @summary List stored analysis reports (weekly Fable 13-week overlap, etc.)
+ */
+export const listAnalysisReports = async ( options?: RequestInit): Promise<AnalysisReportList> => {
+
+  return customFetch<AnalysisReportList>(getListAnalysisReportsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListAnalysisReportsQueryKey = () => {
+    return [
+    `/api/admin/analysis`
+    ] as const;
+    }
+
+
+export const getListAnalysisReportsQueryOptions = <TData = Awaited<ReturnType<typeof listAnalysisReports>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAnalysisReports>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListAnalysisReportsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listAnalysisReports>>> = ({ signal }) => listAnalysisReports({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listAnalysisReports>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListAnalysisReportsQueryResult = NonNullable<Awaited<ReturnType<typeof listAnalysisReports>>>
+export type ListAnalysisReportsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List stored analysis reports (weekly Fable 13-week overlap, etc.)
+ */
+
+export function useListAnalysisReports<TData = Awaited<ReturnType<typeof listAnalysisReports>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAnalysisReports>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListAnalysisReportsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGenerateAnalysisUrl = () => {
+
+
+
+
+  return `/api/admin/analysis/generate`
+}
+
+/**
+ * @summary Generate the weekly 13-week-lookback overlap analysis now
+ */
+export const generateAnalysis = async ( options?: RequestInit): Promise<AnalysisReportMeta> => {
+
+  return customFetch<AnalysisReportMeta>(getGenerateAnalysisUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getGenerateAnalysisMutationOptions = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof generateAnalysis>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof generateAnalysis>>, TError,void, TContext> => {
+
+const mutationKey = ['generateAnalysis'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof generateAnalysis>>, void> = () => {
+
+
+          return  generateAnalysis(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type GenerateAnalysisMutationResult = NonNullable<Awaited<ReturnType<typeof generateAnalysis>>>
+
+    export type GenerateAnalysisMutationError = ErrorType<ApiMessage>
+
+    /**
+ * @summary Generate the weekly 13-week-lookback overlap analysis now
+ */
+export const useGenerateAnalysis = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof generateAnalysis>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof generateAnalysis>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getGenerateAnalysisMutationOptions(options));
+    }
 
 export const getGetModelResultsUrl = (params: GetModelResultsParams,) => {
   const normalizedParams = new URLSearchParams();

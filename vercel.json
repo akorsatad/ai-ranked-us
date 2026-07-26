@@ -15,6 +15,6 @@
     { "source": "/(.*)", "destination": "/index.html" }
   ],
   "crons": [
-    { "path": "/api/internal/cron/daily-survey", "schedule": "0 6 * * *" }
+    { "path": "/api/internal/cron/daily-survey", "schedule": "0 * * * *" }
   ]
 }

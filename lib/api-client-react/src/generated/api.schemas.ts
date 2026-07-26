@@ -660,6 +660,18 @@ export const SurveyRunTrigger = {
   auto: 'auto',
 } as const;
 
+/**
+ * Which query types the run covers (daily current / weekly 13-week trend / both)
+ */
+export type SurveyRunQueryScope = typeof SurveyRunQueryScope[keyof typeof SurveyRunQueryScope];
+
+
+export const SurveyRunQueryScope = {
+  current: 'current',
+  trend: 'trend',
+  both: 'both',
+} as const;
+
 export type KeyWarningSource = typeof KeyWarningSource[keyof typeof KeyWarningSource];
 
 
@@ -679,6 +691,8 @@ export interface SurveyRun {
   id: number;
   status: SurveyRunStatus;
   trigger: SurveyRunTrigger;
+  /** Which query types the run covers (daily current / weekly 13-week trend / both) */
+  queryScope: SurveyRunQueryScope;
   /**
      * When set, the run was scoped to this industry only
      * @nullable
@@ -829,6 +843,23 @@ export interface RateLimitError {
   retryAt?: string | null;
 }
 
+export interface AnalysisReportMeta {
+  id: number;
+  kind: string;
+  title: string;
+  /** @nullable */
+  summary: string | null;
+  /** @nullable */
+  model: string | null;
+  /** @nullable */
+  industryId: number | null;
+  createdAt: string;
+}
+
+export interface AnalysisReportList {
+  reports: AnalysisReportMeta[];
+}
+
 export interface ReconcileResult {
   finalized: number;
   message: string;
@@ -854,11 +885,21 @@ export const ScheduleCadence = {
   monthly: 'monthly',
 } as const;
 
+export type ScheduleQueryScope = typeof ScheduleQueryScope[keyof typeof ScheduleQueryScope];
+
+
+export const ScheduleQueryScope = {
+  current: 'current',
+  trend: 'trend',
+  both: 'both',
+} as const;
+
 export interface Schedule {
   id: number;
   mode: ScheduleMode;
   /** @nullable */
   cadence?: ScheduleCadence;
+  queryScope: ScheduleQueryScope;
   /** @nullable */
   industryId: number | null;
   /** @nullable */

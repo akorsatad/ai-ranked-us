@@ -250,6 +250,11 @@ export async function recoverPendingAutoRuns(): Promise<void> {
 }
 
 type QueryType = "current" | "trend";
+export type QueryScope = "current" | "trend" | "both";
+
+function scopeIncludes(scope: QueryScope, type: QueryType): boolean {
+  return scope === "both" || scope === type;
+}
 
 interface SurveyQuery {
   engine: EngineRow;
@@ -430,12 +435,13 @@ export async function startSurveyRun(
   trigger: "scheduled" | "manual" | "auto",
   industryId?: number,
   engineId?: number,
+  queryScope: QueryScope = "both",
 ): Promise<StartRunResult> {
   if (runInProgress) return { kind: "in_progress" };
   runInProgress = true;
   activeRunId = null;
   try {
-    const result = await beginSurveyRun(trigger, industryId, engineId);
+    const result = await beginSurveyRun(trigger, industryId, engineId, queryScope);
     if (result.kind !== "started") {
       // Nothing was started (skipped or blocked) — release the lock.
       runInProgress = false;
@@ -455,6 +461,7 @@ async function beginSurveyRun(
   trigger: "scheduled" | "manual" | "auto",
   industryId?: number,
   engineId?: number,
+  queryScope: QueryScope = "both",
 ): Promise<StartRunResult> {
   const engines = (await db.select().from(enginesTable)).filter(
     (e) => e.enabled && (engineId == null || e.id === engineId),
@@ -483,6 +490,7 @@ async function beginSurveyRun(
         .values({
           status: "failed",
           trigger,
+          queryScope,
           industryId: industryId ?? null,
           engineId: engineId ?? null,
           completedAt: new Date(),
@@ -506,6 +514,7 @@ async function beginSurveyRun(
     industries,
     brands,
     industryId,
+    queryScope,
   );
 
   // Auto-triggered scoped runs with nothing to survey (e.g. industry has no
@@ -523,6 +532,7 @@ async function beginSurveyRun(
     .values({
       status: "running",
       trigger,
+      queryScope,
       industryId: industryId ?? null,
       engineId: engineId ?? null,
       totalQueries: queries.length,
@@ -556,6 +566,7 @@ function buildAllQueries(
   industries: IndustryRow[],
   brands: BrandRow[],
   industryId?: number | null,
+  queryScope: QueryScope = "both",
 ): SurveyQuery[] {
   const queries: SurveyQuery[] = [];
   for (const engine of engines.filter((e) => e.enabled)) {
@@ -569,25 +580,29 @@ function buildAllQueries(
         );
         if (industryBrands.length === 0) continue;
         for (const metric of METRICS) {
-          // Two fully isolated calls per (engine, model, industry, metric):
-          // one for today's ranking, one for the 13-week trajectory, so
-          // neither answer anchors the other.
-          queries.push({
-            engine,
-            engineModel,
-            industry,
-            brands: industryBrands,
-            metric,
-            queryType: "current",
-          });
-          queries.push({
-            engine,
-            engineModel,
-            industry,
-            brands: industryBrands,
-            metric,
-            queryType: "trend",
-          });
+          // Fully isolated calls per (engine, model, industry, metric).
+          // "current" is today's ranking (daily); "trend" is the 13-week
+          // lookback (weekly), split by scope so daily runs stay cheap.
+          if (scopeIncludes(queryScope, "current")) {
+            queries.push({
+              engine,
+              engineModel,
+              industry,
+              brands: industryBrands,
+              metric,
+              queryType: "current",
+            });
+          }
+          if (scopeIncludes(queryScope, "trend")) {
+            queries.push({
+              engine,
+              engineModel,
+              industry,
+              brands: industryBrands,
+              metric,
+              queryType: "trend",
+            });
+          }
         }
       }
     }
@@ -618,6 +633,7 @@ export async function resumeSurveyRun(
       industries,
       brands,
       run.industryId,
+      (run.queryScope as QueryScope) ?? "both",
     );
 
     // A synthetic fallback model (id < 0) is stored as a null engineModelId, so

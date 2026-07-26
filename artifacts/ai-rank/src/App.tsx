@@ -17,6 +17,7 @@ import AdminEngines from './pages/admin/engines';
 import AdminApiKeys from './pages/admin/api-keys';
 import AdminPricing from './pages/admin/pricing';
 import AdminCosts from './pages/admin/costs';
+import AdminAnalysis from './pages/admin/analysis';
 import AdminModelResults from './pages/admin/model-results';
 import AdminData from './pages/admin/data';
 import AdminQueries from './pages/admin/queries';
@@ -55,6 +56,7 @@ function AdminRoutes() {
           <Route path="/admin/api-keys" component={AdminApiKeys} />
           <Route path="/admin/pricing" component={AdminPricing} />
           <Route path="/admin/costs" component={AdminCosts} />
+          <Route path="/admin/analysis" component={AdminAnalysis} />
           <Route path="/admin/queries" component={AdminQueries} />
           <Route path="/admin/users" component={AdminUsers} />
           <Route path="/admin/admins" component={AdminAdmins} />
