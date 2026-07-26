@@ -8,7 +8,12 @@ import {
   type SurveyScheduleRow,
 } from "@workspace/db";
 import { requireAdmin } from "../middlewares/requireAdmin";
-import { isCadence, nextDailyRun, type Cadence } from "../lib/schedules";
+import {
+  isCadence,
+  nextDailyRun,
+  ensurePerIndustrySchedules,
+  type Cadence,
+} from "../lib/schedules";
 
 function serialize(s: SurveyScheduleRow) {
   return {
@@ -98,6 +103,20 @@ router.get("/admin/schedules", requireAdmin, async (_req, res): Promise<void> =>
     .orderBy(asc(surveySchedulesTable.nextRunAt));
   res.status(200).json({ schedules: rows.map(serialize) });
 });
+
+// Replace the single full-scope daily schedule with one per enabled industry,
+// so each run finishes in a single cron invocation instead of stalling.
+router.post(
+  "/admin/schedules/split-by-industry",
+  requireAdmin,
+  async (_req, res): Promise<void> => {
+    const result = await ensurePerIndustrySchedules();
+    res.status(200).json({
+      ...result,
+      message: `Created ${result.created} per-industry schedule(s); disabled ${result.disabledFullRuns} full-run schedule(s).`,
+    });
+  },
+);
 
 router.post("/admin/schedules", requireAdmin, async (req, res): Promise<void> => {
   const parsed = await parseScheduleBody(req.body);

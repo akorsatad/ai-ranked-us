@@ -1,7 +1,8 @@
-import { and, asc, eq, lte } from "drizzle-orm";
+import { and, asc, eq, isNull, lte } from "drizzle-orm";
 import {
   db,
   surveySchedulesTable,
+  industriesTable,
   type SurveyScheduleRow,
 } from "@workspace/db";
 
@@ -26,6 +27,61 @@ export function nextDailyRun(from: Date = new Date()): Date {
   );
   if (next.getTime() <= from.getTime()) next.setUTCDate(next.getUTCDate() + 1);
   return next;
+}
+
+/**
+ * Split the daily survey into one recurring per-industry schedule each, so a
+ * run finishes inside a single cron invocation instead of stalling mid-way.
+ * Disables any full-scope (industryId null) recurring schedule, and creates a
+ * daily schedule per enabled industry that lacks one, staggering next_run_at so
+ * a frequent cron picks them up spread across the run window. Idempotent.
+ */
+export async function ensurePerIndustrySchedules(
+  staggerMinutes = 20,
+): Promise<{ created: number; disabledFullRuns: number }> {
+  // Retire full-scope recurring schedules — they're what stalls.
+  const disabled = await db
+    .update(surveySchedulesTable)
+    .set({ enabled: false })
+    .where(
+      and(
+        eq(surveySchedulesTable.mode, "recurring"),
+        eq(surveySchedulesTable.enabled, true),
+        isNull(surveySchedulesTable.industryId),
+      ),
+    )
+    .returning({ id: surveySchedulesTable.id });
+
+  const industries = (await db.select().from(industriesTable)).filter(
+    (i) => i.enabled,
+  );
+  const existing = await db
+    .select()
+    .from(surveySchedulesTable)
+    .where(eq(surveySchedulesTable.mode, "recurring"));
+  const haveIndustry = new Set(
+    existing
+      .filter((s) => s.enabled && s.industryId != null)
+      .map((s) => s.industryId),
+  );
+
+  const base = nextDailyRun();
+  let created = 0;
+  let i = 0;
+  for (const industry of industries) {
+    if (haveIndustry.has(industry.id)) continue;
+    const nextRunAt = new Date(base.getTime() + i * staggerMinutes * 60_000);
+    await db.insert(surveySchedulesTable).values({
+      mode: "recurring",
+      cadence: "daily",
+      industryId: industry.id,
+      enabled: true,
+      nextRunAt,
+    });
+    created++;
+    i++;
+  }
+  return { created, disabledFullRuns: disabled.length };
 }
 
 /** Advance a recurring schedule's next_run_at by its cadence from `base`. */
