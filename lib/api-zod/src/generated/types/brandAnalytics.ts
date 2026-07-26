@@ -8,6 +8,7 @@
 import type { BrandAnalyticsBrand } from './brandAnalyticsBrand';
 import type { BrandAnalyticsMetric } from './brandAnalyticsMetric';
 import type { BrandAnalyticsPeer } from './brandAnalyticsPeer';
+import type { BrandOutlier } from './brandOutlier';
 
 export interface BrandAnalytics {
   brand: BrandAnalyticsBrand;
@@ -18,4 +19,5 @@ export interface BrandAnalytics {
   peerCount: number;
   metrics: BrandAnalyticsMetric[];
   peers: BrandAnalyticsPeer[];
+  outliers: BrandOutlier[];
 }

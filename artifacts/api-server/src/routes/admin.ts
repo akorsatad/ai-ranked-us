@@ -13,6 +13,7 @@ import {
   adHocRequestsTable,
   adminUsersTable,
   analysisReportsTable,
+  trendOutliersTable,
 } from "@workspace/db";
 import {
   CreateIndustryBody,
@@ -53,6 +54,11 @@ import {
 import { requestAutoScopedRun } from "../lib/survey";
 import { ensurePerIndustrySchedules } from "../lib/schedules";
 import { generateWeeklyTrendAnalysis } from "../lib/analysis";
+import {
+  detectOutliers,
+  getOutlierSettings,
+  setOutlierSettings,
+} from "../lib/outliers";
 import { getMetric } from "../lib/metrics";
 import {
   latestResponsesByEngine,
@@ -1454,6 +1460,93 @@ router.post("/admin/analysis/generate", async (req, res): Promise<void> => {
     industryId: report.industryId,
     createdAt: report.createdAt.toISOString(),
   });
+});
+
+// ---------- Trend outliers (±Nσ statistical alerting + engine explanation) ----------
+
+router.get("/admin/outliers", async (_req, res): Promise<void> => {
+  const rows = await db
+    .select()
+    .from(trendOutliersTable)
+    .orderBy(desc(trendOutliersTable.createdAt))
+    .limit(200);
+  const engines = await db.select().from(enginesTable);
+  const industries = await db.select().from(industriesTable);
+  const engineName = new Map(engines.map((e) => [e.id, e.name]));
+  const industryName = new Map(industries.map((i) => [i.id, i.name]));
+  res.status(200).json({
+    outliers: rows.map((o) => ({
+      id: o.id,
+      engineId: o.engineId,
+      engineName: engineName.get(o.engineId) ?? `Engine ${o.engineId}`,
+      industryId: o.industryId,
+      industryName: industryName.get(o.industryId) ?? `Industry ${o.industryId}`,
+      brandId: o.brandId,
+      brandName: o.brandName,
+      metricKey: o.metricKey,
+      metricLabel: getMetric(o.metricKey)?.label ?? o.metricKey,
+      value: o.value,
+      mean: o.mean,
+      stddev: o.stddev,
+      sigma: o.sigma,
+      direction: o.direction,
+      sampleSize: o.sampleSize,
+      measuredAt: o.measuredAt.toISOString(),
+      explanation: o.explanation,
+      explanationModel: o.explanationModel,
+      acknowledged: o.acknowledged,
+      createdAt: o.createdAt.toISOString(),
+    })),
+  });
+});
+
+router.get("/admin/outliers/settings", async (_req, res): Promise<void> => {
+  res.status(200).json(await getOutlierSettings());
+});
+
+router.patch("/admin/outliers/settings", async (req, res): Promise<void> => {
+  const b = req.body as Partial<{
+    enabled: boolean;
+    sigma: number;
+    minPoints: number;
+    maxExplanationsPerRun: number;
+  }>;
+  const patch: Record<string, unknown> = {};
+  if (typeof b.enabled === "boolean") patch.enabled = b.enabled;
+  if (typeof b.sigma === "number" && b.sigma > 0) patch.sigma = b.sigma;
+  if (typeof b.minPoints === "number" && b.minPoints >= 3)
+    patch.minPoints = b.minPoints;
+  if (typeof b.maxExplanationsPerRun === "number" && b.maxExplanationsPerRun >= 0)
+    patch.maxExplanationsPerRun = b.maxExplanationsPerRun;
+  const updated = await setOutlierSettings(patch);
+  res.status(200).json(updated);
+});
+
+router.post("/admin/outliers/detect", async (req, res): Promise<void> => {
+  const created = await detectOutliers();
+  req.log.info({ created: created.length }, "Manual outlier detection");
+  res.status(200).json({
+    created: created.length,
+    message: `Detected ${created.length} new outlier(s).`,
+  });
+});
+
+router.post("/admin/outliers/:id/ack", async (req, res): Promise<void> => {
+  const id = parseId(req.params.id);
+  if (id === null) {
+    res.status(400).json({ message: "Invalid outlier id" });
+    return;
+  }
+  const [row] = await db
+    .update(trendOutliersTable)
+    .set({ acknowledged: true })
+    .where(eq(trendOutliersTable.id, id))
+    .returning();
+  if (!row) {
+    res.status(404).json({ message: "Outlier not found" });
+    return;
+  }
+  res.status(200).json({ message: "Acknowledged" });
 });
 
 export default router;

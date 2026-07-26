@@ -1325,6 +1325,76 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiMessage"
+  /admin/outliers:
+    get:
+      operationId: listOutliers
+      tags: [admin]
+      summary: List detected trend outliers with engine explanations
+      responses:
+        "200":
+          description: Outliers
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OutlierList"
+  /admin/outliers/settings:
+    get:
+      operationId: getOutlierSettings
+      tags: [admin]
+      summary: Get outlier detection settings
+      responses:
+        "200":
+          description: Settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OutlierSettings"
+    patch:
+      operationId: updateOutlierSettings
+      tags: [admin]
+      summary: Update outlier detection settings (sigma threshold, etc.)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OutlierSettings"
+      responses:
+        "200":
+          description: Updated settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OutlierSettings"
+  /admin/outliers/detect:
+    post:
+      operationId: detectOutliersNow
+      tags: [admin]
+      summary: Run outlier detection now
+      responses:
+        "200":
+          description: Detection result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+  /admin/outliers/{id}/ack:
+    post:
+      operationId: acknowledgeOutlier
+      tags: [admin]
+      summary: Acknowledge an outlier
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Acknowledged
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
   /admin/model-results:
     get:
       operationId: getModelResults
@@ -2082,6 +2152,9 @@ components:
           type: string
           enum: [openai, anthropic, gemini, openrouter]
         model: { type: string }
+        explainerModel:
+          type: ["string", "null"]
+          description: Highest/flagship model used for outlier self-explanations
         enabled: { type: boolean }
       required: [id, key, name, vendor, provider, model, enabled]
     EngineInput:
@@ -2104,6 +2177,7 @@ components:
           type: string
           enum: [openai, anthropic, gemini, openrouter]
         model: { type: string, minLength: 1 }
+        explainerModel: { type: string }
         enabled: { type: boolean }
     EngineModel:
       type: object
@@ -2453,7 +2527,27 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/BrandAnalyticsPeer"
-      required: [brand, overallScore, overallRank, peerCount, metrics, peers]
+        outliers:
+          type: array
+          items:
+            $ref: "#/components/schemas/BrandOutlier"
+      required: [brand, overallScore, overallRank, peerCount, metrics, peers, outliers]
+    BrandOutlier:
+      type: object
+      required: [id, metricKey, metricLabel, engineId, engineName, value, mean, sigma, direction, measuredAt, explanation, explanationModel]
+      properties:
+        id: { type: integer }
+        metricKey: { type: string }
+        metricLabel: { type: string }
+        engineId: { type: integer }
+        engineName: { type: string }
+        value: { type: number }
+        mean: { type: number }
+        sigma: { type: number }
+        direction: { type: string, enum: [up, down] }
+        measuredAt: { type: string }
+        explanation: { type: ["string", "null"] }
+        explanationModel: { type: ["string", "null"] }
     MoversReport:
       type: object
       properties:
@@ -2733,6 +2827,46 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/AnalysisReportMeta"
+    OutlierSettings:
+      type: object
+      required: [enabled, sigma, minPoints, maxExplanationsPerRun]
+      properties:
+        enabled: { type: boolean }
+        sigma: { type: number, description: "Threshold in standard deviations (default 3)" }
+        minPoints: { type: integer, description: "Minimum history before a series can flag" }
+        maxExplanationsPerRun: { type: integer }
+    OutlierItem:
+      type: object
+      required: [id, engineId, engineName, industryId, industryName, brandId, brandName, metricKey, metricLabel, value, mean, stddev, sigma, direction, sampleSize, measuredAt, explanation, explanationModel, acknowledged, createdAt]
+      properties:
+        id: { type: integer }
+        engineId: { type: integer }
+        engineName: { type: string }
+        industryId: { type: integer }
+        industryName: { type: string }
+        brandId: { type: integer }
+        brandName: { type: string }
+        metricKey: { type: string }
+        metricLabel: { type: string }
+        value: { type: number }
+        mean: { type: number }
+        stddev: { type: number }
+        sigma: { type: number }
+        direction: { type: string, enum: [up, down] }
+        sampleSize: { type: integer }
+        measuredAt: { type: string }
+        explanation: { type: ["string", "null"] }
+        explanationModel: { type: ["string", "null"] }
+        acknowledged: { type: boolean }
+        createdAt: { type: string }
+    OutlierList:
+      type: object
+      required: [outliers]
+      properties:
+        outliers:
+          type: array
+          items:
+            $ref: "#/components/schemas/OutlierItem"
     ReconcileResult:
       type: object
       required: [finalized, message]

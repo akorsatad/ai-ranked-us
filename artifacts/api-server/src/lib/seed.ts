@@ -237,6 +237,7 @@ const ENGINES: {
   vendor: string;
   provider: string;
   model: string;
+  explainerModel: string; // highest/flagship model, used for outlier explanations
 }[] = [
   {
     key: "gpt",
@@ -244,6 +245,7 @@ const ENGINES: {
     vendor: "OpenAI",
     provider: "openai",
     model: "gpt-5-mini",
+    explainerModel: "gpt-5",
   },
   {
     key: "claude",
@@ -251,6 +253,7 @@ const ENGINES: {
     vendor: "Anthropic",
     provider: "anthropic",
     model: "claude-sonnet-4-6",
+    explainerModel: "claude-opus-4",
   },
   {
     key: "gemini",
@@ -258,6 +261,7 @@ const ENGINES: {
     vendor: "Google",
     provider: "gemini",
     model: "gemini-3-flash-preview",
+    explainerModel: "gemini-3-pro",
   },
   {
     key: "grok",
@@ -265,6 +269,7 @@ const ENGINES: {
     vendor: "xAI",
     provider: "openrouter",
     model: "x-ai/grok-4.5",
+    explainerModel: "x-ai/grok-4.5",
   },
 ];
 

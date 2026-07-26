@@ -14,5 +14,6 @@ export interface EngineUpdate {
   provider?: EngineUpdateProvider;
   /** @minLength 1 */
   model?: string;
+  explainerModel?: string;
   enabled?: boolean;
 }

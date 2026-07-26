@@ -121,6 +121,9 @@ export const enginesTable = pgTable("engines", {
   // engine_models rows; this stays the default used by the ad-hoc survey path
   // and as the seed for an engine's first engine_models row.
   model: text("model").notNull(),
+  // Highest/flagship model used for outlier self-explanations (admin-editable).
+  // Falls back to `model` when null.
+  explainerModel: text("explainer_model"),
   enabled: boolean("enabled").notNull().default(true),
 });
 
@@ -404,6 +407,55 @@ export const analysisReportsTable = pgTable("analysis_reports", {
     .defaultNow(),
 });
 export type AnalysisReportRow = typeof analysisReportsTable.$inferSelect;
+
+/**
+ * Statistical outliers detected in a brand's per-engine measured-score series
+ * (a point beyond ±Nσ of that series' history). Each carries the owning
+ * engine's own explanation of what supports the shift (queried at its highest
+ * model). Unique per (engine, industry, metric, brand, measuredAt) so the same
+ * point isn't flagged twice.
+ */
+export const trendOutliersTable = pgTable(
+  "trend_outliers",
+  {
+    id: serial("id").primaryKey(),
+    engineId: integer("engine_id")
+      .notNull()
+      .references(() => enginesTable.id),
+    industryId: integer("industry_id")
+      .notNull()
+      .references(() => industriesTable.id),
+    brandId: integer("brand_id")
+      .notNull()
+      .references(() => brandsTable.id),
+    brandName: text("brand_name").notNull(),
+    metricKey: text("metric_key").notNull(),
+    value: doublePrecision("value").notNull(), // the outlier score
+    mean: doublePrecision("mean").notNull(), // series mean (excl. the point)
+    stddev: doublePrecision("stddev").notNull(),
+    sigma: doublePrecision("sigma").notNull(), // (value-mean)/stddev, signed
+    direction: text("direction").notNull(), // up | down
+    sampleSize: integer("sample_size").notNull(),
+    measuredAt: timestamp("measured_at", { withTimezone: true }).notNull(),
+    runId: integer("run_id").references(() => surveyRunsTable.id),
+    explanation: text("explanation"), // engine's self-explanation
+    explanationModel: text("explanation_model"),
+    acknowledged: boolean("acknowledged").notNull().default(false),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("trend_outliers_point_unique").on(
+      table.engineId,
+      table.industryId,
+      table.metricKey,
+      table.brandId,
+      table.measuredAt,
+    ),
+  ],
+);
+export type TrendOutlierRow = typeof trendOutliersTable.$inferSelect;
 
 export type InsertIndustry = z.infer<typeof insertIndustrySchema>;
 export type IndustryRow = typeof industriesTable.$inferSelect;

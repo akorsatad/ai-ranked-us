@@ -1,6 +1,12 @@
 import { Router, type IRouter } from "express";
 import { eq } from "drizzle-orm";
-import { db, industriesTable, enginesTable, brandsTable } from "@workspace/db";
+import {
+  db,
+  industriesTable,
+  enginesTable,
+  brandsTable,
+  trendOutliersTable,
+} from "@workspace/db";
 import { METRICS } from "../lib/metrics";
 import {
   GetIndustryRankingsParams,
@@ -445,6 +451,31 @@ router.get("/brands/:brandId/analytics", async (req, res): Promise<void> => {
     .map((p, i) => ({ ...p, rank: i + 1 }));
   const mineOverall = peers.find((p) => p.brandId === brandId);
 
+  // Outlier markers for this brand (statistical ±Nσ points, with the engine's
+  // explanation) — the chart renders these as clickable insight reference points.
+  const engines = await db.select().from(enginesTable);
+  const engineName = new Map(engines.map((e) => [e.id, e.name]));
+  const outlierRows = await db
+    .select()
+    .from(trendOutliersTable)
+    .where(eq(trendOutliersTable.brandId, brandId));
+  const outliers = outlierRows
+    .sort((a, b) => a.measuredAt.getTime() - b.measuredAt.getTime())
+    .map((o) => ({
+      id: o.id,
+      metricKey: o.metricKey,
+      metricLabel: getMetric(o.metricKey)?.label ?? o.metricKey,
+      engineId: o.engineId,
+      engineName: engineName.get(o.engineId) ?? `Engine ${o.engineId}`,
+      value: o.value,
+      mean: o.mean,
+      sigma: o.sigma,
+      direction: o.direction,
+      measuredAt: o.measuredAt.toISOString(),
+      explanation: o.explanation,
+      explanationModel: o.explanationModel,
+    }));
+
   res.status(200).json({
     brand: {
       id: brand.id,
@@ -457,6 +488,7 @@ router.get("/brands/:brandId/analytics", async (req, res): Promise<void> => {
     peerCount: peers.length,
     metrics,
     peers,
+    outliers,
   });
   return;
 });

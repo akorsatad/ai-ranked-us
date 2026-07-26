@@ -76,6 +76,8 @@ import type {
   MarkAlertsReadInput,
   ModelResults,
   MoversReport,
+  OutlierList,
+  OutlierSettings,
   Overview,
   PricingTier,
   PricingTierList,
@@ -4134,6 +4136,373 @@ export const useGenerateAnalysis = <TError = ErrorType<ApiMessage>,
         TContext
       > => {
       return useMutation(getGenerateAnalysisMutationOptions(options));
+    }
+
+export const getListOutliersUrl = () => {
+
+
+
+
+  return `/api/admin/outliers`
+}
+
+/**
+ * @summary List detected trend outliers with engine explanations
+ */
+export const listOutliers = async ( options?: RequestInit): Promise<OutlierList> => {
+
+  return customFetch<OutlierList>(getListOutliersUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListOutliersQueryKey = () => {
+    return [
+    `/api/admin/outliers`
+    ] as const;
+    }
+
+
+export const getListOutliersQueryOptions = <TData = Awaited<ReturnType<typeof listOutliers>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listOutliers>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListOutliersQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listOutliers>>> = ({ signal }) => listOutliers({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listOutliers>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListOutliersQueryResult = NonNullable<Awaited<ReturnType<typeof listOutliers>>>
+export type ListOutliersQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List detected trend outliers with engine explanations
+ */
+
+export function useListOutliers<TData = Awaited<ReturnType<typeof listOutliers>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listOutliers>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListOutliersQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetOutlierSettingsUrl = () => {
+
+
+
+
+  return `/api/admin/outliers/settings`
+}
+
+/**
+ * @summary Get outlier detection settings
+ */
+export const getOutlierSettings = async ( options?: RequestInit): Promise<OutlierSettings> => {
+
+  return customFetch<OutlierSettings>(getGetOutlierSettingsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetOutlierSettingsQueryKey = () => {
+    return [
+    `/api/admin/outliers/settings`
+    ] as const;
+    }
+
+
+export const getGetOutlierSettingsQueryOptions = <TData = Awaited<ReturnType<typeof getOutlierSettings>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getOutlierSettings>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetOutlierSettingsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getOutlierSettings>>> = ({ signal }) => getOutlierSettings({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getOutlierSettings>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetOutlierSettingsQueryResult = NonNullable<Awaited<ReturnType<typeof getOutlierSettings>>>
+export type GetOutlierSettingsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get outlier detection settings
+ */
+
+export function useGetOutlierSettings<TData = Awaited<ReturnType<typeof getOutlierSettings>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getOutlierSettings>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetOutlierSettingsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getUpdateOutlierSettingsUrl = () => {
+
+
+
+
+  return `/api/admin/outliers/settings`
+}
+
+/**
+ * @summary Update outlier detection settings (sigma threshold, etc.)
+ */
+export const updateOutlierSettings = async (outlierSettings: OutlierSettings, options?: RequestInit): Promise<OutlierSettings> => {
+
+  return customFetch<OutlierSettings>(getUpdateOutlierSettingsUrl(),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(outlierSettings)
+  }
+);}
+
+
+
+
+
+export const getUpdateOutlierSettingsMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateOutlierSettings>>, TError,{data: BodyType<OutlierSettings>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateOutlierSettings>>, TError,{data: BodyType<OutlierSettings>}, TContext> => {
+
+const mutationKey = ['updateOutlierSettings'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateOutlierSettings>>, {data: BodyType<OutlierSettings>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  updateOutlierSettings(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateOutlierSettingsMutationResult = NonNullable<Awaited<ReturnType<typeof updateOutlierSettings>>>
+    export type UpdateOutlierSettingsMutationBody = BodyType<OutlierSettings>
+    export type UpdateOutlierSettingsMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Update outlier detection settings (sigma threshold, etc.)
+ */
+export const useUpdateOutlierSettings = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateOutlierSettings>>, TError,{data: BodyType<OutlierSettings>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateOutlierSettings>>,
+        TError,
+        {data: BodyType<OutlierSettings>},
+        TContext
+      > => {
+      return useMutation(getUpdateOutlierSettingsMutationOptions(options));
+    }
+
+export const getDetectOutliersNowUrl = () => {
+
+
+
+
+  return `/api/admin/outliers/detect`
+}
+
+/**
+ * @summary Run outlier detection now
+ */
+export const detectOutliersNow = async ( options?: RequestInit): Promise<ApiMessage> => {
+
+  return customFetch<ApiMessage>(getDetectOutliersNowUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getDetectOutliersNowMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof detectOutliersNow>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof detectOutliersNow>>, TError,void, TContext> => {
+
+const mutationKey = ['detectOutliersNow'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof detectOutliersNow>>, void> = () => {
+
+
+          return  detectOutliersNow(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DetectOutliersNowMutationResult = NonNullable<Awaited<ReturnType<typeof detectOutliersNow>>>
+
+    export type DetectOutliersNowMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Run outlier detection now
+ */
+export const useDetectOutliersNow = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof detectOutliersNow>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof detectOutliersNow>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getDetectOutliersNowMutationOptions(options));
+    }
+
+export const getAcknowledgeOutlierUrl = (id: number,) => {
+
+
+
+
+  return `/api/admin/outliers/${id}/ack`
+}
+
+/**
+ * @summary Acknowledge an outlier
+ */
+export const acknowledgeOutlier = async (id: number, options?: RequestInit): Promise<ApiMessage> => {
+
+  return customFetch<ApiMessage>(getAcknowledgeOutlierUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getAcknowledgeOutlierMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof acknowledgeOutlier>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof acknowledgeOutlier>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['acknowledgeOutlier'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof acknowledgeOutlier>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  acknowledgeOutlier(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AcknowledgeOutlierMutationResult = NonNullable<Awaited<ReturnType<typeof acknowledgeOutlier>>>
+
+    export type AcknowledgeOutlierMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Acknowledge an outlier
+ */
+export const useAcknowledgeOutlier = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof acknowledgeOutlier>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof acknowledgeOutlier>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getAcknowledgeOutlierMutationOptions(options));
     }
 
 export const getGetModelResultsUrl = (params: GetModelResultsParams,) => {

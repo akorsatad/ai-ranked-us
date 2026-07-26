@@ -352,8 +352,9 @@ export default function Home() {
               { tag: 'Step 1 · Ask', title: 'The questions consumers ask', meta: '92 brands · 4 engines · daily', desc: 'Every day we put the same plain-language questions to ChatGPT, Claude, Gemini, and Grok. Fresh sessions, no history, no steering.' },
               { tag: 'Step 2 · Score', title: 'Every answer becomes a number', meta: '7 metrics · Rank · Sentiment', desc: 'We record who gets named, in what order, and how each brand is described across seven perception metrics — then roll it into a 0–100 AI Consensus Score.', active: true },
               { tag: 'Step 3 · Publish', title: 'The full log is public', meta: 'Every prompt · Every response', desc: 'Raw model responses are archived, so journalists and researchers can check every number we publish against the source.' },
-            ].map((s, i) => (
-              <div key={i} style={{ position: 'relative', padding: 40, background: s.active ? DI.paper : '#fff', borderRight: i < 2 ? `1px solid ${DI.line}` : undefined }}>
+              { tag: 'Step 4 · Explain', title: 'Outliers, explained by the model', meta: '±3σ detection · self-explained', desc: 'When a brand’s score breaks its normal range (±3σ), the very engine that moved it is asked — at its most capable model — to explain what specific developments support the shift. The same outlier analysis runs on your own brand in a custom query.' },
+            ].map((s, i, arr) => (
+              <div key={i} style={{ position: 'relative', padding: 40, background: s.active ? DI.paper : '#fff', borderRight: i < arr.length - 1 ? `1px solid ${DI.line}` : undefined }}>
                 {s.active && <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 4, background: `linear-gradient(to right, ${DI.teal}, ${DI.tealLight})` }} />}
                 <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '0.1em', color: DI.teal, textTransform: 'uppercase', marginBottom: 16 }}>{s.tag}</div>
                 <h3 style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 20, color: DI.ink, margin: '0 0 6px' }}>{s.title}</h3>

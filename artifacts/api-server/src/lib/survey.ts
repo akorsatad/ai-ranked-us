@@ -26,6 +26,7 @@ import { batchProcess } from "@workspace/integrations-openai-ai-server/batch";
 import { METRICS, type MetricDef } from "./metrics";
 import { callEngine } from "./engineClients";
 import { detectAlertsForRun } from "./alerts";
+import { detectOutliers } from "./outliers";
 import { recordSeriesForResponse } from "./series";
 import { estimateCostUsd } from "./pricing";
 import { logger } from "./logger";
@@ -915,6 +916,12 @@ async function executeRun(
       await detectAlertsForRun(run);
     } catch (err) {
       logger.error({ err, runId: run.id }, "Alert detection failed");
+    }
+    // Statistical outlier detection (±Nσ) + per-engine self-explanation.
+    try {
+      await detectOutliers(run.id);
+    } catch (err) {
+      logger.error({ err, runId: run.id }, "Outlier detection failed");
     }
   }
 }

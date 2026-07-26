@@ -14,5 +14,10 @@ export interface AdminEngine {
   vendor: string;
   provider: AdminEngineProvider;
   model: string;
+  /**
+     * Highest/flagship model used for outlier self-explanations
+     * @nullable
+     */
+  explainerModel?: string | null;
   enabled: boolean;
 }

@@ -135,6 +135,72 @@ export default function BrandAnalytics() {
           onToggle={toggle}
         />
       </div>
+
+      {data.outliers.length > 0 && (
+        <div style={{ marginTop: 40 }}>
+          <SectionTitle>Insights · statistical outliers</SectionTitle>
+          <p style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: DI.faint, marginTop: -8, marginBottom: 16 }}>
+            Points where this brand's score moved beyond the normal range (±σ). Each is explained by the engine that produced it.
+          </p>
+          <InsightsPanel outliers={data.outliers} activeMetric={metric} onPickMetric={setMetric} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function InsightsPanel({
+  outliers, activeMetric, onPickMetric,
+}: {
+  outliers: {
+    id: number; metricKey: string; metricLabel: string; engineName: string;
+    value: number; mean: number; sigma: number; direction: string;
+    measuredAt: string; explanation: string | null; explanationModel: string | null;
+  }[];
+  activeMetric: string | null;
+  onPickMetric: (k: string) => void;
+}) {
+  const [openId, setOpenId] = useState<number | null>(null);
+  // Most extreme first; outliers on the selected metric bubble up.
+  const sorted = [...outliers].sort((a, b) => {
+    const am = a.metricKey === activeMetric ? 1 : 0;
+    const bm = b.metricKey === activeMetric ? 1 : 0;
+    if (am !== bm) return bm - am;
+    return Math.abs(b.sigma) - Math.abs(a.sigma);
+  });
+  return (
+    <div className="grid" style={{ gap: 10 }}>
+      {sorted.map((o) => {
+        const open = openId === o.id;
+        const up = o.direction === 'up';
+        return (
+          <div key={o.id} style={{ border: `1px solid ${DI.line}`, background: '#fff', borderLeft: `3px solid ${up ? DI.teal : DI.danger}` }}>
+            <button
+              onClick={() => { setOpenId(open ? null : o.id); if (o.metricKey !== activeMetric) onPickMetric(o.metricKey); }}
+              style={{ width: '100%', textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}
+            >
+              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 700, color: up ? DI.teal : DI.danger, width: 54 }}>
+                {up ? '▲' : '▼'} {Math.abs(o.sigma).toFixed(1)}σ
+              </span>
+              <span style={{ fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: 14, color: DI.ink }}>{o.metricLabel}</span>
+              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: DI.body }}>{o.value} vs {o.mean} avg</span>
+              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: DI.faint, marginLeft: 'auto' }}>
+                {o.engineName} · {new Date(o.measuredAt).toLocaleDateString()}
+              </span>
+            </button>
+            {open && (
+              <div style={{ padding: '0 16px 14px 16px', borderTop: `1px solid ${DI.line}` }}>
+                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: DI.faint, margin: '10px 0 6px' }}>
+                  {o.explanationModel ? `${o.explanationModel} explains` : 'Explanation'}
+                </div>
+                <p style={{ fontSize: 14, lineHeight: 1.6, color: DI.body, margin: 0 }}>
+                  {o.explanation ?? 'Explanation pending — will populate on the next detection pass.'}
+                </p>
+              </div>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }

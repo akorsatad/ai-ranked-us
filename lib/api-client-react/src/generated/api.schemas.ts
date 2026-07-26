@@ -224,6 +224,11 @@ export interface AdminEngine {
   vendor: string;
   provider: AdminEngineProvider;
   model: string;
+  /**
+     * Highest/flagship model used for outlier self-explanations
+     * @nullable
+     */
+  explainerModel?: string | null;
   enabled: boolean;
 }
 
@@ -265,6 +270,7 @@ export interface EngineUpdate {
   provider?: EngineUpdateProvider;
   /** @minLength 1 */
   model?: string;
+  explainerModel?: string;
   enabled?: boolean;
 }
 
@@ -581,6 +587,31 @@ export type BrandAnalyticsBrand = {
   industryName: string;
 };
 
+export type BrandOutlierDirection = typeof BrandOutlierDirection[keyof typeof BrandOutlierDirection];
+
+
+export const BrandOutlierDirection = {
+  up: 'up',
+  down: 'down',
+} as const;
+
+export interface BrandOutlier {
+  id: number;
+  metricKey: string;
+  metricLabel: string;
+  engineId: number;
+  engineName: string;
+  value: number;
+  mean: number;
+  sigma: number;
+  direction: BrandOutlierDirection;
+  measuredAt: string;
+  /** @nullable */
+  explanation: string | null;
+  /** @nullable */
+  explanationModel: string | null;
+}
+
 export interface BrandAnalytics {
   brand: BrandAnalyticsBrand;
   /** @nullable */
@@ -590,6 +621,7 @@ export interface BrandAnalytics {
   peerCount: number;
   metrics: BrandAnalyticsMetric[];
   peers: BrandAnalyticsPeer[];
+  outliers: BrandOutlier[];
 }
 
 export interface MoversReport {
@@ -858,6 +890,52 @@ export interface AnalysisReportMeta {
 
 export interface AnalysisReportList {
   reports: AnalysisReportMeta[];
+}
+
+export interface OutlierSettings {
+  enabled: boolean;
+  /** Threshold in standard deviations (default 3) */
+  sigma: number;
+  /** Minimum history before a series can flag */
+  minPoints: number;
+  maxExplanationsPerRun: number;
+}
+
+export type OutlierItemDirection = typeof OutlierItemDirection[keyof typeof OutlierItemDirection];
+
+
+export const OutlierItemDirection = {
+  up: 'up',
+  down: 'down',
+} as const;
+
+export interface OutlierItem {
+  id: number;
+  engineId: number;
+  engineName: string;
+  industryId: number;
+  industryName: string;
+  brandId: number;
+  brandName: string;
+  metricKey: string;
+  metricLabel: string;
+  value: number;
+  mean: number;
+  stddev: number;
+  sigma: number;
+  direction: OutlierItemDirection;
+  sampleSize: number;
+  measuredAt: string;
+  /** @nullable */
+  explanation: string | null;
+  /** @nullable */
+  explanationModel: string | null;
+  acknowledged: boolean;
+  createdAt: string;
+}
+
+export interface OutlierList {
+  outliers: OutlierItem[];
 }
 
 export interface ReconcileResult {

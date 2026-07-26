@@ -216,6 +216,20 @@ export const GetBrandAnalyticsResponse = zod.object({
   "brandName": zod.string(),
   "overallScore": zod.number(),
   "rank": zod.number()
+})),
+  "outliers": zod.array(zod.object({
+  "id": zod.number(),
+  "metricKey": zod.string(),
+  "metricLabel": zod.string(),
+  "engineId": zod.number(),
+  "engineName": zod.string(),
+  "value": zod.number(),
+  "mean": zod.number(),
+  "sigma": zod.number(),
+  "direction": zod.enum(['up', 'down']),
+  "measuredAt": zod.string(),
+  "explanation": zod.string().nullable(),
+  "explanationModel": zod.string().nullable()
 }))
 })
 
@@ -842,6 +856,7 @@ export const ListEnginesResponseItem = zod.object({
   "vendor": zod.string(),
   "provider": zod.enum(['openai', 'anthropic', 'gemini', 'openrouter']),
   "model": zod.string(),
+  "explainerModel": zod.string().nullish().describe('Highest\/flagship model used for outlier self-explanations'),
   "enabled": zod.boolean()
 })
 export const ListEnginesResponse = zod.array(ListEnginesResponseItem)
@@ -870,6 +885,7 @@ export const CreateEngineResponse = zod.object({
   "vendor": zod.string(),
   "provider": zod.enum(['openai', 'anthropic', 'gemini', 'openrouter']),
   "model": zod.string(),
+  "explainerModel": zod.string().nullish().describe('Highest\/flagship model used for outlier self-explanations'),
   "enabled": zod.boolean()
 })
 
@@ -890,6 +906,7 @@ export const UpdateEngineBody = zod.object({
   "vendor": zod.string().optional(),
   "provider": zod.enum(['openai', 'anthropic', 'gemini', 'openrouter']).optional(),
   "model": zod.string().min(1).optional(),
+  "explainerModel": zod.string().optional(),
   "enabled": zod.boolean().optional()
 })
 
@@ -900,6 +917,7 @@ export const UpdateEngineResponse = zod.object({
   "vendor": zod.string(),
   "provider": zod.enum(['openai', 'anthropic', 'gemini', 'openrouter']),
   "model": zod.string(),
+  "explainerModel": zod.string().nullish().describe('Highest\/flagship model used for outlier self-explanations'),
   "enabled": zod.boolean()
 })
 
@@ -1274,6 +1292,84 @@ export const GenerateAnalysisResponse = zod.object({
   "model": zod.string().nullable(),
   "industryId": zod.number().nullable(),
   "createdAt": zod.string()
+})
+
+
+/**
+ * @summary List detected trend outliers with engine explanations
+ */
+export const ListOutliersResponse = zod.object({
+  "outliers": zod.array(zod.object({
+  "id": zod.number(),
+  "engineId": zod.number(),
+  "engineName": zod.string(),
+  "industryId": zod.number(),
+  "industryName": zod.string(),
+  "brandId": zod.number(),
+  "brandName": zod.string(),
+  "metricKey": zod.string(),
+  "metricLabel": zod.string(),
+  "value": zod.number(),
+  "mean": zod.number(),
+  "stddev": zod.number(),
+  "sigma": zod.number(),
+  "direction": zod.enum(['up', 'down']),
+  "sampleSize": zod.number(),
+  "measuredAt": zod.string(),
+  "explanation": zod.string().nullable(),
+  "explanationModel": zod.string().nullable(),
+  "acknowledged": zod.boolean(),
+  "createdAt": zod.string()
+}))
+})
+
+
+/**
+ * @summary Get outlier detection settings
+ */
+export const GetOutlierSettingsResponse = zod.object({
+  "enabled": zod.boolean(),
+  "sigma": zod.number().describe('Threshold in standard deviations (default 3)'),
+  "minPoints": zod.number().describe('Minimum history before a series can flag'),
+  "maxExplanationsPerRun": zod.number()
+})
+
+
+/**
+ * @summary Update outlier detection settings (sigma threshold, etc.)
+ */
+export const UpdateOutlierSettingsBody = zod.object({
+  "enabled": zod.boolean(),
+  "sigma": zod.number().describe('Threshold in standard deviations (default 3)'),
+  "minPoints": zod.number().describe('Minimum history before a series can flag'),
+  "maxExplanationsPerRun": zod.number()
+})
+
+export const UpdateOutlierSettingsResponse = zod.object({
+  "enabled": zod.boolean(),
+  "sigma": zod.number().describe('Threshold in standard deviations (default 3)'),
+  "minPoints": zod.number().describe('Minimum history before a series can flag'),
+  "maxExplanationsPerRun": zod.number()
+})
+
+
+/**
+ * @summary Run outlier detection now
+ */
+export const DetectOutliersNowResponse = zod.object({
+  "message": zod.string()
+})
+
+
+/**
+ * @summary Acknowledge an outlier
+ */
+export const AcknowledgeOutlierParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const AcknowledgeOutlierResponse = zod.object({
+  "message": zod.string()
 })
 
 
