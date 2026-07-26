@@ -253,9 +253,17 @@
 .di-ticker-track {
   display: inline-flex;
   white-space: nowrap;
-  animation: di-ticker 60s linear infinite;
+  animation: di-ticker 90s linear infinite;
 }
 .di-ticker-track:hover { animation-play-state: paused; }
+/* Narrow screens: slow the marquee down so it stays readable on mobile. */
+@media (max-width: 640px) {
+  .di-ticker-track { animation-duration: 150s; }
+}
+/* Respect users who prefer reduced motion. */
+@media (prefers-reduced-motion: reduce) {
+  .di-ticker-track { animation-play-state: paused; }
+}
 
 /* The sticky section rail is desktop-only. */
 .di-rail { display: none; }
