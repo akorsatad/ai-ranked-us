@@ -247,7 +247,21 @@ export function Layout({ children }: LayoutProps) {
           className="mx-auto flex flex-wrap items-center justify-between"
           style={{ maxWidth: '72rem', padding: '40px 24px', gap: 20 }}
         >
-          <Logo size={26} />
+          <div className="flex flex-col" style={{ gap: 6 }}>
+            <Logo size={26} />
+            <span style={{ fontSize: 12, color: DI.body }}>
+              airanked.us is a{' '}
+              <a
+                href="https://datainc.ai"
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ color: DI.ink, fontWeight: 600 }}
+              >
+                DataInc.ai
+              </a>{' '}
+              company
+            </span>
+          </div>
           <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '0.15em', textTransform: 'uppercase', color: DI.faint }}>
             Updated daily &middot; 4 AI engines &middot; 92 brands
           </div>
