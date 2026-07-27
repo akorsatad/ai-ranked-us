@@ -246,39 +246,68 @@ function MeasuredDailyChart({
   openOutlierId: number | null;
   onPickOutlier: (id: number | null) => void;
 }) {
+  const [hoverDay, setHoverDay] = useState<number | null>(null);
   const brands = (history?.brands ?? [])
     .filter((b) => shown.has(b.brandId))
     .map((b) => ({ ...b, points: [...b.points].sort((a, c) => +new Date(a.date) - +new Date(c.date)) }));
 
-  let minT = Infinity, maxT = -Infinity;
-  const scores: number[] = [];
-  for (const b of brands) for (const p of b.points) { const t = +new Date(p.date); if (Number.isFinite(t)) { minT = Math.min(minT, t); maxT = Math.max(maxT, t); } scores.push(p.score); }
-  for (const o of outliers) { const t = +new Date(o.measuredAt); if (Number.isFinite(t)) { minT = Math.min(minT, t); maxT = Math.max(maxT, t); } scores.push(o.value); }
+  // Categorical x-axis: one evenly-spaced slot per DAY MEASURED (like the weeks
+  // on the 13-week chart), built from the union of every shown brand's dates.
+  const toDay = (d: string) => new Date(d).toISOString().slice(0, 10);
+  const dayKeys = [...new Set([
+    ...brands.flatMap((b) => b.points.map((p) => toDay(p.date))),
+    ...outliers.map((o) => toDay(o.measuredAt)),
+  ])].filter((k) => k && k !== 'Invalid Date').sort();
+  const nDays = dayKeys.length;
+  const dayIndex = new Map(dayKeys.map((k, i) => [k, i]));
 
-  if (!brands.some((b) => b.points.length) || !Number.isFinite(minT)) {
+  const scores: number[] = [];
+  for (const b of brands) for (const p of b.points) scores.push(p.score);
+  for (const o of outliers) scores.push(o.value);
+
+  if (nDays === 0 || !brands.some((b) => b.points.length)) {
     return <ChartEmpty text="No daily measurements yet — the trusted baseline builds up as daily runs accrue." />;
   }
   const domain = niceDomain(scores);
   const ticks = axisTicks(domain.lo, domain.hi);
-  const xOf = (t: number) => (maxT === minT ? CHART.x1 : CHART.x0 + ((t - minT) / (maxT - minT)) * (CHART.x1 - CHART.x0));
-  const fmtDate = (t: number) => new Date(t).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  const xOfDay = (i: number) => sx(i, nDays);
+  const fmtDay = (k: string) => new Date(`${k}T00:00:00`).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 
-  const series = brands.map((b) => ({
-    brandId: b.brandId,
-    name: b.brandName,
-    color: brandColor(b.brandId),
-    emphasis: b.brandId === focalId,
-    poly: b.points.map((p) => `${xOf(+new Date(p.date)).toFixed(1)},${sy(p.score, domain.lo, domain.hi).toFixed(1)}`).join(' '),
-  }));
-  const markers = outliers.map((o) => ({ o, x: xOf(+new Date(o.measuredAt)), y: sy(o.value, domain.lo, domain.hi) }));
+  const series = brands.map((b) => {
+    const byDay: (number | null)[] = new Array(nDays).fill(null);
+    for (const p of b.points) { const i = dayIndex.get(toDay(p.date)); if (i != null) byDay[i] = p.score; }
+    const pts = byDay.map((v, i) => (v == null ? null : `${xOfDay(i).toFixed(1)},${sy(v, domain.lo, domain.hi).toFixed(1)}`)).filter(Boolean) as string[];
+    return { brandId: b.brandId, name: b.brandName, color: brandColor(b.brandId), emphasis: b.brandId === focalId, poly: pts.join(' '), byDay };
+  });
+  const markers = outliers.map((o) => {
+    const i = dayIndex.get(toDay(o.measuredAt)) ?? 0;
+    return { o, x: xOfDay(i), y: sy(o.value, domain.lo, domain.hi) };
+  });
   const open = outliers.find((o) => o.id === openOutlierId) ?? null;
 
+  const onMove = (e: React.MouseEvent<SVGSVGElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const vx = ((e.clientX - rect.left) / rect.width) * 640;
+    const step = nDays > 1 ? (CHART.x1 - CHART.x0) / (nDays - 1) : 1;
+    setHoverDay(Math.max(0, Math.min(nDays - 1, Math.round((vx - CHART.x0) / step))));
+  };
+  const hoverRows = hoverDay != null
+    ? series.filter((s) => s.byDay[hoverDay] != null).map((s) => ({ name: s.name, color: s.color, val: s.byDay[hoverDay]! })).sort((a, b) => b.val - a.val)
+    : [];
+  const hoverX = hoverDay != null ? xOfDay(hoverDay) : 0;
+  const hoverLeftPct = (hoverX / 640) * 100;
+
   return (
-    <div style={{ border: `1px solid ${DI.line}`, background: '#fff', padding: '20px 16px' }}>
-      <svg viewBox="0 0 640 300" style={{ width: '100%', height: 'auto' }}>
+    <div style={{ border: `1px solid ${DI.line}`, background: '#fff', padding: '20px 16px', position: 'relative' }}>
+      <svg viewBox="0 0 640 300" style={{ width: '100%', height: 'auto', cursor: 'crosshair' }} onMouseMove={onMove} onMouseLeave={() => setHoverDay(null)}>
         {ticks.map((t) => <line key={t.y} x1="0" y1={t.y} x2="530" y2={t.y} stroke={DI.line} strokeWidth="1" />)}
         {ticks.map((t) => <text key={`l${t.y}`} x="0" y={t.y - 4} fill={DI.faint} fontFamily="JetBrains Mono, monospace" fontSize="9">{t.value}</text>)}
+        {hoverDay != null && <line x1={hoverX} y1="16" x2={hoverX} y2="272" stroke={DI.ink} strokeWidth="1" strokeDasharray="3 3" opacity={0.4} />}
         {series.map((s) => s.poly ? <polyline key={s.brandId} points={s.poly} fill="none" stroke={s.color} strokeWidth={s.emphasis ? 2.5 : 1.5} opacity={0.95} /> : null)}
+        {/* Every measured day is an inspectable point */}
+        {series.map((s) => s.byDay.map((v, i) => v == null ? null : (
+          <circle key={`${s.brandId}-${i}`} cx={xOfDay(i)} cy={sy(v, domain.lo, domain.hi)} r={hoverDay === i ? 3.5 : 2} fill={hoverDay === i ? '#fff' : s.color} stroke={s.color} strokeWidth={hoverDay === i ? 2 : 0} />
+        )))}
         {/* Outlier reference markers (◆) for the focal brand on this metric */}
         {markers.map(({ o, x, y }) => {
           const up = o.direction === 'up';
@@ -292,9 +321,21 @@ function MeasuredDailyChart({
           );
         })}
         <line x1="0" y1="272" x2="530" y2="272" stroke={DI.faint} strokeWidth="1" />
-        <text x="16" y="293" fill={DI.body} fontFamily="JetBrains Mono, monospace" fontSize="10">{fmtDate(minT)}</text>
-        <text x="530" y="293" fill={DI.body} fontFamily="JetBrains Mono, monospace" fontSize="10" textAnchor="end">{fmtDate(maxT)}</text>
+        <text x="16" y="293" fill={DI.body} fontFamily="JetBrains Mono, monospace" fontSize="10">{fmtDay(dayKeys[0]!)}</text>
+        <text x="530" y="293" fill={DI.body} fontFamily="JetBrains Mono, monospace" fontSize="10" textAnchor="end">{fmtDay(dayKeys[nDays - 1]!)}</text>
       </svg>
+      {hoverDay != null && hoverRows.length > 0 && (
+        <div style={{ position: 'absolute', top: 20, left: `${hoverLeftPct}%`, transform: hoverLeftPct > 60 ? 'translateX(-105%)' : 'translateX(12px)', background: '#fff', border: `1px solid ${DI.line}`, boxShadow: '0 4px 6px rgba(0,0,0,0.1)', padding: '10px 12px', minWidth: 150, pointerEvents: 'none' }}>
+          <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, color: DI.ink, marginBottom: 6 }}>{fmtDay(dayKeys[hoverDay]!)}</div>
+          {hoverRows.map((r) => (
+            <div key={r.name} className="flex items-center" style={{ gap: 8, padding: '2px 0' }}>
+              <span style={{ width: 8, height: 8, background: r.color }} />
+              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: DI.body, flex: 1 }}>{r.name}</span>
+              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, color: DI.ink }}>{r.val.toFixed(1)}</span>
+            </div>
+          ))}
+        </div>
+      )}
       {open && (
         <div style={{ borderTop: `1px solid ${DI.line}`, marginTop: 8, paddingTop: 12 }}>
           <div className="flex items-center" style={{ gap: 8, marginBottom: 6, flexWrap: 'wrap' }}>

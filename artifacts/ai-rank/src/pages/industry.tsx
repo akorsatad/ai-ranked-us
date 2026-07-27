@@ -28,6 +28,7 @@ export default function Industry() {
   const [activeMetric, setActiveMetric] = useState('');
   const [selectedBrand, setSelectedBrand] = useState<number | null>(null);
   const [hoverWk, setHoverWk] = useState<number | null>(null);
+  const [hoverDay, setHoverDay] = useState<number | null>(null);
 
   React.useEffect(() => {
     if (catalog?.metrics?.length && !activeMetric) setActiveMetric(catalog.metrics[0]!.key);
@@ -109,15 +110,40 @@ export default function Industry() {
 
   const weekLabels = (trends?.brands?.[0]?.points ?? []).map((p) => p.weekLabel);
   const hasEst = series.some((s) => s.estPoly);
-  const hasMeas = series.some((s) => s.measPoly);
   const nWeeks = weekLabels.length || 13;
 
-  // Date range for the daily-measured chart's x-axis (13 weeks ending at the
-  // newest measured point).
-  let measEnd = 0;
-  for (const b of history?.brands ?? []) for (const p of b.points) measEnd = Math.max(measEnd, new Date(p.date).getTime());
-  const measStart = measEnd ? measEnd - 12 * 7 * DAY : 0;
-  const fmtDate = (t: number) => (t ? new Date(t).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : '');
+  // Daily-measured chart on a CATEGORICAL day axis: one evenly-spaced slot per
+  // day measured (like the weeks on the 13-week chart), each point inspectable.
+  const toDay = (d: string) => new Date(d).toISOString().slice(0, 10);
+  const dayKeys = useMemo(() => {
+    const set = new Set<string>();
+    for (const b of history?.brands ?? []) if (shown.has(b.brandId)) for (const p of b.points) { const k = toDay(p.date); if (k && k !== 'Invalid Date') set.add(k); }
+    return [...set].sort();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [history, shownBrands]);
+  const nDays = dayKeys.length;
+  const fmtDay = (k: string) => (k ? new Date(`${k}T00:00:00`).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : '');
+  const dailySeries = useMemo(() => {
+    const idx = new Map(dayKeys.map((k, i) => [k, i]));
+    const histByBrand = new Map(history?.brands.map((b) => [b.brandId, b.points]) ?? []);
+    return shownBrands.map((entry) => {
+      const byDay: (number | null)[] = new Array(nDays).fill(null);
+      for (const p of histByBrand.get(entry.brandId) ?? []) { const i = idx.get(toDay(p.date)); if (i != null) byDay[i] = p.score; }
+      const pts = byDay.map((v, i) => (v == null ? null : `${sx(i, nDays).toFixed(1)},${sy(v, domain.lo, domain.hi).toFixed(1)}`)).filter(Boolean) as string[];
+      return { brandId: entry.brandId, name: entry.brandName, color: brandColor(entry.brandId), emphasis: entry.rank === 1, poly: pts.join(' '), byDay };
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shownBrands, dayKeys, history, domain]);
+  const hasDaily = nDays > 0 && dailySeries.some((s) => s.poly);
+  const onDayMove = (e: React.MouseEvent<SVGSVGElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const vx = ((e.clientX - rect.left) / rect.width) * 640;
+    const step = nDays > 1 ? (CH.x1 - CH.x0) / (nDays - 1) : 1;
+    setHoverDay(Math.max(0, Math.min(nDays - 1, Math.round((vx - CH.x0) / step))));
+  };
+  const dayHoverRows = hoverDay != null
+    ? dailySeries.filter((s) => (selectedBrand == null || selectedBrand === s.brandId) && s.byDay[hoverDay] != null).map((s) => ({ name: s.name, color: s.color, val: s.byDay[hoverDay]! })).sort((a, b) => b.val - a.val)
+    : [];
 
   const dim = (brandId: number) => selectedBrand != null && selectedBrand !== brandId;
 
@@ -209,27 +235,39 @@ export default function Industry() {
               })}
             </div>
 
-            {/* Daily measured — REAL date axis (trusted baseline, appends every run) */}
+            {/* Daily measured — CATEGORICAL day axis (each day measured is one point) */}
             <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '0.15em', textTransform: 'uppercase', color: DI.body, marginBottom: 8 }}>
-              Daily measured <span style={{ color: DI.faint }}>· real dates · trusted baseline</span>
+              Daily measured <span style={{ color: DI.faint }}>· days measured · trusted baseline</span>
             </div>
-            {hasMeas ? (
-              <svg viewBox="0 0 640 300" style={{ width: '100%', height: 'auto', display: 'block' }}>
-                {ticks.map((t) => <line key={`mt${t.y}`} x1="0" y1={t.y} x2="530" y2={t.y} stroke={DI.line} strokeWidth="1" />)}
-                {ticks.map((t) => <text key={`ml${t.y}`} x="0" y={t.y - 4} fill={DI.faint} fontFamily="JetBrains Mono, monospace" fontSize="9">{t.value}</text>)}
-                {series.map((s) => s.measPoly && (
-                  <polyline key={`m${s.brandId}`} points={s.measPoly} fill="none" stroke={s.color} strokeWidth={s.emphasis ? 2.5 : 2} opacity={dim(s.brandId) ? 0.15 : 1} />
-                ))}
-                {series.map((s) => s.last && (
-                  <g key={`d${s.brandId}`} opacity={dim(s.brandId) ? 0.15 : 1}>
-                    <circle cx={s.last.x} cy={s.last.y} r={s.emphasis ? 4 : 3} fill={s.color} />
-                    <text x={s.last.x + 6} y={s.last.y + 3} fill={s.color} fontFamily="JetBrains Mono, monospace" fontSize="11" fontWeight={s.emphasis ? 700 : 400}>{s.name}</text>
-                  </g>
-                ))}
-                <line x1="0" y1="272" x2="530" y2="272" stroke={DI.faint} strokeWidth="1" />
-                <text x="16" y="293" fill={DI.body} fontFamily="JetBrains Mono, monospace" fontSize="10">{fmtDate(measStart)}</text>
-                <text x="530" y="293" fill={DI.body} fontFamily="JetBrains Mono, monospace" fontSize="10" textAnchor="end">{fmtDate(measEnd)}</text>
-              </svg>
+            {hasDaily ? (
+              <div style={{ position: 'relative' }}>
+                <svg viewBox="0 0 640 300" style={{ width: '100%', height: 'auto', display: 'block', cursor: 'crosshair' }} onMouseMove={onDayMove} onMouseLeave={() => setHoverDay(null)}>
+                  {ticks.map((t) => <line key={`mt${t.y}`} x1="0" y1={t.y} x2="530" y2={t.y} stroke={DI.line} strokeWidth="1" />)}
+                  {ticks.map((t) => <text key={`ml${t.y}`} x="0" y={t.y - 4} fill={DI.faint} fontFamily="JetBrains Mono, monospace" fontSize="9">{t.value}</text>)}
+                  {hoverDay != null && <line x1={sx(hoverDay, nDays)} y1="16" x2={sx(hoverDay, nDays)} y2="272" stroke={DI.ink} strokeWidth="1" strokeDasharray="3 3" opacity={0.4} />}
+                  {dailySeries.map((s) => s.poly && (
+                    <polyline key={`m${s.brandId}`} points={s.poly} fill="none" stroke={s.color} strokeWidth={s.emphasis ? 2.5 : 2} opacity={dim(s.brandId) ? 0.15 : 1} />
+                  ))}
+                  {dailySeries.map((s) => s.byDay.map((v, i) => v == null ? null : (
+                    <circle key={`${s.brandId}-${i}`} cx={sx(i, nDays)} cy={sy(v, domain.lo, domain.hi)} r={hoverDay === i ? 3.5 : 2} fill={hoverDay === i ? '#fff' : s.color} stroke={s.color} strokeWidth={hoverDay === i ? 2 : 0} opacity={dim(s.brandId) ? 0.15 : 1} />
+                  )))}
+                  <line x1="0" y1="272" x2="530" y2="272" stroke={DI.faint} strokeWidth="1" />
+                  <text x="16" y="293" fill={DI.body} fontFamily="JetBrains Mono, monospace" fontSize="10">{fmtDay(dayKeys[0]!)}</text>
+                  <text x="530" y="293" fill={DI.body} fontFamily="JetBrains Mono, monospace" fontSize="10" textAnchor="end">{fmtDay(dayKeys[nDays - 1]!)}</text>
+                </svg>
+                {hoverDay != null && dayHoverRows.length > 0 && (
+                  <div style={{ position: 'absolute', top: '8%', left: `${(sx(hoverDay, nDays) / 640) * 100}%`, transform: (sx(hoverDay, nDays) / 640) * 100 > 60 ? 'translateX(-105%)' : 'translateX(12px)', background: '#fff', border: `1px solid ${DI.line}`, boxShadow: '0 4px 6px rgba(0,0,0,0.10)', padding: '10px 12px', minWidth: 150, pointerEvents: 'none', zIndex: 5 }}>
+                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, color: DI.ink, marginBottom: 8 }}>{fmtDay(dayKeys[hoverDay]!)}</div>
+                    {dayHoverRows.map((r) => (
+                      <div key={r.name} className="flex items-center" style={{ gap: 8, padding: '2.5px 0' }}>
+                        <span style={{ width: 8, height: 8, background: r.color, display: 'inline-block' }} />
+                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: DI.body, flex: 1, whiteSpace: 'nowrap' }}>{r.name}</span>
+                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, color: DI.ink }}>{r.val.toFixed(1)}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             ) : (
               <div style={{ height: 160, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--font-mono)', fontSize: 11, color: DI.faint }}>No daily measurements yet.</div>
             )}
