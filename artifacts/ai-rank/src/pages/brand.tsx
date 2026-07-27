@@ -28,11 +28,13 @@ export default function BrandAnalytics() {
 
   // Which individual brand lines to draw. Default: ONLY this company — the
   // page is about this brand vs. its peer-group average. Peers can be toggled
-  // on as an optional overlay.
-  const [shown, setShown] = useState<Set<number>>(new Set());
+  // on as an optional overlay. Reset to the focal brand whenever the route's
+  // brand changes (client-side nav between brand pages keeps this component
+  // mounted, so without this the previous brand's line would persist).
+  const [shown, setShown] = useState<Set<number>>(() => new Set([brandId]));
   useEffect(() => {
-    if (data && shown.size === 0) setShown(new Set([brandId]));
-  }, [data, brandId, shown.size]);
+    setShown(new Set([brandId]));
+  }, [brandId]);
 
   const industryId = data?.brand.industryId ?? 0;
   const enabled = industryId > 0 && metric != null;
