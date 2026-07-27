@@ -650,6 +650,10 @@ interface AdminAppUserOut {
   createdAt: Date;
   disabled: boolean;
   disabledAt: Date | null;
+  tier: string;
+  subscriptionStatus: string | null;
+  tokenBalance: number;
+  hasStripeCustomer: boolean;
   rankRequests: number;
   lastRequestAt: Date | null;
   activeSessions: number;
@@ -665,6 +669,10 @@ async function userWithStats(userId: number): Promise<AdminAppUserOut | null> {
       lastName: usersTable.lastName,
       createdAt: usersTable.createdAt,
       disabledAt: usersTable.disabledAt,
+      tier: usersTable.tier,
+      subscriptionStatus: usersTable.subscriptionStatus,
+      tokenBalance: usersTable.tokenBalance,
+      hasStripeCustomer: sql<boolean>`(${usersTable.stripeCustomerId} is not null)`,
       rankRequests: sql<number>`count(distinct ${adHocRequestsTable.id})::int`,
       lastRequestAt: sql<Date | null>`max(${adHocRequestsTable.createdAt})`,
       activeSessions: sql<number>`(count(distinct ${sessionsTable.id}) filter (where ${sessionsTable.expiresAt} > ${now}))::int`,
@@ -711,6 +719,10 @@ router.get("/admin/users", async (req, res): Promise<void> => {
       lastName: usersTable.lastName,
       createdAt: usersTable.createdAt,
       disabledAt: usersTable.disabledAt,
+      tier: usersTable.tier,
+      subscriptionStatus: usersTable.subscriptionStatus,
+      tokenBalance: usersTable.tokenBalance,
+      hasStripeCustomer: sql<boolean>`(${usersTable.stripeCustomerId} is not null)`,
       rankRequests: sql<number>`count(distinct ${adHocRequestsTable.id})::int`,
       lastRequestAt: sql<Date | null>`max(${adHocRequestsTable.createdAt})`,
       activeSessions: sql<number>`(count(distinct ${sessionsTable.id}) filter (where ${sessionsTable.expiresAt} > ${now}))::int`,

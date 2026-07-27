@@ -105,6 +105,8 @@ export default function AdminUsers() {
               <TableHeader>
                 <TableRow>
                   <TableHead>User</TableHead>
+                  <TableHead>Plan</TableHead>
+                  <TableHead className="text-right">Tokens</TableHead>
                   <TableHead>Joined</TableHead>
                   <TableHead className="text-right">Runs</TableHead>
                   <TableHead>Last activity</TableHead>
@@ -184,6 +186,21 @@ function UserRow({ user }: { user: AdminAppUser }) {
         <div className="text-xs text-muted-foreground">
           {user.firstName} {user.lastName}
         </div>
+      </TableCell>
+      <TableCell>
+        <div className="flex items-center gap-1.5">
+          <Badge variant={user.tier === 'free' ? 'outline' : 'default'} className="capitalize">
+            {user.tier}
+          </Badge>
+          {user.subscriptionStatus && user.subscriptionStatus !== 'active' && (
+            <span className="text-[10px] font-mono uppercase text-muted-foreground">
+              {user.subscriptionStatus}
+            </span>
+          )}
+        </div>
+      </TableCell>
+      <TableCell className="text-right font-mono text-xs">
+        {user.tokenBalance.toLocaleString()}
       </TableCell>
       <TableCell className="font-mono text-xs">
         {formatDate(String(user.createdAt))}

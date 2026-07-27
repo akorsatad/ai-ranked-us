@@ -1925,7 +1925,7 @@ components:
     AdminAppUser:
       type: object
       required:
-        [id, email, firstName, lastName, createdAt, disabled, rankRequests, activeSessions]
+        [id, email, firstName, lastName, createdAt, disabled, tier, tokenBalance, hasStripeCustomer, rankRequests, activeSessions]
       properties:
         id:
           type: integer
@@ -1944,6 +1944,15 @@ components:
           type: string
           format: date-time
           nullable: true
+        tier:
+          type: string
+        subscriptionStatus:
+          type: string
+          nullable: true
+        tokenBalance:
+          type: integer
+        hasStripeCustomer:
+          type: boolean
         rankRequests:
           type: integer
           description: Total ad-hoc ranking requests made by this user
