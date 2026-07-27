@@ -31,7 +31,20 @@ export async function ensureTierPrices(): Promise<void> {
   const tiers = await db.select().from(pricingTiersTable);
   for (const tier of tiers) {
     if (tier.monthlyPriceUsd == null || tier.monthlyPriceUsd <= 0) continue;
-    if (tier.stripePriceId) continue;
+    if (tier.stripePriceId) {
+      // Verify the stored price still resolves with the current key. A price
+      // created in test mode is invalid under a live key (and vice versa), so
+      // recreate it instead of trusting a stale id.
+      try {
+        const existing = await stripe().prices.retrieve(tier.stripePriceId);
+        if (existing && existing.active !== false) continue;
+      } catch {
+        logger.warn(
+          { tier: tier.key, priceId: tier.stripePriceId },
+          "Stored Stripe price no longer resolves; recreating",
+        );
+      }
+    }
     const product = await stripe().products.create({
       name: `AI Ranked US — ${tier.name}`,
       metadata: { tierKey: tier.key },
@@ -52,7 +65,18 @@ export async function ensureTierPrices(): Promise<void> {
 }
 
 async function getOrCreateCustomer(user: UserRow): Promise<string> {
-  if (user.stripeCustomerId) return user.stripeCustomerId;
+  if (user.stripeCustomerId) {
+    // A customer created under a different key/mode won't resolve; fall through
+    // and recreate rather than pass a stale id to Checkout.
+    try {
+      const existing = await stripe().customers.retrieve(user.stripeCustomerId);
+      if (existing && !(existing as { deleted?: boolean }).deleted) {
+        return user.stripeCustomerId;
+      }
+    } catch {
+      // stale customer id — recreate below
+    }
+  }
   const customer = await stripe().customers.create({
     email: user.email,
     name: `${user.firstName} ${user.lastName}`.trim() || undefined,
