@@ -46,6 +46,15 @@ router.post("/stripe/checkout", async (req, res): Promise<void> => {
     res.status(401).json({ message: "Sign in to subscribe" });
     return;
   }
+  // Live-beta gate: paid plans/credits are enabled per-account by an admin.
+  if (!user.activatedAt) {
+    res.status(403).json({
+      message:
+        "Your account is in live beta. Paid plans and credits turn on once we activate it — we'll email you the moment it's live.",
+      requiresActivation: true,
+    });
+    return;
+  }
   const tierKey = String((req.body as { tier?: unknown })?.tier ?? "").trim();
   if (!tierKey) {
     res.status(400).json({ message: "tier is required" });

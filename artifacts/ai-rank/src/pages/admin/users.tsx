@@ -14,6 +14,8 @@ import {
   Loader2,
   ChevronLeft,
   ChevronRight,
+  Power,
+  Zap,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -111,6 +113,7 @@ export default function AdminUsers() {
                   <TableHead className="text-right">Runs</TableHead>
                   <TableHead>Last activity</TableHead>
                   <TableHead className="text-right">Sessions</TableHead>
+                  <TableHead>Access</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
@@ -179,6 +182,25 @@ function UserRow({ user }: { user: AdminAppUser }) {
     },
   });
 
+  const activate = useUpdateUserStatus({
+    mutation: {
+      onSuccess: (updated) => {
+        queryClient.invalidateQueries({ queryKey: getListAdminUsersQueryKey() });
+        toast({
+          title: updated.activated
+            ? `${updated.email} activated for paid features`
+            : `${updated.email} returned to beta`,
+        });
+      },
+      onError: (e) =>
+        toast({
+          variant: 'destructive',
+          title: 'Failed to update access',
+          description: e.message,
+        }),
+    },
+  });
+
   return (
     <TableRow data-testid={`row-user-${user.id}`}>
       <TableCell>
@@ -211,6 +233,13 @@ function UserRow({ user }: { user: AdminAppUser }) {
       </TableCell>
       <TableCell className="text-right font-mono">{user.activeSessions}</TableCell>
       <TableCell>
+        {user.activated ? (
+          <Badge variant="default">Activated</Badge>
+        ) : (
+          <Badge variant="outline">Beta</Badge>
+        )}
+      </TableCell>
+      <TableCell>
         {user.disabled ? (
           <Badge variant="destructive">Disabled</Badge>
         ) : (
@@ -218,25 +247,46 @@ function UserRow({ user }: { user: AdminAppUser }) {
         )}
       </TableCell>
       <TableCell className="text-right">
-        <Button
-          variant={user.disabled ? 'outline' : 'ghost'}
-          size="sm"
-          className="gap-1.5"
-          disabled={update.isPending}
-          onClick={() =>
-            update.mutate({ userId: user.id, data: { disabled: !user.disabled } })
-          }
-          data-testid={`button-toggle-user-${user.id}`}
-        >
-          {update.isPending ? (
-            <Loader2 className="w-3.5 h-3.5 animate-spin" />
-          ) : user.disabled ? (
-            <RotateCcw className="w-3.5 h-3.5" />
-          ) : (
-            <Ban className="w-3.5 h-3.5" />
-          )}
-          {user.disabled ? 'Enable' : 'Disable'}
-        </Button>
+        <div className="flex justify-end gap-1.5">
+          <Button
+            variant={user.activated ? 'ghost' : 'default'}
+            size="sm"
+            className="gap-1.5"
+            disabled={activate.isPending}
+            onClick={() =>
+              activate.mutate({ userId: user.id, data: { activated: !user.activated } })
+            }
+            data-testid={`button-activate-user-${user.id}`}
+          >
+            {activate.isPending ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : user.activated ? (
+              <Power className="w-3.5 h-3.5" />
+            ) : (
+              <Zap className="w-3.5 h-3.5" />
+            )}
+            {user.activated ? 'Deactivate' : 'Activate'}
+          </Button>
+          <Button
+            variant={user.disabled ? 'outline' : 'ghost'}
+            size="sm"
+            className="gap-1.5"
+            disabled={update.isPending}
+            onClick={() =>
+              update.mutate({ userId: user.id, data: { disabled: !user.disabled } })
+            }
+            data-testid={`button-toggle-user-${user.id}`}
+          >
+            {update.isPending ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : user.disabled ? (
+              <RotateCcw className="w-3.5 h-3.5" />
+            ) : (
+              <Ban className="w-3.5 h-3.5" />
+            )}
+            {user.disabled ? 'Enable' : 'Disable'}
+          </Button>
+        </div>
       </TableCell>
     </TableRow>
   );

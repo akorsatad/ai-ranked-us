@@ -132,57 +132,72 @@ export async function runAdHocSurvey(
     .set({ status: "running" })
     .where(eq(adHocRequestsTable.id, requestId));
 
-  const engineResults: { engineKey: string; engineName: string; metrics: AdHocMetricResult[] }[] = [];
   // Token/cost accounting so a custom query has a measurable spend (used for
   // per-run token charges and margin). Summed across every engine×metric call.
   let inputTokens = 0;
   let outputTokens = 0;
   let costUsd = 0;
 
-  for (const engine of engines) {
-    const metrics: AdHocMetricResult[] = [];
-    for (const metric of METRICS) {
-      try {
-        const prompt = buildAdHocPrompt(brands, metric.label, metric.description, metric.higherIsBetter, country);
-        const result = await callEngine(engine, engine.model, prompt);
-        inputTokens += result.inputTokens ?? 0;
-        outputTokens += result.outputTokens ?? 0;
-        costUsd +=
-          result.inputTokens != null && result.outputTokens != null
-            ? (estimateCostUsd(result.resolvedModel, result.inputTokens, result.outputTokens) ?? 0)
-            : 0;
-        const parsed = parseJsonBlock(result.text) as {
-          rankings?: { brand?: string; rank?: number; score?: number; rationale?: string }[];
-        };
-        if (!Array.isArray(parsed.rankings) || parsed.rankings.length === 0) continue;
+  // Engines run concurrently (metrics stay sequential within an engine) so the
+  // whole survey finishes well inside the serverless function budget instead of
+  // running ~28 calls back-to-back.
+  const perEngine = await Promise.all(
+    engines.map(async (engine) => {
+      const metrics: AdHocMetricResult[] = [];
+      let inTok = 0;
+      let outTok = 0;
+      let cost = 0;
+      for (const metric of METRICS) {
+        try {
+          const prompt = buildAdHocPrompt(brands, metric.label, metric.description, metric.higherIsBetter, country);
+          const result = await callEngine(engine, engine.model, prompt);
+          inTok += result.inputTokens ?? 0;
+          outTok += result.outputTokens ?? 0;
+          cost +=
+            result.inputTokens != null && result.outputTokens != null
+              ? (estimateCostUsd(result.resolvedModel, result.inputTokens, result.outputTokens) ?? 0)
+              : 0;
+          const parsed = parseJsonBlock(result.text) as {
+            rankings?: { brand?: string; rank?: number; score?: number; rationale?: string }[];
+          };
+          if (!Array.isArray(parsed.rankings) || parsed.rankings.length === 0) continue;
 
-        const entries: AdHocRankingEntry[] = [];
-        for (const r of parsed.rankings) {
-          if (!r.brand) continue;
-          const matched = matchBrand(brands, r.brand);
-          if (!matched) continue;
-          entries.push({
-            brandName: matched.name,
-            rank: typeof r.rank === "number" ? r.rank : entries.length + 1,
-            score: Math.max(0, Math.min(100, Number(r.score ?? 0))),
-            rationale: r.rationale ? String(r.rationale).slice(0, 400) : null,
-          });
+          const entries: AdHocRankingEntry[] = [];
+          for (const r of parsed.rankings) {
+            if (!r.brand) continue;
+            const matched = matchBrand(brands, r.brand);
+            if (!matched) continue;
+            entries.push({
+              brandName: matched.name,
+              rank: typeof r.rank === "number" ? r.rank : entries.length + 1,
+              score: Math.max(0, Math.min(100, Number(r.score ?? 0))),
+              rationale: r.rationale ? String(r.rationale).slice(0, 400) : null,
+            });
+          }
+          if (entries.length > 0) {
+            entries.sort((a, b) => a.rank - b.rank);
+            metrics.push({
+              metricKey: metric.key,
+              metricLabel: metric.label,
+              higherIsBetter: metric.higherIsBetter,
+              entries,
+            });
+          }
+        } catch (err) {
+          logger.warn({ requestId, engine: engine.key, metric: metric.key, err }, "Ad-hoc query failed");
         }
-        if (entries.length > 0) {
-          entries.sort((a, b) => a.rank - b.rank);
-          metrics.push({
-            metricKey: metric.key,
-            metricLabel: metric.label,
-            higherIsBetter: metric.higherIsBetter,
-            entries,
-          });
-        }
-      } catch (err) {
-        logger.warn({ requestId, engine: engine.key, metric: metric.key, err }, "Ad-hoc query failed");
       }
-    }
-    if (metrics.length > 0) {
-      engineResults.push({ engineKey: engine.key, engineName: engine.name, metrics });
+      return { engineKey: engine.key, engineName: engine.name, metrics, inTok, outTok, cost };
+    }),
+  );
+
+  const engineResults: { engineKey: string; engineName: string; metrics: AdHocMetricResult[] }[] = [];
+  for (const e of perEngine) {
+    inputTokens += e.inTok;
+    outputTokens += e.outTok;
+    costUsd += e.cost;
+    if (e.metrics.length > 0) {
+      engineResults.push({ engineKey: e.engineKey, engineName: e.engineName, metrics: e.metrics });
     }
   }
 
@@ -225,9 +240,9 @@ export async function suggestCompetitors(brand: string, country: string): Promis
   const countryLabel = country === "US" ? "US" : country;
   const prompt = [
     `You are a market research analyst. For the brand "${brand}" in the ${countryLabel} market,`,
-    `suggest 4 to 6 direct competitors that most ${countryLabel} consumers would recognize.`,
+    `suggest exactly 3 direct competitors that most ${countryLabel} consumers would recognize.`,
     `Return STRICT JSON only, no markdown fences:`,
-    `{"competitors":["Brand A","Brand B","Brand C","Brand D"]}`,
+    `{"competitors":["Brand A","Brand B","Brand C"]}`,
   ].join("\n");
 
   const result = await callEngine(engine, engine.model, prompt);
@@ -236,5 +251,5 @@ export async function suggestCompetitors(brand: string, country: string): Promis
   return parsed.competitors
     .filter((c) => typeof c === "string" && c.trim().length > 0)
     .map((c) => String(c).trim())
-    .slice(0, 8);
+    .slice(0, 3);
 }

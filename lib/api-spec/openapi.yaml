@@ -1925,7 +1925,7 @@ components:
     AdminAppUser:
       type: object
       required:
-        [id, email, firstName, lastName, createdAt, disabled, tier, tokenBalance, hasStripeCustomer, rankRequests, activeSessions]
+        [id, email, firstName, lastName, createdAt, disabled, tier, tokenBalance, hasStripeCustomer, activated, rankRequests, activeSessions]
       properties:
         id:
           type: integer
@@ -1953,6 +1953,9 @@ components:
           type: integer
         hasStripeCustomer:
           type: boolean
+        activated:
+          type: boolean
+          description: True once an admin has activated the account for paid features
         rankRequests:
           type: integer
           description: Total ad-hoc ranking requests made by this user
@@ -1978,10 +1981,12 @@ components:
           type: integer
     UpdateUserStatusInput:
       type: object
-      required: [disabled]
       properties:
         disabled:
           type: boolean
+        activated:
+          type: boolean
+          description: Live-beta gate — true unlocks paid plans/credits for the account
     AdminAccount:
       type: object
       required: [id, pending, self, createdAt]
@@ -2719,7 +2724,8 @@ components:
         subscriptionStatus: { type: ["string", "null"] }
         tokenBalance: { type: integer }
         hasStripeCustomer: { type: boolean }
-      required: [id, email, firstName, lastName, tier, subscriptionStatus, tokenBalance, hasStripeCustomer]
+        activated: { type: boolean }
+      required: [id, email, firstName, lastName, tier, subscriptionStatus, tokenBalance, hasStripeCustomer, activated]
     SuggestCompetitorsInput:
       type: object
       properties:

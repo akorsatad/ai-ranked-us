@@ -16,7 +16,9 @@
 
 export const MAX_BRAND_LENGTH = 60;
 export const MAX_PERSON_NAME_LENGTH = 60;
-export const MAX_COMPETITORS = 8;
+// A ranking always processes up to 5 companies: the brand + at most 4
+// competitors.
+export const MAX_COMPETITORS = 4;
 /** Hard cap on how many raw array entries we even look at. */
 export const MAX_SUBMITTED_COMPETITORS = 20;
 

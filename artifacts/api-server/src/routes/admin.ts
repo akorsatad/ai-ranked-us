@@ -654,6 +654,7 @@ interface AdminAppUserOut {
   subscriptionStatus: string | null;
   tokenBalance: number;
   hasStripeCustomer: boolean;
+  activated: boolean;
   rankRequests: number;
   lastRequestAt: Date | null;
   activeSessions: number;
@@ -673,6 +674,7 @@ async function userWithStats(userId: number): Promise<AdminAppUserOut | null> {
       subscriptionStatus: usersTable.subscriptionStatus,
       tokenBalance: usersTable.tokenBalance,
       hasStripeCustomer: sql<boolean>`(${usersTable.stripeCustomerId} is not null)`,
+      activated: sql<boolean>`(${usersTable.activatedAt} is not null)`,
       rankRequests: sql<number>`count(distinct ${adHocRequestsTable.id})::int`,
       lastRequestAt: sql<Date | null>`max(${adHocRequestsTable.createdAt})`,
       activeSessions: sql<number>`(count(distinct ${sessionsTable.id}) filter (where ${sessionsTable.expiresAt} > ${now}))::int`,
@@ -723,6 +725,7 @@ router.get("/admin/users", async (req, res): Promise<void> => {
       subscriptionStatus: usersTable.subscriptionStatus,
       tokenBalance: usersTable.tokenBalance,
       hasStripeCustomer: sql<boolean>`(${usersTable.stripeCustomerId} is not null)`,
+      activated: sql<boolean>`(${usersTable.activatedAt} is not null)`,
       rankRequests: sql<number>`count(distinct ${adHocRequestsTable.id})::int`,
       lastRequestAt: sql<Date | null>`max(${adHocRequestsTable.createdAt})`,
       activeSessions: sql<number>`(count(distinct ${sessionsTable.id}) filter (where ${sessionsTable.expiresAt} > ${now}))::int`,
@@ -752,24 +755,33 @@ router.patch("/admin/users/:userId", async (req, res): Promise<void> => {
   }
   const body = UpdateUserStatusBody.safeParse(req.body);
   if (!body.success) {
-    res.status(400).json({ message: "disabled (boolean) is required" });
+    res.status(400).json({ message: "disabled and/or activated (boolean) required" });
     return;
   }
+  const { disabled, activated } = body.data;
+  if (disabled === undefined && activated === undefined) {
+    res.status(400).json({ message: "Provide disabled and/or activated (boolean)" });
+    return;
+  }
+  const patch: { disabledAt?: Date | null; activatedAt?: Date | null } = {};
+  if (disabled !== undefined) patch.disabledAt = disabled ? new Date() : null;
+  if (activated !== undefined) patch.activatedAt = activated ? new Date() : null;
+
   const [updated] = await db
     .update(usersTable)
-    .set({ disabledAt: body.data.disabled ? new Date() : null })
+    .set(patch)
     .where(eq(usersTable.id, userId))
     .returning({ id: usersTable.id });
   if (!updated) {
     res.status(404).json({ message: "User not found" });
     return;
   }
-  if (body.data.disabled) {
+  if (disabled === true) {
     // Revoke every active session so the block takes effect immediately.
     await db.delete(sessionsTable).where(eq(sessionsTable.userId, userId));
   }
   req.log.info(
-    { userId, disabled: body.data.disabled },
+    { userId, disabled, activated },
     "User account status updated",
   );
   res.status(200).json(await userWithStats(userId));

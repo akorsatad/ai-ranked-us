@@ -1166,7 +1166,8 @@ export const UpdateUserStatusParams = zod.object({
 })
 
 export const UpdateUserStatusBody = zod.object({
-  "disabled": zod.boolean()
+  "disabled": zod.boolean().optional(),
+  "activated": zod.boolean().optional()
 })
 
 export const UpdateUserStatusResponse = zod.object({

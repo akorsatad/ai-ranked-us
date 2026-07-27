@@ -170,7 +170,7 @@ export function RankForm() {
               </div>
             ))}
           </div>
-          {competitors.length < 8 && (
+          {competitors.length < 4 && (
             <button type="button" onClick={() => setCompetitors((p) => [...p, ''])}
               style={{ fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: DI.teal, background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, marginTop: 12 }}>
               <Plus className="w-3 h-3" /> Add competitor

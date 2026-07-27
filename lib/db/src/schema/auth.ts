@@ -21,6 +21,9 @@ export const usersTable = pgTable("users", {
   // Set when an admin disables the account; disabled users cannot sign in
   // or use an existing session.
   disabledAt: timestamp("disabled_at", { withTimezone: true }),
+  // Live-beta gate: set by an admin to unlock paid plans / credits. Null means
+  // the account is still in beta review (sign-in + the free ranking still work).
+  activatedAt: timestamp("activated_at", { withTimezone: true }),
   // ── Billing (Stripe) ──
   tier: text("tier").notNull().default("free"), // free | <pricing_tiers.key>
   subscriptionStatus: text("subscription_status"), // active | trialing | past_due | canceled | null

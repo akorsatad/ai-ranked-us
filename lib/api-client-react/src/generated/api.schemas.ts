@@ -22,6 +22,12 @@ export interface AdminAppUser {
   createdAt: string;
   disabled: boolean;
   disabledAt?: string | null;
+  tier: string;
+  subscriptionStatus?: string | null;
+  tokenBalance: number;
+  hasStripeCustomer: boolean;
+  /** True once an admin has activated the account for paid features */
+  activated: boolean;
   /** Total ad-hoc ranking requests made by this user */
   rankRequests: number;
   lastRequestAt?: string | null;
@@ -36,7 +42,8 @@ export interface AdminUserPage {
 }
 
 export interface UpdateUserStatusInput {
-  disabled: boolean;
+  disabled?: boolean;
+  activated?: boolean;
 }
 
 export interface AdminAccount {
@@ -804,6 +811,7 @@ export interface CurrentUser {
   subscriptionStatus: string | null;
   tokenBalance: number;
   hasStripeCustomer: boolean;
+  activated: boolean;
 }
 
 export interface SuggestCompetitorsInput {

@@ -3,6 +3,7 @@ import { eq, desc, and, gte } from "drizzle-orm";
 import { db, adHocRequestsTable } from "@workspace/db";
 import { resolveSession } from "./auth";
 import { runAdHocSurvey, suggestCompetitors } from "../lib/adHocSurvey";
+import { keepAlive } from "../lib/serverless";
 import {
   sanitizeBrandName,
   sanitizeCompetitors,
@@ -132,10 +133,14 @@ router.post("/rank/run", async (req, res): Promise<void> => {
 
   req.log.info({ requestId: requestRow.id, brand }, "Ad-hoc rank started");
 
-  // Fire-and-forget background survey
-  void runAdHocSurvey(requestRow.id, brand, competitors, country).catch((err) => {
-    logger.error({ requestId: requestRow.id, err }, "Ad-hoc survey crashed");
-  });
+  // Run the survey as background work that survives the 202 response. On
+  // Vercel `keepAlive` registers it with the function's waitUntil so it runs
+  // to completion instead of being frozen; locally it just runs on the loop.
+  keepAlive(
+    runAdHocSurvey(requestRow.id, brand, competitors, country).catch((err) => {
+      logger.error({ requestId: requestRow.id, err }, "Ad-hoc survey crashed");
+    }),
+  );
 
   res.status(202).json(serializeRequest(requestRow));
 });

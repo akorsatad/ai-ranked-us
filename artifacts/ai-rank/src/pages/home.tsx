@@ -27,6 +27,7 @@ import {
   CornerCard,
 } from '@/components/brand';
 import { Ticker, SideRail, LiveIndexBoard } from '@/components/home-board';
+import { useToast } from '@/hooks/use-toast';
 
 const COUNTRIES = [
   { code: 'US', label: 'United States' },
@@ -71,6 +72,10 @@ export default function Home() {
   const { data: pricing } = useGetPricing({
     query: { queryKey: getGetPricingQueryKey() },
   });
+  const { data: me } = useGetMe({
+    query: { queryKey: getGetMeQueryKey(), retry: false, retryOnMount: false },
+  });
+  const { toast } = useToast();
   const scrollToRank = () =>
     document.getElementById('rank-form')?.scrollIntoView({ behavior: 'smooth' });
 
@@ -83,18 +88,31 @@ export default function Home() {
     mutation: {
       onSuccess: (r) => { window.location.href = r.url; },
       onError: (e) => {
-        // Not signed in → prompt account creation; else surface the message.
-        setAuthModalMsg(
-          e?.message?.toLowerCase().includes('sign in')
-            ? 'Create your account to subscribe'
-            : (e?.message || 'Could not start checkout'),
-        );
-        setShowAuthModal(true);
+        const msg = e?.message ?? '';
+        if (msg.toLowerCase().includes('sign in')) {
+          // Not signed in → prompt account creation.
+          setAuthModalMsg('Create your account to subscribe');
+          setShowAuthModal(true);
+          return;
+        }
+        // Beta activation gate or any other error → inform inline, no modal.
+        toast({
+          title: msg.toLowerCase().includes('beta') ? 'Live beta' : 'Checkout',
+          description: msg || 'Could not start checkout',
+        });
       },
     },
   });
   const onSubscribe = (tierKey: string) => {
     if (!stripeReady) { scrollToRank(); return; }
+    if (me && !me.activated) {
+      toast({
+        title: 'Live beta',
+        description:
+          "Paid plans activate once we enable your account — we'll email you the moment it's live.",
+      });
+      return;
+    }
     checkout.mutate({ data: { tier: tierKey } });
   };
 
@@ -110,6 +128,13 @@ export default function Home() {
 
   return (
     <div style={{ background: DI.paper }}>
+      {/* Live-beta notice */}
+      <div style={{ background: DI.ink, color: '#fff', textAlign: 'center', padding: '9px 16px' }}>
+        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: DI.tealLight }}>Live beta</span>
+        <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.88)', marginLeft: 10 }}>
+          Your first ranking is free. Paid plans &amp; credits switch on once we activate your account.
+        </span>
+      </div>
       <Ticker movers={moversData} />
       <SideRail />
 
@@ -252,6 +277,12 @@ export default function Home() {
           <p style={{ fontSize: 15, lineHeight: 1.625, color: DI.body, maxWidth: '40rem', margin: '20px 0 0' }}>
             Every plan is token-based — you&rsquo;re billed per token used, and you can top up anytime at your tier&rsquo;s rate. Start free, upgrade when you need the volume.
           </p>
+          <div style={{ marginTop: 16, border: `1px solid ${DI.teal}`, background: 'rgba(14,168,142,0.06)', padding: '10px 14px', maxWidth: '40rem' }}>
+            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: DI.teal }}>Live beta</span>
+            <span style={{ fontSize: 13, color: DI.body, marginLeft: 8 }}>
+              Billing isn&rsquo;t live yet. Paid plans and credits are enabled per account — once we activate yours you can subscribe and top up, and you won&rsquo;t be charged until then.
+            </span>
+          </div>
           <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit,minmax(240px,1fr))', gap: 16, marginTop: 40, alignItems: 'stretch' }}>
             {(pricing?.tiers ?? []).map((t) => (
               <PricingCard

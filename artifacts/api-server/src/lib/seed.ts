@@ -7,8 +7,20 @@ import {
   pricingTiersTable,
   surveySchedulesTable,
 } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { logger } from "./logger";
+
+/**
+ * Idempotent, additive schema patches applied at bootstrap. Dev pushes schema
+ * with drizzle-kit, but serverless can't run push, so small
+ * `ADD COLUMN IF NOT EXISTS` changes live here to keep a deploy self-sufficient.
+ * Runs before seeding so any query in the same request sees the new columns.
+ */
+export async function ensureSchemaPatches(): Promise<void> {
+  await db.execute(
+    sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS activated_at timestamptz`,
+  );
+}
 
 // Default commercial pricing tiers. Token rates are placeholders admins edit
 // in /admin/pricing. Billing is per token used, refillable at the tier rate.
@@ -353,6 +365,7 @@ export async function ensureEngineModelsSeeded(): Promise<void> {
  * so admin-made changes (renames, disables, additions) are preserved.
  */
 export async function ensureSeeded(): Promise<void> {
+  await ensureSchemaPatches();
   const existingIndustries = await db.select().from(industriesTable);
   const existingBrands = await db.select().from(brandsTable);
 

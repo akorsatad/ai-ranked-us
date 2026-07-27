@@ -13,7 +13,7 @@ export default function RankPage() {
           Run a new ranking
         </h1>
         <p style={{ fontSize: 15, lineHeight: 1.625, color: DI.body, margin: '0 0 32px', maxWidth: '38rem' }}>
-          Enter your brand and up to eight competitors, pick your market, and we&rsquo;ll score them across seven perception metrics against ChatGPT, Claude, Gemini, and Grok. Results land on your own private page.
+          Enter your brand and up to four competitors, pick your market, and we&rsquo;ll score all five across seven perception metrics against ChatGPT, Claude, Gemini, and Grok. Results land on your own private page.
         </p>
         <RankForm />
       </div>

@@ -56,6 +56,15 @@ export default function Account() {
         </div>
       )}
 
+      {!me.activated && (
+        <div style={{ border: `1px solid ${DI.teal}`, background: 'rgba(14,168,142,0.06)', padding: '12px 16px', marginBottom: 24 }}>
+          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: DI.teal }}>Live beta</span>
+          <span style={{ fontSize: 13, color: DI.body, marginLeft: 8 }}>
+            Your account is in beta — your free ranking is active. Paid plans and credits unlock once we activate it, and we&rsquo;ll email you. You won&rsquo;t be charged until then.
+          </span>
+        </div>
+      )}
+
       <div style={{ fontSize: 13, color: DI.body, marginBottom: 28 }}>
         Signed in as <span style={{ fontWeight: 600, color: DI.ink }}>{me.email}</span>
       </div>

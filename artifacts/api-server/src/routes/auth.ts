@@ -6,7 +6,8 @@ import {
   magicLinkTokensTable,
   sessionsTable,
 } from "@workspace/db";
-import { sendMagicLinkEmail } from "../lib/mailer";
+import { sendMagicLinkEmail, sendBetaWelcomeEmail } from "../lib/mailer";
+import { keepAlive } from "../lib/serverless";
 import { sanitizePersonName } from "../lib/sanitizeInput";
 import { logger } from "../lib/logger";
 import crypto from "node:crypto";
@@ -100,6 +101,7 @@ router.post("/auth/request-link", async (req, res): Promise<void> => {
 
   // Upsert user
   let user;
+  let isNewUser = false;
   const existing = await db
     .select()
     .from(usersTable)
@@ -119,6 +121,7 @@ router.post("/auth/request-link", async (req, res): Promise<void> => {
       .values({ email: normalizedEmail, firstName: firstName.trim(), lastName: lastName.trim() })
       .returning();
     user = created!;
+    isNewUser = true;
   }
 
   // Create magic link token
@@ -137,6 +140,14 @@ router.post("/auth/request-link", async (req, res): Promise<void> => {
     req.log.error({ err }, "Failed to send magic link email");
     res.status(500).json({ message: "Failed to send email. Please try again." });
     return;
+  }
+
+  // First-time account: send a live-beta welcome in the background so it never
+  // delays or blocks the sign-in response.
+  if (isNewUser) {
+    keepAlive(
+      sendBetaWelcomeEmail(normalizedEmail, firstName.trim(), `${trustedBaseUrl()}/rank`),
+    );
   }
 
   req.log.info({ userId: user.id }, "Magic link requested");
@@ -226,6 +237,7 @@ router.get("/auth/me", async (req, res): Promise<void> => {
     subscriptionStatus: user?.subscriptionStatus ?? null,
     tokenBalance: user?.tokenBalance ?? 0,
     hasStripeCustomer: !!user?.stripeCustomerId,
+    activated: !!user?.activatedAt,
   });
 });
 
