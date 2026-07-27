@@ -208,12 +208,25 @@ router.post("/auth/verify", async (req, res): Promise<void> => {
 
 // GET /auth/me
 router.get("/auth/me", async (req, res): Promise<void> => {
-  const user = await resolveSession(req);
-  if (!user) {
+  const session = await resolveSession(req);
+  if (!session) {
     res.status(401).json({ message: "Not authenticated" });
     return;
   }
-  res.json(user);
+  const [user] = await db
+    .select()
+    .from(usersTable)
+    .where(eq(usersTable.id, session.id));
+  res.json({
+    id: session.id,
+    email: session.email,
+    firstName: session.firstName,
+    lastName: session.lastName,
+    tier: user?.tier ?? "free",
+    subscriptionStatus: user?.subscriptionStatus ?? null,
+    tokenBalance: user?.tokenBalance ?? 0,
+    hasStripeCustomer: !!user?.stripeCustomerId,
+  });
 });
 
 // DELETE /auth/session

@@ -2706,7 +2706,11 @@ components:
         email: { type: string }
         firstName: { type: string }
         lastName: { type: string }
-      required: [id, email, firstName, lastName]
+        tier: { type: string }
+        subscriptionStatus: { type: ["string", "null"] }
+        tokenBalance: { type: integer }
+        hasStripeCustomer: { type: boolean }
+      required: [id, email, firstName, lastName, tier, subscriptionStatus, tokenBalance, hasStripeCustomer]
     SuggestCompetitorsInput:
       type: object
       properties:

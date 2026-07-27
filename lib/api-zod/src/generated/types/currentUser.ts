@@ -11,4 +11,9 @@ export interface CurrentUser {
   email: string;
   firstName: string;
   lastName: string;
+  tier: string;
+  /** @nullable */
+  subscriptionStatus: string | null;
+  tokenBalance: number;
+  hasStripeCustomer: boolean;
 }

@@ -8,6 +8,7 @@ import {
   ChevronDown,
   Menu,
   X,
+  User,
 } from 'lucide-react';
 import {
   useHealthCheck,
@@ -162,6 +163,15 @@ export function Layout({ children }: LayoutProps) {
                         >
                           <History className="w-4 h-4" style={{ color: DI.steel }} />
                           My rankings
+                        </Link>
+                        <Link
+                          href="/account"
+                          className="flex items-center gap-2 px-4 py-2"
+                          style={{ fontSize: 14, color: DI.ink }}
+                          onClick={() => setShowUserMenu(false)}
+                        >
+                          <User className="w-4 h-4" style={{ color: DI.steel }} />
+                          Account &amp; billing
                         </Link>
                         <div style={{ borderTop: `1px solid ${DI.line}`, margin: '4px 0' }} />
                         <button

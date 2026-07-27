@@ -27,6 +27,7 @@ import AdminAdmins from './pages/admin/admins';
 import { Terms, Privacy } from './pages/legal';
 import Alerts from './pages/alerts';
 import Home from './pages/home';
+import Account from './pages/account';
 import Results from './pages/results';
 import AuthVerify from './pages/auth-verify';
 import History from './pages/history';
@@ -97,6 +98,7 @@ function Router() {
             <Route path="/alerts" component={Alerts} />
             <Route path="/results/:id" component={Results} />
             <Route path="/history" component={History} />
+            <Route path="/account" component={Account} />
             <Route path="/terms" component={Terms} />
             <Route path="/privacy" component={Privacy} />
             <Route component={NotFound} />
