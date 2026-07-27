@@ -27,6 +27,7 @@ import AdminAdmins from './pages/admin/admins';
 import { Terms, Privacy } from './pages/legal';
 import Alerts from './pages/alerts';
 import Home from './pages/home';
+import RankPage from './pages/rank';
 import Account from './pages/account';
 import Results from './pages/results';
 import AuthVerify from './pages/auth-verify';
@@ -89,6 +90,7 @@ function Router() {
         <Layout>
           <Switch>
             <Route path="/" component={Home} />
+            <Route path="/rank" component={RankPage} />
             <Route path="/explore" component={Explore} />
             <Route path="/industry/:id" component={Industry} />
             <Route path="/brand/:id" component={BrandAnalytics} />

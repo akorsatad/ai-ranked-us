@@ -9,7 +9,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Loader2, CheckCircle, XCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { DI, Logo } from '@/components/brand';
-import { PENDING_RANK_KEY } from './home';
+import { PENDING_RANK_KEY } from '../components/rank-form';
 
 type Phase = 'verifying' | 'starting' | 'done' | 'error';
 

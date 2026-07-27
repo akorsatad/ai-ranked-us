@@ -93,7 +93,7 @@ export default function History() {
           <BarChart3 className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
           <p className="text-muted-foreground text-sm">No rankings yet.</p>
           <Button asChild className="mt-4" variant="outline">
-            <Link href="/">Rank your first brand</Link>
+            <Link href="/rank">Rank your first brand</Link>
           </Button>
         </div>
       )}

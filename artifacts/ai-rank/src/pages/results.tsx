@@ -103,7 +103,7 @@ export default function Results() {
     <>
       {/* Breadcrumb */}
       <div className="flex items-center" style={{ gap: 10, fontFamily: 'var(--font-mono)', fontSize: 11, letterSpacing: '0.2em', textTransform: 'uppercase' }}>
-        <Link href="/" style={{ color: DI.body }}>← Rank another</Link>
+        <Link href="/rank" style={{ color: DI.body }}>← Rank another</Link>
         <span style={{ color: DI.faint }}>/</span>
         <span style={{ color: DI.ink }}>Your ranking</span>
       </div>
@@ -181,7 +181,7 @@ export default function Results() {
 
       {/* CTA */}
       <div className="flex flex-wrap" style={{ gap: 14, marginTop: 48, borderTop: `1px solid ${DI.line}`, paddingTop: 32 }}>
-        <Link href="/"><BrandButton variant="ghost">← Rank another brand</BrandButton></Link>
+        <Link href="/rank"><BrandButton variant="ghost">← Rank another brand</BrandButton></Link>
         <Link href="/explore"><BrandButton>Explore all rankings <ChevronRight className="w-4 h-4" /></BrandButton></Link>
       </div>
     </>,

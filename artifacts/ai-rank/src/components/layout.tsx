@@ -68,6 +68,7 @@ export function Layout({ children }: LayoutProps) {
   const navLinks: { href: string; label: string; badge?: number }[] = [
     { href: '/', label: 'Rankings' },
     { href: '/explore', label: 'Explore' },
+    { href: '/rank', label: 'Rank a brand' },
     ...(user ? [{ href: '/alerts', label: 'Alerts', badge: unreadAlerts }] : []),
   ];
 
