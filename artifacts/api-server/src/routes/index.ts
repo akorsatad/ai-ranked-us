@@ -14,6 +14,7 @@ import cronRouter from "./cron";
 import googleAuthRouter from "./googleAuth";
 import pricingRouter from "./pricing";
 import schedulesRouter from "./schedules";
+import stripeRouter from "./stripe";
 
 const router: IRouter = Router();
 
@@ -30,6 +31,9 @@ router.use(runsRouter);
 // resolve here rather than falling through the path-scoped admin gate.
 router.use(pricingRouter);
 router.use(schedulesRouter);
+// Stripe billing: public /stripe/config, session-gated checkout/portal, and the
+// signature-verified webhook (raw body set up in app.ts).
+router.use(stripeRouter);
 // Admin routes are protected by the session-based requireAdmin middleware
 // inside adminRouter (path-scoped — see admin.ts)
 router.use(adminRouter);

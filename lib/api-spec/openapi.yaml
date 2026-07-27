@@ -834,6 +834,63 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiMessage"
+  /stripe/config:
+    get:
+      operationId: getStripeConfig
+      tags: [billing]
+      summary: Whether billing is live + the publishable key
+      responses:
+        "200":
+          description: Config
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StripeConfig"
+  /stripe/checkout:
+    post:
+      operationId: createCheckout
+      tags: [billing]
+      summary: Start a Stripe Checkout session for a tier (returns redirect URL)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [tier]
+              properties:
+                tier: { type: string }
+      responses:
+        "200":
+          description: Redirect URL
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CheckoutUrl"
+        "401":
+          description: Not signed in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+  /stripe/portal:
+    post:
+      operationId: createBillingPortal
+      tags: [billing]
+      summary: Open the Stripe customer portal (returns redirect URL)
+      responses:
+        "200":
+          description: Redirect URL
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CheckoutUrl"
+        "401":
+          description: Not signed in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
   /engines:
     get:
       operationId: listEngines
@@ -2827,6 +2884,17 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/AnalysisReportMeta"
+    StripeConfig:
+      type: object
+      required: [configured, publishableKey]
+      properties:
+        configured: { type: boolean }
+        publishableKey: { type: ["string", "null"] }
+    CheckoutUrl:
+      type: object
+      required: [url]
+      properties:
+        url: { type: string }
     OutlierSettings:
       type: object
       required: [enabled, sigma, minPoints, maxExplanationsPerRun]

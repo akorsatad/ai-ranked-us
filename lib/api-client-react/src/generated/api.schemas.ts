@@ -892,6 +892,16 @@ export interface AnalysisReportList {
   reports: AnalysisReportMeta[];
 }
 
+export interface StripeConfig {
+  configured: boolean;
+  /** @nullable */
+  publishableKey: string | null;
+}
+
+export interface CheckoutUrl {
+  url: string;
+}
+
 export interface OutlierSettings {
   enabled: boolean;
   /** Threshold in standard deviations (default 3) */
@@ -1260,6 +1270,10 @@ export const ListRunsTrigger = {
   manual: 'manual',
   auto: 'auto',
 } as const;
+
+export type CreateCheckoutBody = {
+  tier: string;
+};
 
 export type ListAdminUsersParams = {
 page?: number;

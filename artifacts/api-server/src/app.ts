@@ -54,6 +54,9 @@ app.use(
   }),
 );
 app.use(cookieParser());
+// Stripe webhook needs the RAW body for signature verification, so parse it as
+// a Buffer BEFORE express.json() (which would otherwise consume the stream).
+app.use("/api/stripe/webhook", express.raw({ type: "application/json" }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 

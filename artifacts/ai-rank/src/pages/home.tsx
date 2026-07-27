@@ -11,6 +11,9 @@ import {
   getGetPricingQueryKey,
   useGetMe,
   getGetMeQueryKey,
+  useGetStripeConfig,
+  getGetStripeConfigQueryKey,
+  useCreateCheckout,
   PricingTier,
 } from '@workspace/api-client-react';
 import { Plus, X, Sparkles, Loader2, ArrowRight } from 'lucide-react';
@@ -154,6 +157,30 @@ export default function Home() {
 
   const scrollToRank = () =>
     document.getElementById('rank-form')?.scrollIntoView({ behavior: 'smooth' });
+
+  // Stripe billing: config + checkout.
+  const { data: stripeConfig } = useGetStripeConfig({
+    query: { queryKey: getGetStripeConfigQueryKey() },
+  });
+  const stripeReady = !!stripeConfig?.configured;
+  const checkout = useCreateCheckout({
+    mutation: {
+      onSuccess: (r) => { window.location.href = r.url; },
+      onError: (e) => {
+        // Not signed in → prompt account creation; else surface the message.
+        setAuthModalMsg(
+          e?.message?.toLowerCase().includes('sign in')
+            ? 'Create your account to subscribe'
+            : (e?.message || 'Could not start checkout'),
+        );
+        setShowAuthModal(true);
+      },
+    },
+  });
+  const onSubscribe = (tierKey: string) => {
+    if (!stripeReady) { scrollToRank(); return; }
+    checkout.mutate({ data: { tier: tierKey } });
+  };
 
   // Real data: top movers (up to 4) and one leader card per industry.
   const movers = (moversData?.movers ?? []).slice(0, 4);
@@ -374,7 +401,16 @@ export default function Home() {
             Every plan is token-based — you&rsquo;re billed per token used, and you can top up anytime at your tier&rsquo;s rate. Start free, upgrade when you need the volume.
           </p>
           <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit,minmax(240px,1fr))', gap: 16, marginTop: 40, alignItems: 'stretch' }}>
-            {(pricing?.tiers ?? []).map((t) => <PricingCard key={t.key} tier={t} onStart={scrollToRank} />)}
+            {(pricing?.tiers ?? []).map((t) => (
+              <PricingCard
+                key={t.key}
+                tier={t}
+                onStart={scrollToRank}
+                onSubscribe={onSubscribe}
+                stripeReady={stripeReady}
+                subscribing={checkout.isPending}
+              />
+            ))}
           </div>
           <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '0.15em', textTransform: 'uppercase', color: DI.faint, marginTop: 24 }}>
             All tiers billed per token used &middot; Refill anytime at your account rate &middot; Proposed — subject to change
@@ -422,7 +458,7 @@ function fmtRate(v: number): string {
   return per1k >= 0.01 ? `$${per1k.toFixed(2)} / 1K tokens` : `$${v.toFixed(6)} / token`;
 }
 
-function PricingCard({ tier, onStart }: { tier: PricingTier; onStart: () => void }) {
+function PricingCard({ tier, onStart, onSubscribe, stripeReady, subscribing }: { tier: PricingTier; onStart: () => void; onSubscribe: (tierKey: string) => void; stripeReady: boolean; subscribing: boolean }) {
   const hl = tier.highlighted;
   return (
     <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', background: '#fff', border: `1px solid ${hl ? DI.teal : DI.line}`, padding: 28, boxShadow: hl ? '0 4px 6px rgba(0,0,0,0.06)' : '0 1px 2px rgba(0,0,0,0.05)' }}>
@@ -448,9 +484,22 @@ function PricingCard({ tier, onStart }: { tier: PricingTier; onStart: () => void
           </div>
         ))}
       </div>
-      <div style={{ marginTop: 20 }}>
+      <div style={{ marginTop: 20, display: 'flex', flexDirection: 'column', gap: 8 }}>
         {tier.monthlyPriceUsd != null ? (
-          <BrandButton variant={hl ? 'primary' : 'ghost'} fullWidth onClick={onStart}>Start free</BrandButton>
+          <>
+            <BrandButton
+              variant={hl ? 'primary' : 'ghost'}
+              fullWidth
+              onClick={() => (stripeReady ? onSubscribe(tier.key) : onStart())}
+            >
+              {subscribing ? 'Redirecting…' : stripeReady ? `Subscribe · $${tier.monthlyPriceUsd.toFixed(0)}/mo` : 'Start free'}
+            </BrandButton>
+            {stripeReady && (
+              <button onClick={onStart} style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', color: DI.faint }}>
+                or try a free ranking first
+              </button>
+            )}
+          </>
         ) : (
           <BrandButton variant="ghost" fullWidth href="mailto:hello@airanked.us?subject=Enterprise%20plan">Contact sales</BrandButton>
         )}

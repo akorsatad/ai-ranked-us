@@ -21,6 +21,12 @@ export const usersTable = pgTable("users", {
   // Set when an admin disables the account; disabled users cannot sign in
   // or use an existing session.
   disabledAt: timestamp("disabled_at", { withTimezone: true }),
+  // ── Billing (Stripe) ──
+  tier: text("tier").notNull().default("free"), // free | <pricing_tiers.key>
+  subscriptionStatus: text("subscription_status"), // active | trialing | past_due | canceled | null
+  tokenBalance: integer("token_balance").notNull().default(0),
+  stripeCustomerId: text("stripe_customer_id"),
+  stripeSubscriptionId: text("stripe_subscription_id"),
 });
 
 export type UserRow = typeof usersTable.$inferSelect;

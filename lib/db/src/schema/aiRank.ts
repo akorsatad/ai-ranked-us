@@ -88,6 +88,9 @@ export const pricingTiersTable = pgTable("pricing_tiers", {
   costPerTokenUsd: doublePrecision("cost_per_token_usd").notNull().default(0),
   // Tokens included with the monthly fee before refills are needed.
   includedTokens: integer("included_tokens").notNull().default(0),
+  // Stripe recurring Price id for this tier (auto-created from monthlyPriceUsd
+  // when missing). Null for Enterprise / custom.
+  stripePriceId: text("stripe_price_id"),
   features: jsonb("features").$type<string[]>().notNull().default([]),
   highlighted: boolean("highlighted").notNull().default(false),
   sortOrder: integer("sort_order").notNull().default(0),

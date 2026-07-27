@@ -847,6 +847,35 @@ export const UpdateBrandResponse = zod.object({
 
 
 /**
+ * @summary Whether billing is live + the publishable key
+ */
+export const GetStripeConfigResponse = zod.object({
+  "configured": zod.boolean(),
+  "publishableKey": zod.string().nullable()
+})
+
+
+/**
+ * @summary Start a Stripe Checkout session for a tier (returns redirect URL)
+ */
+export const CreateCheckoutBody = zod.object({
+  "tier": zod.string()
+})
+
+export const CreateCheckoutResponse = zod.object({
+  "url": zod.string()
+})
+
+
+/**
+ * @summary Open the Stripe customer portal (returns redirect URL)
+ */
+export const CreateBillingPortalResponse = zod.object({
+  "url": zod.string()
+})
+
+
+/**
  * @summary List all engines including disabled ones
  */
 export const ListEnginesResponseItem = zod.object({
