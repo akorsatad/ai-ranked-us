@@ -46,6 +46,9 @@ export default function BrandAnalytics() {
     { query: { enabled, queryKey: getGetIndustryHistoryQueryKey(industryId, { metric: metric ?? '' }) } },
   );
 
+  // Currently-opened outlier (from a chart marker or the insights list).
+  const [openOutlierId, setOpenOutlierId] = useState<number | null>(null);
+
   if (!Number.isFinite(brandId)) return <NotFound />;
   if (isLoading || !data) return <div style={{ padding: 40, fontFamily: 'var(--font-mono)', color: DI.faint }}>Loading analytics…</div>;
 
@@ -117,17 +120,31 @@ export default function BrandAnalytics() {
         })}
       </div>
 
-      {/* Chart + peer selector */}
-      <SectionTitle>
-        13-week trajectory · {activeMetric?.label}
-      </SectionTitle>
+      {/* Two separate charts — different time intervals — plus peer selector. */}
       <div className="grid" style={{ gridTemplateColumns: 'minmax(0,2fr) minmax(0,1fr)', gap: 24, alignItems: 'start' }}>
-        <TrendChart
-          trends={trends}
-          history={history}
-          shown={shown}
-          focalId={brandId}
-        />
+        <div style={{ display: 'grid', gap: 28 }}>
+          <div>
+            <SectionTitle>Daily measured · {activeMetric?.label}</SectionTitle>
+            <p style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: DI.faint, marginTop: -8, marginBottom: 14 }}>
+              The trusted baseline — real daily readings, appended continuously. ◆ marks a statistical outlier; click it for the engine's explanation.
+            </p>
+            <MeasuredDailyChart
+              history={history}
+              shown={shown}
+              focalId={brandId}
+              outliers={data.outliers.filter((o) => o.metricKey === metric)}
+              openOutlierId={openOutlierId}
+              onPickOutlier={setOpenOutlierId}
+            />
+          </div>
+          <div>
+            <SectionTitle>13-week AI estimate · {activeMetric?.label}</SectionTitle>
+            <p style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: DI.faint, marginTop: -8, marginBottom: 14 }}>
+              Provisional — the engines' own 13-week lookback, shown until enough daily history accrues. Weekly interval, not daily.
+            </p>
+            <LookbackChart trends={trends} shown={shown} focalId={brandId} />
+          </div>
+        </div>
         <PeerList
           peers={data.peers}
           shown={shown}
@@ -140,27 +157,34 @@ export default function BrandAnalytics() {
         <div style={{ marginTop: 40 }}>
           <SectionTitle>Insights · statistical outliers</SectionTitle>
           <p style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: DI.faint, marginTop: -8, marginBottom: 16 }}>
-            Points where this brand's score moved beyond the normal range (±σ). Each is explained by the engine that produced it.
+            Every point where this brand moved beyond its normal range (±σ), explained by the engine that produced it. Click one to focus its metric and marker.
           </p>
-          <InsightsPanel outliers={data.outliers} activeMetric={metric} onPickMetric={setMetric} />
+          <InsightsPanel
+            outliers={data.outliers}
+            activeMetric={metric}
+            openOutlierId={openOutlierId}
+            onPick={(o) => { setOpenOutlierId(o.id); if (o.metricKey !== metric) setMetric(o.metricKey); }}
+          />
         </div>
       )}
     </div>
   );
 }
 
+type OutlierRow = {
+  id: number; metricKey: string; metricLabel: string; engineName: string;
+  value: number; mean: number; sigma: number; direction: string;
+  measuredAt: string; explanation: string | null; explanationModel: string | null;
+};
+
 function InsightsPanel({
-  outliers, activeMetric, onPickMetric,
+  outliers, activeMetric, openOutlierId, onPick,
 }: {
-  outliers: {
-    id: number; metricKey: string; metricLabel: string; engineName: string;
-    value: number; mean: number; sigma: number; direction: string;
-    measuredAt: string; explanation: string | null; explanationModel: string | null;
-  }[];
+  outliers: OutlierRow[];
   activeMetric: string | null;
-  onPickMetric: (k: string) => void;
+  openOutlierId: number | null;
+  onPick: (o: OutlierRow) => void;
 }) {
-  const [openId, setOpenId] = useState<number | null>(null);
   // Most extreme first; outliers on the selected metric bubble up.
   const sorted = [...outliers].sort((a, b) => {
     const am = a.metricKey === activeMetric ? 1 : 0;
@@ -171,12 +195,12 @@ function InsightsPanel({
   return (
     <div className="grid" style={{ gap: 10 }}>
       {sorted.map((o) => {
-        const open = openId === o.id;
+        const open = openOutlierId === o.id;
         const up = o.direction === 'up';
         return (
-          <div key={o.id} style={{ border: `1px solid ${DI.line}`, background: '#fff', borderLeft: `3px solid ${up ? DI.teal : DI.danger}` }}>
+          <div key={o.id} style={{ border: `1px solid ${open ? (up ? DI.teal : DI.danger) : DI.line}`, background: '#fff', borderLeft: `3px solid ${up ? DI.teal : DI.danger}` }}>
             <button
-              onClick={() => { setOpenId(open ? null : o.id); if (o.metricKey !== activeMetric) onPickMetric(o.metricKey); }}
+              onClick={() => onPick(o)}
               style={{ width: '100%', textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}
             >
               <span style={{ fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 700, color: up ? DI.teal : DI.danger, width: 54 }}>
@@ -205,79 +229,145 @@ function InsightsPanel({
   );
 }
 
-function TrendChart({
-  trends, history, shown, focalId,
+interface DailyOutlier {
+  id: number; value: number; sigma: number; direction: string;
+  measuredAt: string; explanation: string | null; explanationModel: string | null; engineName: string;
+}
+
+/** Daily measured chart — REAL date x-axis, continuously appended. Outliers are
+ *  rendered as clickable ◆ reference points. Separate from the weekly lookback. */
+function MeasuredDailyChart({
+  history, shown, focalId, outliers, openOutlierId, onPickOutlier,
+}: {
+  history: { brands: { brandId: number; brandName: string; points: { date: string; score: number }[] }[] } | undefined;
+  shown: Set<number>;
+  focalId: number;
+  outliers: DailyOutlier[];
+  openOutlierId: number | null;
+  onPickOutlier: (id: number | null) => void;
+}) {
+  const brands = (history?.brands ?? [])
+    .filter((b) => shown.has(b.brandId))
+    .map((b) => ({ ...b, points: [...b.points].sort((a, c) => +new Date(a.date) - +new Date(c.date)) }));
+
+  let minT = Infinity, maxT = -Infinity;
+  const scores: number[] = [];
+  for (const b of brands) for (const p of b.points) { const t = +new Date(p.date); if (Number.isFinite(t)) { minT = Math.min(minT, t); maxT = Math.max(maxT, t); } scores.push(p.score); }
+  for (const o of outliers) { const t = +new Date(o.measuredAt); if (Number.isFinite(t)) { minT = Math.min(minT, t); maxT = Math.max(maxT, t); } scores.push(o.value); }
+
+  if (!brands.some((b) => b.points.length) || !Number.isFinite(minT)) {
+    return <ChartEmpty text="No daily measurements yet — the trusted baseline builds up as daily runs accrue." />;
+  }
+  const domain = niceDomain(scores);
+  const ticks = axisTicks(domain.lo, domain.hi);
+  const xOf = (t: number) => (maxT === minT ? CHART.x1 : CHART.x0 + ((t - minT) / (maxT - minT)) * (CHART.x1 - CHART.x0));
+  const fmtDate = (t: number) => new Date(t).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+
+  const series = brands.map((b) => ({
+    brandId: b.brandId,
+    name: b.brandName,
+    color: brandColor(b.brandId),
+    emphasis: b.brandId === focalId,
+    poly: b.points.map((p) => `${xOf(+new Date(p.date)).toFixed(1)},${sy(p.score, domain.lo, domain.hi).toFixed(1)}`).join(' '),
+  }));
+  const markers = outliers.map((o) => ({ o, x: xOf(+new Date(o.measuredAt)), y: sy(o.value, domain.lo, domain.hi) }));
+  const open = outliers.find((o) => o.id === openOutlierId) ?? null;
+
+  return (
+    <div style={{ border: `1px solid ${DI.line}`, background: '#fff', padding: '20px 16px' }}>
+      <svg viewBox="0 0 640 300" style={{ width: '100%', height: 'auto' }}>
+        {ticks.map((t) => <line key={t.y} x1="0" y1={t.y} x2="530" y2={t.y} stroke={DI.line} strokeWidth="1" />)}
+        {ticks.map((t) => <text key={`l${t.y}`} x="0" y={t.y - 4} fill={DI.faint} fontFamily="JetBrains Mono, monospace" fontSize="9">{t.value}</text>)}
+        {series.map((s) => s.poly ? <polyline key={s.brandId} points={s.poly} fill="none" stroke={s.color} strokeWidth={s.emphasis ? 2.5 : 1.5} opacity={0.95} /> : null)}
+        {/* Outlier reference markers (◆) for the focal brand on this metric */}
+        {markers.map(({ o, x, y }) => {
+          const up = o.direction === 'up';
+          const active = o.id === openOutlierId;
+          const col = up ? DI.teal : DI.danger;
+          return (
+            <g key={o.id} style={{ cursor: 'pointer' }} onClick={() => onPickOutlier(active ? null : o.id)}>
+              <path d={`M ${x},${y - 7} L ${x + 7},${y} L ${x},${y + 7} L ${x - 7},${y} Z`} fill={active ? col : '#fff'} stroke={col} strokeWidth="2" />
+              <text x={x} y={y - 11} fill={col} fontFamily="JetBrains Mono, monospace" fontSize="9" fontWeight="700" textAnchor="middle">{Math.abs(o.sigma).toFixed(1)}σ</text>
+            </g>
+          );
+        })}
+        <line x1="0" y1="272" x2="530" y2="272" stroke={DI.faint} strokeWidth="1" />
+        <text x="16" y="293" fill={DI.body} fontFamily="JetBrains Mono, monospace" fontSize="10">{fmtDate(minT)}</text>
+        <text x="530" y="293" fill={DI.body} fontFamily="JetBrains Mono, monospace" fontSize="10" textAnchor="end">{fmtDate(maxT)}</text>
+      </svg>
+      {open && (
+        <div style={{ borderTop: `1px solid ${DI.line}`, marginTop: 8, paddingTop: 12 }}>
+          <div className="flex items-center" style={{ gap: 8, marginBottom: 6, flexWrap: 'wrap' }}>
+            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 700, color: open.direction === 'up' ? DI.teal : DI.danger }}>
+              {open.direction === 'up' ? '▲' : '▼'} {Math.abs(open.sigma).toFixed(1)}σ outlier
+            </span>
+            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: DI.faint }}>
+              {open.engineName} · {new Date(open.measuredAt).toLocaleDateString()} · {open.explanationModel ?? ''}
+            </span>
+          </div>
+          <p style={{ fontSize: 14, lineHeight: 1.6, color: DI.body, margin: 0 }}>
+            {open.explanation ?? 'Explanation pending — will populate on the next detection pass.'}
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** 13-week AI estimate — WEEK-index x-axis (provisional lookback). Separate chart. */
+function LookbackChart({
+  trends, shown, focalId,
 }: {
   trends: { brands: { brandId: number; brandName: string; points: { weekIndex: number; weekLabel: string; score: number }[] }[] } | undefined;
-  history: { brands: { brandId: number; brandName: string; points: { score: number }[] }[] } | undefined;
   shown: Set<number>;
   focalId: number;
 }) {
   const [hoverWk, setHoverWk] = useState<number | null>(null);
-
   const brands = (trends?.brands ?? []).filter((b) => shown.has(b.brandId));
   const weekLabels = trends?.brands?.[0]?.points.map((p) => p.weekLabel) ?? [];
   const nWeeks = weekLabels.length || 13;
 
-  const measuredByBrand = useMemo(() => {
-    const m = new Map<number, number[]>();
-    for (const b of history?.brands ?? []) m.set(b.brandId, b.points.map((p) => p.score));
-    return m;
-  }, [history]);
-
-  const domain = useMemo(() => {
-    const scores: number[] = [];
-    for (const b of brands) for (const p of b.points) scores.push(p.score);
-    for (const b of brands) for (const s of measuredByBrand.get(b.brandId) ?? []) scores.push(s);
-    return niceDomain(scores);
-  }, [brands, measuredByBrand]);
+  const scores: number[] = [];
+  for (const b of brands) for (const p of b.points) scores.push(p.score);
+  const domain = niceDomain(scores);
   const ticks = axisTicks(domain.lo, domain.hi);
-
   const series = brands.map((b) => {
-    const est = b.points.map((p) => `${sx(p.weekIndex, nWeeks).toFixed(1)},${sy(p.score, domain.lo, domain.hi).toFixed(1)}`).join(' ');
-    const meas = measuredByBrand.get(b.brandId) ?? [];
-    const measPoly = meas.map((s, i) => `${sx(i, Math.max(meas.length, 2)).toFixed(1)},${sy(s, domain.lo, domain.hi).toFixed(1)}`).join(' ');
-    const scores: (number | null)[] = [];
-    for (const p of b.points) scores[p.weekIndex] = p.score;
-    return { brandId: b.brandId, name: b.brandName, color: brandColor(b.brandId), emphasis: b.brandId === focalId, est, measPoly, scores };
+    const byWeek: (number | null)[] = [];
+    for (const p of b.points) byWeek[p.weekIndex] = p.score;
+    return {
+      brandId: b.brandId, name: b.brandName, color: brandColor(b.brandId), emphasis: b.brandId === focalId,
+      poly: b.points.map((p) => `${sx(p.weekIndex, nWeeks).toFixed(1)},${sy(p.score, domain.lo, domain.hi).toFixed(1)}`).join(' '),
+      byWeek,
+    };
   });
+  if (!series.some((s) => s.poly)) return <ChartEmpty text="No 13-week estimate yet." />;
 
-  if (series.length === 0 || !series.some((s) => s.est)) {
-    return <div style={{ border: `1px solid ${DI.line}`, padding: 40, textAlign: 'center', fontFamily: 'var(--font-mono)', fontSize: 11, color: DI.faint }}>No trend data yet.</div>;
-  }
-
-  function onMove(e: React.MouseEvent<SVGSVGElement>) {
+  const onMove = (e: React.MouseEvent<SVGSVGElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();
     const vx = ((e.clientX - rect.left) / rect.width) * 640;
     const step = nWeeks > 1 ? (CHART.x1 - CHART.x0) / (nWeeks - 1) : 1;
     setHoverWk(Math.max(0, Math.min(nWeeks - 1, Math.round((vx - CHART.x0) / step))));
-  }
-  const hoverX = hoverWk != null ? sx(hoverWk, nWeeks) : 0;
+  };
   const hoverRows = hoverWk != null
-    ? series.filter((s) => s.scores[hoverWk] != null).map((s) => ({ name: s.name, color: s.color, val: s.scores[hoverWk]! })).sort((a, b) => b.val - a.val)
+    ? series.filter((s) => s.byWeek[hoverWk] != null).map((s) => ({ name: s.name, color: s.color, val: s.byWeek[hoverWk]! })).sort((a, b) => b.val - a.val)
     : [];
 
   return (
     <div style={{ border: `1px solid ${DI.line}`, background: '#fff', padding: '20px 16px', position: 'relative' }}>
-      <div className="flex items-center" style={{ gap: 16, marginBottom: 8 }}>
-        <LegendSwatch label="Measured" dashed={false} />
-        <LegendSwatch label="13-wk estimate" dashed />
-      </div>
       <svg viewBox="0 0 640 300" style={{ width: '100%', height: 'auto', cursor: 'crosshair' }} onMouseMove={onMove} onMouseLeave={() => setHoverWk(null)}>
         {ticks.map((t) => <line key={t.y} x1="0" y1={t.y} x2="530" y2={t.y} stroke={DI.line} strokeWidth="1" />)}
         {ticks.map((t) => <text key={`l${t.y}`} x="0" y={t.y - 4} fill={DI.faint} fontFamily="JetBrains Mono, monospace" fontSize="9">{t.value}</text>)}
-        {hoverWk != null && <line x1={hoverX} y1="16" x2={hoverX} y2="272" stroke={DI.ink} strokeWidth="1" strokeDasharray="3 3" opacity={0.4} />}
-        {series.map((s) => s.measPoly ? <polyline key={`m${s.brandId}`} points={s.measPoly} fill="none" stroke={s.color} strokeWidth={s.emphasis ? 2.5 : 1.5} opacity={0.9} /> : null)}
-        {series.map((s) => s.est ? <polyline key={`e${s.brandId}`} points={s.est} fill="none" stroke={s.color} strokeWidth={s.emphasis ? 2 : 1.25} strokeDasharray="4 3" opacity={0.7} /> : null)}
-        {hoverWk != null && series.map((s) => s.scores[hoverWk] != null ? (
-          <circle key={`h${s.brandId}`} cx={sx(hoverWk, nWeeks)} cy={sy(s.scores[hoverWk]!, domain.lo, domain.hi)} r="4" fill="#fff" stroke={s.color} strokeWidth="2" />
+        {hoverWk != null && <line x1={sx(hoverWk, nWeeks)} y1="16" x2={sx(hoverWk, nWeeks)} y2="272" stroke={DI.ink} strokeWidth="1" strokeDasharray="3 3" opacity={0.4} />}
+        {series.map((s) => <polyline key={s.brandId} points={s.poly} fill="none" stroke={s.color} strokeWidth={s.emphasis ? 2 : 1.25} strokeDasharray="4 3" opacity={0.8} />)}
+        {hoverWk != null && series.map((s) => s.byWeek[hoverWk] != null ? (
+          <circle key={s.brandId} cx={sx(hoverWk, nWeeks)} cy={sy(s.byWeek[hoverWk]!, domain.lo, domain.hi)} r="4" fill="#fff" stroke={s.color} strokeWidth="2" />
         ) : null)}
         <line x1="0" y1="272" x2="530" y2="272" stroke={DI.faint} strokeWidth="1" />
         <text x="16" y="293" fill={DI.body} fontFamily="JetBrains Mono, monospace" fontSize="10">{weekLabels[0] ?? ''}</text>
         <text x="530" y="293" fill={DI.body} fontFamily="JetBrains Mono, monospace" fontSize="10" textAnchor="end">{weekLabels[weekLabels.length - 1] ?? ''}</text>
       </svg>
       {hoverWk != null && hoverRows.length > 0 && (
-        <div style={{ position: 'absolute', top: 40, right: 16, background: '#fff', border: `1px solid ${DI.line}`, boxShadow: '0 4px 6px rgba(0,0,0,0.1)', padding: '10px 12px', minWidth: 150 }}>
+        <div style={{ position: 'absolute', top: 20, right: 16, background: '#fff', border: `1px solid ${DI.line}`, boxShadow: '0 4px 6px rgba(0,0,0,0.1)', padding: '10px 12px', minWidth: 150 }}>
           <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, color: DI.ink, marginBottom: 6 }}>{weekLabels[hoverWk] ?? `W${hoverWk}`}</div>
           {hoverRows.map((r) => (
             <div key={r.name} className="flex items-center" style={{ gap: 8, padding: '2px 0' }}>
@@ -290,6 +380,10 @@ function TrendChart({
       )}
     </div>
   );
+}
+
+function ChartEmpty({ text }: { text: string }) {
+  return <div style={{ border: `1px solid ${DI.line}`, padding: 40, textAlign: 'center', fontFamily: 'var(--font-mono)', fontSize: 11, color: DI.faint }}>{text}</div>;
 }
 
 function PeerList({
