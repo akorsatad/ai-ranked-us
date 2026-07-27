@@ -26,11 +26,8 @@ export default function Industry() {
   const { data: catalog } = useGetCatalog({ query: { queryKey: getGetCatalogQueryKey() } });
   const { data: moversData } = useGetMovers({ query: { queryKey: getGetMoversQueryKey() } });
   const [activeMetric, setActiveMetric] = useState('');
-  const [showMeasured, setShowMeasured] = useState(true);
-  const [showEstimate, setShowEstimate] = useState(true);
   const [selectedBrand, setSelectedBrand] = useState<number | null>(null);
   const [hoverWk, setHoverWk] = useState<number | null>(null);
-  const [pinned, setPinned] = useState(false);
 
   React.useEffect(() => {
     if (catalog?.metrics?.length && !activeMetric) setActiveMetric(catalog.metrics[0]!.key);
@@ -111,14 +108,21 @@ export default function Industry() {
   }, [shownBrands, trends, history, domain]);
 
   const weekLabels = (trends?.brands?.[0]?.points ?? []).map((p) => p.weekLabel);
-  const hasChart = series.some((s) => (showEstimate && s.estPoly) || (showMeasured && s.measPoly));
+  const hasEst = series.some((s) => s.estPoly);
+  const hasMeas = series.some((s) => s.measPoly);
   const nWeeks = weekLabels.length || 13;
+
+  // Date range for the daily-measured chart's x-axis (13 weeks ending at the
+  // newest measured point).
+  let measEnd = 0;
+  for (const b of history?.brands ?? []) for (const p of b.points) measEnd = Math.max(measEnd, new Date(p.date).getTime());
+  const measStart = measEnd ? measEnd - 12 * 7 * DAY : 0;
+  const fmtDate = (t: number) => (t ? new Date(t).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : '');
 
   const dim = (brandId: number) => selectedBrand != null && selectedBrand !== brandId;
 
-  // Hover-to-inspect: map the cursor x to the nearest week index.
+  // Hover-to-inspect (13-week estimate chart): map the cursor x to a week index.
   function onChartMove(e: React.MouseEvent<SVGSVGElement>) {
-    if (pinned) return;
     const rect = e.currentTarget.getBoundingClientRect();
     const vx = ((e.clientX - rect.left) / rect.width) * 640;
     const step = nWeeks > 1 ? (CH.x1 - CH.x0) / (nWeeks - 1) : 1;
@@ -183,11 +187,7 @@ export default function Industry() {
           <div style={{ background: '#fff', border: `1px solid ${DI.line}`, boxShadow: '0 1px 2px rgba(0,0,0,0.05)', padding: '28px 24px 20px' }}>
             <div className="flex flex-wrap items-center justify-between" style={{ gap: 12, marginBottom: 16 }}>
               <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '0.2em', textTransform: 'uppercase', color: DI.faint }}>
-                FIG. 01 &middot; {metricInfo?.label ?? ''} &middot; top 5 &middot; 13 wk
-              </span>
-              <span className="flex" style={{ gap: 8 }}>
-                <Toggle on={showMeasured} onClick={() => setShowMeasured((v) => !v)} label="▬ Measured" />
-                <Toggle on={showEstimate} onClick={() => setShowEstimate((v) => !v)} label="┄ 13W estimate" />
+                FIG. 01 &middot; {metricInfo?.label ?? ''} &middot; {shownBrands.length} brands
               </span>
             </div>
 
@@ -209,69 +209,62 @@ export default function Industry() {
               })}
             </div>
 
-            {hasChart ? (
-              <div style={{ position: 'relative' }}>
-                <svg
-                  viewBox="0 0 640 300"
-                  style={{ width: '100%', height: 'auto', display: 'block', cursor: 'crosshair' }}
-                  onMouseMove={onChartMove}
-                  onMouseLeave={() => { if (!pinned) setHoverWk(null); }}
-                  onClick={() => { if (hoverWk != null) setPinned((p) => !p); }}
-                >
-                {ticks.map((t) => <line key={t.y} x1="0" y1={t.y} x2="530" y2={t.y} stroke={DI.line} strokeWidth="1" />)}
-                {ticks.map((t) => (
-                  <text key={`l${t.y}`} x="0" y={t.y - 4} fill={DI.faint} fontFamily="JetBrains Mono, monospace" fontSize="9">{t.value}</text>
-                ))}
-                {hoverWk != null && (
-                  <line x1={hoverX} y1="16" x2={hoverX} y2="272" stroke={DI.ink} strokeWidth="1" strokeDasharray="3 3" opacity={0.5} />
-                )}
-                {showEstimate && series.map((s) => s.estPoly && (
-                  <polyline key={`e${s.brandId}`} points={s.estPoly} fill="none" stroke={s.color} strokeWidth="1.5" strokeDasharray="5 4" opacity={dim(s.brandId) ? 0.15 : 0.75} />
-                ))}
-                {showMeasured && series.map((s) => s.measPoly && (
+            {/* Daily measured — REAL date axis (trusted baseline, appends every run) */}
+            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '0.15em', textTransform: 'uppercase', color: DI.body, marginBottom: 8 }}>
+              Daily measured <span style={{ color: DI.faint }}>· real dates · trusted baseline</span>
+            </div>
+            {hasMeas ? (
+              <svg viewBox="0 0 640 300" style={{ width: '100%', height: 'auto', display: 'block' }}>
+                {ticks.map((t) => <line key={`mt${t.y}`} x1="0" y1={t.y} x2="530" y2={t.y} stroke={DI.line} strokeWidth="1" />)}
+                {ticks.map((t) => <text key={`ml${t.y}`} x="0" y={t.y - 4} fill={DI.faint} fontFamily="JetBrains Mono, monospace" fontSize="9">{t.value}</text>)}
+                {series.map((s) => s.measPoly && (
                   <polyline key={`m${s.brandId}`} points={s.measPoly} fill="none" stroke={s.color} strokeWidth={s.emphasis ? 2.5 : 2} opacity={dim(s.brandId) ? 0.15 : 1} />
                 ))}
-                {/* Markers at the hovered week (estimate value). */}
-                {hoverWk != null && series.map((s) =>
-                  !dim(s.brandId) && s.estByWeek[hoverWk] != null ? (
-                    <circle key={`h${s.brandId}`} cx={sx(hoverWk, nWeeks)} cy={sy(s.estByWeek[hoverWk]!, domain.lo, domain.hi)} r="4" fill="#fff" stroke={s.color} strokeWidth="2" />
-                  ) : null,
-                )}
-                {showMeasured && series.map((s) => s.last && (
+                {series.map((s) => s.last && (
                   <g key={`d${s.brandId}`} opacity={dim(s.brandId) ? 0.15 : 1}>
                     <circle cx={s.last.x} cy={s.last.y} r={s.emphasis ? 4 : 3} fill={s.color} />
                     <text x={s.last.x + 6} y={s.last.y + 3} fill={s.color} fontFamily="JetBrains Mono, monospace" fontSize="11" fontWeight={s.emphasis ? 700 : 400}>{s.name}</text>
                   </g>
                 ))}
                 <line x1="0" y1="272" x2="530" y2="272" stroke={DI.faint} strokeWidth="1" />
-                {weekLabels.length > 0 && (
-                  <>
-                    <text x="16" y="293" fill={DI.body} fontFamily="JetBrains Mono, monospace" fontSize="10" textAnchor="middle">{weekLabels[0]}</text>
-                    <text x="530" y="293" fill={DI.body} fontFamily="JetBrains Mono, monospace" fontSize="10" textAnchor="end">{weekLabels[weekLabels.length - 1]}</text>
-                  </>
-                )}
-                </svg>
+                <text x="16" y="293" fill={DI.body} fontFamily="JetBrains Mono, monospace" fontSize="10">{fmtDate(measStart)}</text>
+                <text x="530" y="293" fill={DI.body} fontFamily="JetBrains Mono, monospace" fontSize="10" textAnchor="end">{fmtDate(measEnd)}</text>
+              </svg>
+            ) : (
+              <div style={{ height: 160, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--font-mono)', fontSize: 11, color: DI.faint }}>No daily measurements yet.</div>
+            )}
 
-                {/* Hover / pinned readout table */}
+            {/* 13-week AI estimate — WEEKLY axis (provisional lookback) */}
+            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '0.15em', textTransform: 'uppercase', color: DI.body, margin: '24px 0 8px' }}>
+              13-week AI estimate <span style={{ color: DI.faint }}>· weekly · provisional</span>
+            </div>
+            {hasEst ? (
+              <div style={{ position: 'relative' }}>
+                <svg viewBox="0 0 640 300" style={{ width: '100%', height: 'auto', display: 'block', cursor: 'crosshair' }} onMouseMove={onChartMove} onMouseLeave={() => setHoverWk(null)}>
+                  {ticks.map((t) => <line key={`et${t.y}`} x1="0" y1={t.y} x2="530" y2={t.y} stroke={DI.line} strokeWidth="1" />)}
+                  {ticks.map((t) => <text key={`el${t.y}`} x="0" y={t.y - 4} fill={DI.faint} fontFamily="JetBrains Mono, monospace" fontSize="9">{t.value}</text>)}
+                  {hoverWk != null && <line x1={hoverX} y1="16" x2={hoverX} y2="272" stroke={DI.ink} strokeWidth="1" strokeDasharray="3 3" opacity={0.5} />}
+                  {series.map((s) => s.estPoly && (
+                    <polyline key={`e${s.brandId}`} points={s.estPoly} fill="none" stroke={s.color} strokeWidth={s.emphasis ? 2 : 1.5} strokeDasharray="5 4" opacity={dim(s.brandId) ? 0.15 : 0.8} />
+                  ))}
+                  {hoverWk != null && series.map((s) =>
+                    !dim(s.brandId) && s.estByWeek[hoverWk] != null ? (
+                      <circle key={`h${s.brandId}`} cx={sx(hoverWk, nWeeks)} cy={sy(s.estByWeek[hoverWk]!, domain.lo, domain.hi)} r="4" fill="#fff" stroke={s.color} strokeWidth="2" />
+                    ) : null,
+                  )}
+                  <line x1="0" y1="272" x2="530" y2="272" stroke={DI.faint} strokeWidth="1" />
+                  {weekLabels.length > 0 && (
+                    <>
+                      <text x="16" y="293" fill={DI.body} fontFamily="JetBrains Mono, monospace" fontSize="10">{weekLabels[0]}</text>
+                      <text x="530" y="293" fill={DI.body} fontFamily="JetBrains Mono, monospace" fontSize="10" textAnchor="end">{weekLabels[weekLabels.length - 1]}</text>
+                    </>
+                  )}
+                </svg>
                 {hoverWk != null && hoverRows.length > 0 && (
-                  <div
-                    style={{
-                      position: 'absolute',
-                      top: '8%',
-                      left: `${hoverLeftPct}%`,
-                      transform: hoverLeftPct > 60 ? 'translateX(-105%)' : 'translateX(12px)',
-                      background: '#fff',
-                      border: `1px solid ${DI.line}`,
-                      boxShadow: '0 4px 6px rgba(0,0,0,0.10)',
-                      padding: '10px 12px',
-                      minWidth: 150,
-                      pointerEvents: 'none',
-                      zIndex: 5,
-                    }}
-                  >
+                  <div style={{ position: 'absolute', top: '8%', left: `${hoverLeftPct}%`, transform: hoverLeftPct > 60 ? 'translateX(-105%)' : 'translateX(12px)', background: '#fff', border: `1px solid ${DI.line}`, boxShadow: '0 4px 6px rgba(0,0,0,0.10)', padding: '10px 12px', minWidth: 150, pointerEvents: 'none', zIndex: 5 }}>
                     <div className="flex items-baseline justify-between" style={{ gap: 12, marginBottom: 8 }}>
                       <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', color: DI.ink }}>{hoverLabel}</span>
-                      <span style={{ fontFamily: 'var(--font-mono)', fontSize: 8, letterSpacing: '0.12em', color: DI.faint }}>{pinned ? 'PINNED' : '13W EST'}</span>
+                      <span style={{ fontFamily: 'var(--font-mono)', fontSize: 8, letterSpacing: '0.12em', color: DI.faint }}>13W EST</span>
                     </div>
                     {hoverRows.map((r) => (
                       <div key={r.name} className="flex items-center" style={{ gap: 8, padding: '2.5px 0' }}>
@@ -284,25 +277,12 @@ export default function Industry() {
                 )}
               </div>
             ) : (
-              <div style={{ height: 240, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--font-mono)', fontSize: 11, color: DI.faint, textTransform: 'uppercase', letterSpacing: '0.1em', textAlign: 'center', padding: '0 24px' }}>
-                {!showMeasured && !showEstimate ? 'Both series hidden — toggle one on' : 'No trend data yet'}
-              </div>
+              <div style={{ height: 160, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--font-mono)', fontSize: 11, color: DI.faint }}>No 13-week estimate yet.</div>
             )}
 
-            {hasChart && (
-              <div className="flex flex-wrap items-center justify-between" style={{ gap: 8, marginTop: 8 }}>
-                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: DI.faint }}>X-axis &middot; week ending</span>
-                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: pinned ? DI.teal : DI.faint }}>
-                  Hover to inspect a week &middot; click to {pinned ? 'unpin' : 'pin it'}
-                </span>
-              </div>
-            )}
             <div style={{ borderTop: `1px solid ${DI.line}`, marginTop: 16, paddingTop: 12 }}>
-              <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '0.15em', textTransform: 'uppercase', color: DI.faint }}>
-                Brand journal &middot; {selectedBrand != null ? series.find((s) => s.brandId === selectedBrand)?.name : '—'}
-              </div>
-              <p style={{ fontSize: 13, color: DI.body, margin: '6px 0 0' }}>
-                Solid = measured scores from completed runs. Dashed = the engines&rsquo; own 13-week lookback estimate. Select a brand from the legend to isolate its lines.
+              <p style={{ fontSize: 13, color: DI.body, margin: 0 }}>
+                Two intervals, shown separately: the daily measured chart is the trusted baseline that appends every run; the 13-week estimate is the engines&rsquo; provisional lookback until daily history accrues. Add or remove brands with the dots in the ranking list; click a legend chip to isolate one.
               </p>
             </div>
           </div>
@@ -356,16 +336,5 @@ export default function Industry() {
         </div>
       </div>
     </div>
-  );
-}
-
-function Toggle({ on, onClick, label }: { on: boolean; onClick: () => void; label: string }) {
-  return (
-    <span
-      onClick={onClick}
-      style={{ fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '0.12em', padding: '5px 10px', border: `1px solid ${on ? DI.teal : DI.line}`, color: on ? DI.teal : DI.faint, cursor: 'pointer', transition: 'all 0.3s', whiteSpace: 'nowrap' }}
-    >
-      {label}
-    </span>
   );
 }
