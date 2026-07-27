@@ -26,13 +26,12 @@ export default function BrandAnalytics() {
     if (metric == null && data?.metrics.length) setMetric(data.metrics[0]!.key);
   }, [data, metric]);
 
-  // Which brands to draw. Default: focal brand + next 4 peers by rank.
+  // Which individual brand lines to draw. Default: ONLY this company — the
+  // page is about this brand vs. its peer-group average. Peers can be toggled
+  // on as an optional overlay.
   const [shown, setShown] = useState<Set<number>>(new Set());
   useEffect(() => {
-    if (data && shown.size === 0) {
-      const ids = [brandId, ...data.peers.filter((p) => p.brandId !== brandId).map((p) => p.brandId)].slice(0, 5);
-      setShown(new Set(ids));
-    }
+    if (data && shown.size === 0) setShown(new Set([brandId]));
   }, [data, brandId, shown.size]);
 
   const industryId = data?.brand.industryId ?? 0;
@@ -126,12 +125,13 @@ export default function BrandAnalytics() {
           <div>
             <SectionTitle>Daily measured · {activeMetric?.label}</SectionTitle>
             <p style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: DI.faint, marginTop: -8, marginBottom: 14 }}>
-              The trusted baseline — real daily readings, appended continuously. ◆ marks a statistical outlier; click it for the engine's explanation.
+              {focal.name}&rsquo;s real daily readings vs. the peer-group average. ◆ marks a statistical outlier; click it for the engine&rsquo;s explanation.
             </p>
             <MeasuredDailyChart
               history={history}
               shown={shown}
               focalId={brandId}
+              focalName={focal.name}
               outliers={data.outliers.filter((o) => o.metricKey === metric)}
               openOutlierId={openOutlierId}
               onPickOutlier={setOpenOutlierId}
@@ -140,9 +140,9 @@ export default function BrandAnalytics() {
           <div>
             <SectionTitle>13-week AI estimate · {activeMetric?.label}</SectionTitle>
             <p style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: DI.faint, marginTop: -8, marginBottom: 14 }}>
-              Provisional — the engines' own 13-week lookback, shown until enough daily history accrues. Weekly interval, not daily.
+              {focal.name} vs. peer-group average — the engines&rsquo; own 13-week lookback, shown until enough daily history accrues. Weekly interval, not daily.
             </p>
-            <LookbackChart trends={trends} shown={shown} focalId={brandId} />
+            <LookbackChart trends={trends} shown={shown} focalId={brandId} focalName={focal.name} />
           </div>
         </div>
         <PeerList
@@ -234,38 +234,55 @@ interface DailyOutlier {
   measuredAt: string; explanation: string | null; explanationModel: string | null; engineName: string;
 }
 
-/** Daily measured chart — REAL date x-axis, continuously appended. Outliers are
- *  rendered as clickable ◆ reference points. Separate from the weekly lookback. */
+/** Daily measured chart — REAL date x-axis, continuously appended. Shows the
+ *  focal brand vs. the peer-group average, with outliers as clickable ◆
+ *  reference points. Separate from the weekly lookback. */
 function MeasuredDailyChart({
-  history, shown, focalId, outliers, openOutlierId, onPickOutlier,
+  history, shown, focalId, focalName, outliers, openOutlierId, onPickOutlier,
 }: {
   history: { brands: { brandId: number; brandName: string; points: { date: string; score: number }[] }[] } | undefined;
   shown: Set<number>;
   focalId: number;
+  focalName: string;
   outliers: DailyOutlier[];
   openOutlierId: number | null;
   onPickOutlier: (id: number | null) => void;
 }) {
   const [hoverDay, setHoverDay] = useState<number | null>(null);
-  const brands = (history?.brands ?? [])
-    .filter((b) => shown.has(b.brandId))
-    .map((b) => ({ ...b, points: [...b.points].sort((a, c) => +new Date(a.date) - +new Date(c.date)) }));
-
-  // Categorical x-axis: one evenly-spaced slot per DAY MEASURED (like the weeks
-  // on the 13-week chart), built from the union of every shown brand's dates.
   const toDay = (d: string) => new Date(d).toISOString().slice(0, 10);
+  const allBrands = (history?.brands ?? [])
+    .map((b) => ({ ...b, points: [...b.points].sort((a, c) => +new Date(a.date) - +new Date(c.date)) }));
+  const shownBrands = allBrands.filter((b) => shown.has(b.brandId));
+
+  // Categorical x-axis: one slot per DAY MEASURED across ALL industry brands
+  // (so the peer-average line spans every measured day) plus any outlier days.
   const dayKeys = [...new Set([
-    ...brands.flatMap((b) => b.points.map((p) => toDay(p.date))),
+    ...allBrands.flatMap((b) => b.points.map((p) => toDay(p.date))),
     ...outliers.map((o) => toDay(o.measuredAt)),
   ])].filter((k) => k && k !== 'Invalid Date').sort();
   const nDays = dayKeys.length;
   const dayIndex = new Map(dayKeys.map((k, i) => [k, i]));
 
+  // Peer-group average per day = mean of every OTHER industry brand that day.
+  const peerAvgByDay: (number | null)[] = new Array(nDays).fill(null);
+  {
+    const sums = new Array(nDays).fill(0);
+    const counts = new Array(nDays).fill(0);
+    for (const b of allBrands) {
+      if (b.brandId === focalId) continue;
+      for (const p of b.points) { const i = dayIndex.get(toDay(p.date)); if (i != null) { sums[i] += p.score; counts[i]++; } }
+    }
+    for (let i = 0; i < nDays; i++) if (counts[i] > 0) peerAvgByDay[i] = sums[i] / counts[i];
+  }
+
   const scores: number[] = [];
-  for (const b of brands) for (const p of b.points) scores.push(p.score);
+  for (const b of shownBrands) for (const p of b.points) scores.push(p.score);
+  for (const v of peerAvgByDay) if (v != null) scores.push(v);
   for (const o of outliers) scores.push(o.value);
 
-  if (nDays === 0 || !brands.some((b) => b.points.length)) {
+  const hasFocal = shownBrands.some((b) => b.points.length);
+  const hasPeers = peerAvgByDay.some((v) => v != null);
+  if (nDays === 0 || (!hasFocal && !hasPeers)) {
     return <ChartEmpty text="No daily measurements yet — the trusted baseline builds up as daily runs accrue." />;
   }
   const domain = niceDomain(scores);
@@ -273,12 +290,15 @@ function MeasuredDailyChart({
   const xOfDay = (i: number) => sx(i, nDays);
   const fmtDay = (k: string) => new Date(`${k}T00:00:00`).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 
-  const series = brands.map((b) => {
+  const series = shownBrands.map((b) => {
     const byDay: (number | null)[] = new Array(nDays).fill(null);
     for (const p of b.points) { const i = dayIndex.get(toDay(p.date)); if (i != null) byDay[i] = p.score; }
     const pts = byDay.map((v, i) => (v == null ? null : `${xOfDay(i).toFixed(1)},${sy(v, domain.lo, domain.hi).toFixed(1)}`)).filter(Boolean) as string[];
     return { brandId: b.brandId, name: b.brandName, color: brandColor(b.brandId), emphasis: b.brandId === focalId, poly: pts.join(' '), byDay };
   });
+  const peerPoly = peerAvgByDay
+    .map((v, i) => (v == null ? null : `${xOfDay(i).toFixed(1)},${sy(v, domain.lo, domain.hi).toFixed(1)}`))
+    .filter(Boolean).join(' ');
   const markers = outliers.map((o) => {
     const i = dayIndex.get(toDay(o.measuredAt)) ?? 0;
     return { o, x: xOfDay(i), y: sy(o.value, domain.lo, domain.hi) };
@@ -292,17 +312,23 @@ function MeasuredDailyChart({
     setHoverDay(Math.max(0, Math.min(nDays - 1, Math.round((vx - CHART.x0) / step))));
   };
   const hoverRows = hoverDay != null
-    ? series.filter((s) => s.byDay[hoverDay] != null).map((s) => ({ name: s.name, color: s.color, val: s.byDay[hoverDay]! })).sort((a, b) => b.val - a.val)
+    ? [
+        ...series.filter((s) => s.byDay[hoverDay] != null).map((s) => ({ name: s.name, color: s.color, val: s.byDay[hoverDay]! })),
+        ...(peerAvgByDay[hoverDay] != null ? [{ name: 'Peer average', color: DI.steel, val: peerAvgByDay[hoverDay]! }] : []),
+      ].sort((a, b) => b.val - a.val)
     : [];
   const hoverX = hoverDay != null ? xOfDay(hoverDay) : 0;
   const hoverLeftPct = (hoverX / 640) * 100;
 
   return (
     <div style={{ border: `1px solid ${DI.line}`, background: '#fff', padding: '20px 16px', position: 'relative' }}>
+      <ChartLegend focalName={focalName} focalColor={brandColor(focalId)} />
       <svg viewBox="0 0 640 300" style={{ width: '100%', height: 'auto', cursor: 'crosshair' }} onMouseMove={onMove} onMouseLeave={() => setHoverDay(null)}>
         {ticks.map((t) => <line key={t.y} x1="0" y1={t.y} x2="530" y2={t.y} stroke={DI.line} strokeWidth="1" />)}
         {ticks.map((t) => <text key={`l${t.y}`} x="0" y={t.y - 4} fill={DI.faint} fontFamily="JetBrains Mono, monospace" fontSize="9">{t.value}</text>)}
         {hoverDay != null && <line x1={hoverX} y1="16" x2={hoverX} y2="272" stroke={DI.ink} strokeWidth="1" strokeDasharray="3 3" opacity={0.4} />}
+        {/* Peer-group average — drawn under the brand line(s) */}
+        {peerPoly && <polyline points={peerPoly} fill="none" stroke={DI.steel} strokeWidth="1.5" strokeDasharray="5 4" opacity={0.75} />}
         {series.map((s) => s.poly ? <polyline key={s.brandId} points={s.poly} fill="none" stroke={s.color} strokeWidth={s.emphasis ? 2.5 : 1.5} opacity={0.95} /> : null)}
         {/* Every measured day is an inspectable point */}
         {series.map((s) => s.byDay.map((v, i) => v == null ? null : (
@@ -355,24 +381,40 @@ function MeasuredDailyChart({
   );
 }
 
-/** 13-week AI estimate — WEEK-index x-axis (provisional lookback). Separate chart. */
+/** 13-week AI estimate — WEEK-index x-axis (provisional lookback). Focal brand
+ *  vs. peer-group average. Separate chart. */
 function LookbackChart({
-  trends, shown, focalId,
+  trends, shown, focalId, focalName,
 }: {
   trends: { brands: { brandId: number; brandName: string; points: { weekIndex: number; weekLabel: string; score: number }[] }[] } | undefined;
   shown: Set<number>;
   focalId: number;
+  focalName: string;
 }) {
   const [hoverWk, setHoverWk] = useState<number | null>(null);
-  const brands = (trends?.brands ?? []).filter((b) => shown.has(b.brandId));
-  const weekLabels = trends?.brands?.[0]?.points.map((p) => p.weekLabel) ?? [];
+  const allBrands = trends?.brands ?? [];
+  const shownBrands = allBrands.filter((b) => shown.has(b.brandId));
+  const weekLabels = allBrands[0]?.points.map((p) => p.weekLabel) ?? [];
   const nWeeks = weekLabels.length || 13;
 
+  // Peer-group average per week = mean of every OTHER industry brand.
+  const peerAvgByWeek: (number | null)[] = new Array(nWeeks).fill(null);
+  {
+    const sums = new Array(nWeeks).fill(0);
+    const counts = new Array(nWeeks).fill(0);
+    for (const b of allBrands) {
+      if (b.brandId === focalId) continue;
+      for (const p of b.points) { if (p.weekIndex >= 0 && p.weekIndex < nWeeks) { sums[p.weekIndex] += p.score; counts[p.weekIndex]++; } }
+    }
+    for (let i = 0; i < nWeeks; i++) if (counts[i] > 0) peerAvgByWeek[i] = sums[i] / counts[i];
+  }
+
   const scores: number[] = [];
-  for (const b of brands) for (const p of b.points) scores.push(p.score);
+  for (const b of shownBrands) for (const p of b.points) scores.push(p.score);
+  for (const v of peerAvgByWeek) if (v != null) scores.push(v);
   const domain = niceDomain(scores);
   const ticks = axisTicks(domain.lo, domain.hi);
-  const series = brands.map((b) => {
+  const series = shownBrands.map((b) => {
     const byWeek: (number | null)[] = [];
     for (const p of b.points) byWeek[p.weekIndex] = p.score;
     return {
@@ -381,7 +423,12 @@ function LookbackChart({
       byWeek,
     };
   });
-  if (!series.some((s) => s.poly)) return <ChartEmpty text="No 13-week estimate yet." />;
+  const peerPoly = peerAvgByWeek
+    .map((v, i) => (v == null ? null : `${sx(i, nWeeks).toFixed(1)},${sy(v, domain.lo, domain.hi).toFixed(1)}`))
+    .filter(Boolean).join(' ');
+  const hasFocal = series.some((s) => s.poly);
+  const hasPeers = peerAvgByWeek.some((v) => v != null);
+  if (!hasFocal && !hasPeers) return <ChartEmpty text="No 13-week estimate yet." />;
 
   const onMove = (e: React.MouseEvent<SVGSVGElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();
@@ -390,19 +437,27 @@ function LookbackChart({
     setHoverWk(Math.max(0, Math.min(nWeeks - 1, Math.round((vx - CHART.x0) / step))));
   };
   const hoverRows = hoverWk != null
-    ? series.filter((s) => s.byWeek[hoverWk] != null).map((s) => ({ name: s.name, color: s.color, val: s.byWeek[hoverWk]! })).sort((a, b) => b.val - a.val)
+    ? [
+        ...series.filter((s) => s.byWeek[hoverWk] != null).map((s) => ({ name: s.name, color: s.color, val: s.byWeek[hoverWk]! })),
+        ...(peerAvgByWeek[hoverWk] != null ? [{ name: 'Peer average', color: DI.steel, val: peerAvgByWeek[hoverWk]! }] : []),
+      ].sort((a, b) => b.val - a.val)
     : [];
 
   return (
     <div style={{ border: `1px solid ${DI.line}`, background: '#fff', padding: '20px 16px', position: 'relative' }}>
+      <ChartLegend focalName={focalName} focalColor={brandColor(focalId)} />
       <svg viewBox="0 0 640 300" style={{ width: '100%', height: 'auto', cursor: 'crosshair' }} onMouseMove={onMove} onMouseLeave={() => setHoverWk(null)}>
         {ticks.map((t) => <line key={t.y} x1="0" y1={t.y} x2="530" y2={t.y} stroke={DI.line} strokeWidth="1" />)}
         {ticks.map((t) => <text key={`l${t.y}`} x="0" y={t.y - 4} fill={DI.faint} fontFamily="JetBrains Mono, monospace" fontSize="9">{t.value}</text>)}
         {hoverWk != null && <line x1={sx(hoverWk, nWeeks)} y1="16" x2={sx(hoverWk, nWeeks)} y2="272" stroke={DI.ink} strokeWidth="1" strokeDasharray="3 3" opacity={0.4} />}
-        {series.map((s) => <polyline key={s.brandId} points={s.poly} fill="none" stroke={s.color} strokeWidth={s.emphasis ? 2 : 1.25} strokeDasharray="4 3" opacity={0.8} />)}
+        {peerPoly && <polyline points={peerPoly} fill="none" stroke={DI.steel} strokeWidth="1.5" strokeDasharray="5 4" opacity={0.7} />}
+        {series.map((s) => <polyline key={s.brandId} points={s.poly} fill="none" stroke={s.color} strokeWidth={s.emphasis ? 2 : 1.25} strokeDasharray="4 3" opacity={0.85} />)}
         {hoverWk != null && series.map((s) => s.byWeek[hoverWk] != null ? (
           <circle key={s.brandId} cx={sx(hoverWk, nWeeks)} cy={sy(s.byWeek[hoverWk]!, domain.lo, domain.hi)} r="4" fill="#fff" stroke={s.color} strokeWidth="2" />
         ) : null)}
+        {hoverWk != null && peerAvgByWeek[hoverWk] != null && (
+          <circle cx={sx(hoverWk, nWeeks)} cy={sy(peerAvgByWeek[hoverWk]!, domain.lo, domain.hi)} r="4" fill="#fff" stroke={DI.steel} strokeWidth="2" />
+        )}
         <line x1="0" y1="272" x2="530" y2="272" stroke={DI.faint} strokeWidth="1" />
         <text x="16" y="293" fill={DI.body} fontFamily="JetBrains Mono, monospace" fontSize="10">{weekLabels[0] ?? ''}</text>
         <text x="530" y="293" fill={DI.body} fontFamily="JetBrains Mono, monospace" fontSize="10" textAnchor="end">{weekLabels[weekLabels.length - 1] ?? ''}</text>
@@ -438,7 +493,7 @@ function PeerList({
   return (
     <div style={{ border: `1px solid ${DI.line}`, background: '#fff' }}>
       <div style={{ padding: '12px 16px', borderBottom: `1px solid ${DI.line}`, fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: DI.faint }}>
-        Compare brands · toggle up to {MAX_LINES}
+        Overlay peers (optional) · up to {MAX_LINES}
       </div>
       {peers.map((p) => {
         const on = shown.has(p.brandId);
@@ -462,12 +517,20 @@ function PeerList({
   );
 }
 
-function LegendSwatch({ label, dashed }: { label: string; dashed: boolean }) {
+/** Legend for the two charts: this company (solid, brand color) vs. the
+ *  peer-group average (dashed steel). */
+function ChartLegend({ focalName, focalColor }: { focalName: string; focalColor: string }) {
   return (
-    <span className="flex items-center" style={{ gap: 6 }}>
-      <svg width="22" height="8"><line x1="0" y1="4" x2="22" y2="4" stroke={DI.steel} strokeWidth="2" strokeDasharray={dashed ? '4 3' : undefined} /></svg>
-      <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: DI.faint }}>{label}</span>
-    </span>
+    <div className="flex items-center" style={{ gap: 18, marginBottom: 12, flexWrap: 'wrap' }}>
+      <span className="flex items-center" style={{ gap: 6 }}>
+        <svg width="22" height="8"><line x1="0" y1="4" x2="22" y2="4" stroke={focalColor} strokeWidth="2.5" /></svg>
+        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: DI.body, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 180 }}>{focalName}</span>
+      </span>
+      <span className="flex items-center" style={{ gap: 6 }}>
+        <svg width="22" height="8"><line x1="0" y1="4" x2="22" y2="4" stroke={DI.steel} strokeWidth="2" strokeDasharray="5 4" /></svg>
+        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: DI.faint }}>Peer average</span>
+      </span>
+    </div>
   );
 }
 
